@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Text, View, StyleSheet, Pressable, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Location from 'expo-location';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -10,6 +11,68 @@ import { TrainingSession } from '../data/mockData';
 export function RuckScreen({ addSession }: { addSession: (session: TrainingSession) => void }) {
   const [weight, setWeight] = useState(18);
   const [distance, setDistance] = useState(8);
+  const [isTracking, setIsTracking] = useState(false);
+  const [currentDistance, setCurrentDistance] = useState(0);
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const lastPosition = useRef<Location.LocationObject | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required for GPS tracking.');
+      }
+    })();
+  }, []);
+
+  const startTracking = async () => {
+    if (isTracking) return;
+    setIsTracking(true);
+    setCurrentDistance(0);
+    setStartTime(new Date());
+    lastPosition.current = null;
+
+    locationSubscription.current = await Location.watchPositionAsync(
+      { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+      (location) => {
+        if (lastPosition.current) {
+          const distance = Location.distance(
+            lastPosition.current.coords,
+            location.coords
+          ) / 1000; // km
+          setCurrentDistance((prev) => prev + distance);
+        }
+        lastPosition.current = location;
+      }
+    );
+  };
+
+  const stopTracking = () => {
+    if (locationSubscription.current) {
+      locationSubscription.current.remove();
+      locationSubscription.current = null;
+    }
+    setIsTracking(false);
+  };
+
+  const saveTrackedRuck = () => {
+    if (!startTime) return;
+    const duration = (new Date().getTime() - startTime.getTime()) / (1000 * 60); // minutes
+    const session: TrainingSession = {
+      id: Date.now().toString(),
+      type: 'Ruck',
+      title: `${currentDistance.toFixed(1)}km GPS Ruck`,
+      score: Math.max(55, Math.round(95 - weight * 0.6 - currentDistance * 0.4)),
+      durationMinutes: Math.round(duration),
+      rpe: weight > 22 ? 8 : 6,
+      loadKg: weight,
+    };
+    addSession(session);
+    Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
+    setCurrentDistance(0);
+    setStartTime(null);
+  };
 
   const pace = useMemo(() => (7.4 + weight / 25).toFixed(1), [weight]);
   const score = useMemo(() => Math.max(55, Math.round(95 - weight * 0.6 - distance * 0.4)), [weight, distance]);
@@ -46,7 +109,29 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         <Ionicons name="map" size={62} color={colours.cyan} />
         <Text style={styles.mapText}>GPS map placeholder</Text>
         <Text style={styles.muted}>Mixed terrain - elevation +120m</Text>
+        {isTracking && (
+          <Text style={styles.trackingText}>Tracking: {currentDistance.toFixed(2)}km</Text>
+        )}
       </Card>
+
+      <View style={styles.trackingControls}>
+        {!isTracking ? (
+          <Pressable style={styles.trackButton} onPress={startTracking}>
+            <Ionicons name="play" size={20} color={colours.background} />
+            <Text style={styles.trackButtonText}>Start GPS Tracking</Text>
+          </Pressable>
+        ) : (
+          <View style={styles.trackingActive}>
+            <Pressable style={[styles.trackButton, styles.stopButton]} onPress={stopTracking}>
+              <Ionicons name="stop" size={20} color={colours.background} />
+              <Text style={styles.trackButtonText}>Stop Tracking</Text>
+            </Pressable>
+            <Pressable style={styles.saveButton} onPress={saveTrackedRuck}>
+              <Text style={styles.saveButtonText}>Save Session</Text>
+            </Pressable>
+          </View>
+        )}
+      </View>
 
       <View style={styles.grid}>
         <MetricCard icon="barbell" label="Pack" value={`${weight}kg`} sub="ruck load" />
@@ -103,6 +188,14 @@ const styles = StyleSheet.create({
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
   mapCard: { height: 180, alignItems: 'center', justifyContent: 'center', backgroundColor: '#0F1F35' },
   mapText: { color: colours.text, fontWeight: '900', marginTop: 8 },
+  trackingText: { color: colours.cyan, fontSize: 16, fontWeight: '700', marginTop: 8 },
+  trackingControls: { marginBottom: 16 },
+  trackButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colours.green, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
+  trackButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
+  stopButton: { backgroundColor: colours.red },
+  trackingActive: { flexDirection: 'row', gap: 12 },
+  saveButton: { backgroundColor: colours.cyan, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
+  saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   grid: { flexDirection: 'row', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10, gap: 12 },
