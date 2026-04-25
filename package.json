@@ -1,0 +1,92 @@
+import React from 'react';
+import { Text, View, StyleSheet, Pressable } from 'react-native';
+import { Screen } from '../components/Screen';
+import { Card } from '../components/Card';
+import { MetricCard } from '../components/MetricCard';
+import { ProgressBar } from '../components/ProgressBar';
+import { colours } from '../theme';
+import { squadMembers } from '../data/mockData';
+
+export function InstructorScreen() {
+  return (
+    <Screen>
+      <Text style={styles.muted}>Coach console</Text>
+      <Text style={styles.title}>Squad Dashboard</Text>
+
+      <View style={styles.grid}>
+        <MetricCard icon="people" label="Members" value="24" sub="active squad" />
+        <MetricCard icon="warning" label="At Risk" value="3" sub="needs review" tone={colours.red} />
+      </View>
+
+      <Card>
+        <View style={styles.headerRow}>
+          <Text style={styles.cardTitle}>Squad Readiness</Text>
+          <Pressable style={styles.assignButton}>
+            <Text style={styles.assignButtonText}>Assign</Text>
+          </Pressable>
+        </View>
+
+        {squadMembers.map((member) => (
+          <View key={member.id} style={styles.memberCard}>
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.memberName}>{member.name}</Text>
+                <Text style={styles.muted}>
+                  Compliance {member.compliance}% · Risk {member.risk}
+                </Text>
+              </View>
+              <Text style={[
+                styles.memberScore,
+                member.readiness < 50 ? { color: colours.red } : member.readiness < 70 ? { color: colours.amber } : { color: colours.cyan },
+              ]}>
+                {member.readiness}
+              </Text>
+            </View>
+            <ProgressBar value={member.readiness} />
+          </View>
+        ))}
+      </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>Programme Builder</Text>
+        <View style={styles.programmeGrid}>
+          {['Run', 'Ruck', 'Strength', 'Mobility'].map((item) => (
+            <View key={item} style={styles.programmeCard}>
+              <Text style={styles.programmeText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+      </Card>
+    </Screen>
+  );
+}
+
+const styles = StyleSheet.create({
+  muted: { color: colours.muted, fontSize: 13 },
+  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
+  grid: { flexDirection: 'row', gap: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
+  assignButton: { backgroundColor: colours.cyan, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 14 },
+  assignButtonText: { color: '#07111E', fontWeight: '900' },
+  memberCard: {
+    borderColor: colours.border,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 13,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    marginBottom: 10,
+  },
+  memberName: { color: colours.text, fontWeight: '900' },
+  memberScore: { fontSize: 22, fontWeight: '900' },
+  programmeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  programmeCard: {
+    width: '47%',
+    borderColor: colours.border,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 18,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  programmeText: { color: colours.text, fontWeight: '900' },
+});

@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "FORGE Tactical Fitness",
+    "slug": "forge-tactical-fitness",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.forge.tacticalfitness"
+    },
+    "android": {
+      "package": "com.forge.tacticalfitness",
+      "adaptiveIcon": {
+        "backgroundColor": "#070B12"
+      }
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
