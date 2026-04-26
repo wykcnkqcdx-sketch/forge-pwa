@@ -8,15 +8,19 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
+    "export:web": "expo export --platform web",
+    "serve:web": "python3 -m http.server 8080 --bind 127.0.0.1 --directory dist",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@expo/metro-runtime": "~3.2.3",
     "@expo/vector-icons": "^14.0.4",
     "@react-native-async-storage/async-storage": "^1.23.1",
     "expo": "~51.0.39",
     "expo-haptics": "~13.0.1",
     "expo-location": "~17.0.1",
     "react": "18.2.0",
+    "react-dom": "18.2.0",
     "react-native": "0.74.5",
     "react-native-web": "~0.19.13"
   },
