@@ -142,7 +142,7 @@ export default function App() {
     setSavedPin(null);
     setIsUnlocked(true);
     setPinInput('');
-    AsyncStorage.clear();
+    AsyncStorage.multiRemove(['forge:sessions', 'forge:pin']);
     Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 

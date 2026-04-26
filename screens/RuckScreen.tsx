@@ -24,35 +24,12 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         Alert.alert('Permission denied', 'Location permission is required for GPS tracking.');
       }
     })();
+
+    return () => {
+      locationSubscription.current?.remove();
+      locationSubscription.current = null;
+    };
   }, []);
-
-  const startTracking = async () => {
-    if (isTracking) return;
-    setIsTracking(true);
-    setCurrentDistance(0);
-    setStartTime(new Date());
-    lastPosition.current = null;
-
-    locationSubscription.current = await Location.watchPositionAsync(
-      { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
-      (location) => {
-        if (lastPosition.current) {
-          const lat1 = lastPosition.current.coords.latitude;
-          const lon1 = lastPosition.current.coords.longitude;
-          const lat2 = location.coords.latitude;
-          const lon2 = location.coords.longitude;
-          const p = 0.017453292519943295;    // Math.PI / 180
-          const c = Math.cos;
-          const a = 0.5 - c((lat2 - lat1) * p) / 2 + 
-                    c(lat1 * p) * c(lat2 * p) * 
-                    (1 - c((lon2 - lon1) * p)) / 2;
-          const distance = 12742 * Math.asin(Math.sqrt(a)); // 2 * R; R = 6371 km
-          setCurrentDistance((prev) => prev + distance);
-        }
-        lastPosition.current = location;
-      }
-    );
-  };
 
   const stopTracking = () => {
     if (locationSubscription.current) {
@@ -62,9 +39,53 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setIsTracking(false);
   };
 
+  const startTracking = async () => {
+    if (isTracking) return;
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required for GPS tracking.');
+        return;
+      }
+
+      const subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
+        (location) => {
+          if (lastPosition.current) {
+            const lat1 = lastPosition.current.coords.latitude;
+            const lon1 = lastPosition.current.coords.longitude;
+            const lat2 = location.coords.latitude;
+            const lon2 = location.coords.longitude;
+            const p = 0.017453292519943295; // Math.PI / 180
+            const c = Math.cos;
+            const a = 0.5 - c((lat2 - lat1) * p) / 2
+              + c(lat1 * p) * c(lat2 * p)
+              * (1 - c((lon2 - lon1) * p)) / 2;
+            const distance = 12742 * Math.asin(Math.sqrt(a)); // 2 * R; R = 6371 km
+            setCurrentDistance((prev) => prev + distance);
+          }
+          lastPosition.current = location;
+        }
+      );
+
+      locationSubscription.current = subscription;
+      setIsTracking(true);
+      setCurrentDistance(0);
+      setStartTime(new Date());
+      lastPosition.current = null;
+    } catch (error) {
+      console.error('Failed to start GPS tracking', error);
+      stopTracking();
+      Alert.alert('GPS unavailable', 'Unable to start GPS tracking on this device.');
+    }
+  };
+
   const saveTrackedRuck = () => {
     if (!startTime) return;
-    const duration = (new Date().getTime() - startTime.getTime()) / (1000 * 60); // minutes
+    stopTracking();
+
+    const duration = Math.max(1, (new Date().getTime() - startTime.getTime()) / (1000 * 60)); // minutes
     const session: TrainingSession = {
       id: Date.now().toString(),
       type: 'Ruck',
@@ -78,6 +99,14 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
     setCurrentDistance(0);
     setStartTime(null);
+    lastPosition.current = null;
+  };
+
+  const discardTrackedRuck = () => {
+    stopTracking();
+    setCurrentDistance(0);
+    setStartTime(null);
+    lastPosition.current = null;
   };
 
   const pace = useMemo(() => (7.4 + weight / 25).toFixed(1), [weight]);
@@ -121,21 +150,28 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       </Card>
 
       <View style={styles.trackingControls}>
-        {!isTracking ? (
-          <Pressable style={styles.trackButton} onPress={startTracking}>
-            <Ionicons name="play" size={20} color={colours.background} />
-            <Text style={styles.trackButtonText}>Start GPS Tracking</Text>
-          </Pressable>
-        ) : (
+        {isTracking ? (
           <View style={styles.trackingActive}>
             <Pressable style={[styles.trackButton, styles.stopButton]} onPress={stopTracking}>
               <Ionicons name="stop" size={20} color={colours.background} />
               <Text style={styles.trackButtonText}>Stop Tracking</Text>
             </Pressable>
+          </View>
+        ) : startTime ? (
+          <View style={styles.trackingActive}>
             <Pressable style={styles.saveButton} onPress={saveTrackedRuck}>
-              <Text style={styles.saveButtonText}>Save Session</Text>
+              <Text style={styles.saveButtonText}>Save GPS Session</Text>
+            </Pressable>
+            <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
+              <Ionicons name="close" size={20} color={colours.text} />
+              <Text style={[styles.trackButtonText, { color: colours.text }]}>Discard</Text>
             </Pressable>
           </View>
+        ) : (
+          <Pressable style={styles.trackButton} onPress={startTracking}>
+            <Ionicons name="play" size={20} color={colours.background} />
+            <Text style={styles.trackButtonText}>Start GPS Tracking</Text>
+          </Pressable>
         )}
       </View>
 
@@ -202,6 +238,7 @@ const styles = StyleSheet.create({
   trackingActive: { flexDirection: 'row', gap: 12 },
   saveButton: { backgroundColor: colours.cyan, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
   saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
+  discardButton: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colours.border, borderWidth: 1 },
   grid: { flexDirection: 'row', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10, gap: 12 },

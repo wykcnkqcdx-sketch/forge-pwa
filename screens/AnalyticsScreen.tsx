@@ -8,8 +8,11 @@ import { colours } from '../theme';
 import { TrainingSession } from '../data/mockData';
 
 export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
-  const averageScore = Math.round(sessions.reduce((total, session) => total + session.score, 0) / sessions.length);
-  const compliance = Math.min(100, 68 + sessions.length * 4);
+  const hasSessions = sessions.length > 0;
+  const averageScore = hasSessions
+    ? Math.round(sessions.reduce((total, session) => total + session.score, 0) / sessions.length)
+    : 0;
+  const compliance = hasSessions ? Math.min(100, 68 + sessions.length * 4) : 0;
 
   return (
     <Screen>
@@ -37,16 +40,23 @@ export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
 
       <Card>
         <Text style={styles.cardTitle}>Risk Monitor</Text>
-        <View style={styles.warning}>
-          <Text style={styles.warningTitle}>Medium load increase detected</Text>
-          <Text style={styles.muted}>Reduce intensity if sleep or HRV drops.</Text>
-        </View>
+        {hasSessions ? (
+          <View style={styles.warning}>
+            <Text style={styles.warningTitle}>Medium load increase detected</Text>
+            <Text style={styles.muted}>Reduce intensity if sleep or HRV drops.</Text>
+          </View>
+        ) : (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyTitle}>No sessions logged</Text>
+            <Text style={styles.muted}>Complete a workout or ruck to build your analytics baseline.</Text>
+          </View>
+        )}
 
         <Text style={styles.metricLabel}>Ruck progression</Text>
-        <ProgressBar value={74} />
+        <ProgressBar value={hasSessions ? 74 : 0} />
 
         <Text style={styles.metricLabel}>Strength progression</Text>
-        <ProgressBar value={68} />
+        <ProgressBar value={hasSessions ? 68 : 0} />
       </Card>
     </Screen>
   );
@@ -70,5 +80,14 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   warningTitle: { color: colours.amber, fontWeight: '900' },
+  emptyState: {
+    borderColor: colours.border,
+    borderWidth: 1,
+    borderRadius: 18,
+    padding: 13,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    marginBottom: 18,
+  },
+  emptyTitle: { color: colours.text, fontWeight: '900' },
   metricLabel: { color: colours.text, marginTop: 15, marginBottom: 8, fontWeight: '800' },
 });
