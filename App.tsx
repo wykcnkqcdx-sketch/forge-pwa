@@ -12,6 +12,13 @@ import { initialSessions, TrainingSession } from './data/mockData';
 import { colours, shadow } from './theme';
 
 type Tab = 'home' | 'train' | 'ruck' | 'analytics' | 'instructor';
+type PinSetupMode = 'set' | 'change' | null;
+
+type ForgeBackup = {
+  version: 1;
+  exportedAt: string;
+  sessions: TrainingSession[];
+};
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
   { id: 'home',       label: 'Home',    icon: 'home-outline',      iconActive: 'home' },
@@ -28,6 +35,10 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
   const [pinError, setPinError] = useState(false);
+  const [pinSetupMode, setPinSetupMode] = useState<PinSetupMode>(null);
+  const [newPinInput, setNewPinInput] = useState('');
+  const [confirmPinInput, setConfirmPinInput] = useState('');
+  const [pinSetupError, setPinSetupError] = useState('');
   const [isReady, setIsReady] = useState(false);
   const [typedText, setTypedText] = useState('');
   const prevTabIndex = useRef(0);
@@ -174,17 +185,51 @@ export default function App() {
     Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
+  function openPinSetup() {
+    setNewPinInput('');
+    setConfirmPinInput('');
+    setPinSetupError('');
+    setPinSetupMode(savedPin ? 'change' : 'set');
+  }
+
+  function closePinSetup() {
+    setPinSetupMode(null);
+    setNewPinInput('');
+    setConfirmPinInput('');
+    setPinSetupError('');
+  }
+
+  function savePinSetup() {
+    if (!/^\d{4,8}$/.test(newPinInput)) {
+      setPinSetupError('PIN must be 4 to 8 digits.');
+      return;
+    }
+
+    if (newPinInput === '0000') {
+      setPinSetupError('0000 is reserved for duress wipe.');
+      return;
+    }
+
+    if (newPinInput !== confirmPinInput) {
+      setPinSetupError('PIN entries do not match.');
+      return;
+    }
+
+    setSavedPin(newPinInput);
+    setIsUnlocked(false);
+    closePinSetup();
+    Alert.alert('PIN saved', 'Your app lock PIN has been updated.');
+  }
+
   function handleSetPin() {
     if (savedPin) {
-      Alert.alert('Remove PIN', 'A PIN is already set. Do you want to remove it?', [
+      Alert.alert('PIN options', 'Change or remove the current app lock PIN.', [
         { text: 'Cancel', style: 'cancel' },
+        { text: 'Change', onPress: openPinSetup },
         { text: 'Remove', style: 'destructive', onPress: () => { setSavedPin(null); setIsUnlocked(true); } },
       ]);
     } else {
-      Alert.alert('Set PIN', 'For this demo, the PIN will be set to "1234".\n\nDURESS FEATURE: Enter "0000" on the lock screen to wipe all data.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Set to 1234', onPress: () => { setSavedPin('1234'); setIsUnlocked(false); } },
-      ]);
+      openPinSetup();
     }
   }
 
@@ -204,6 +249,85 @@ export default function App() {
 
   function addSession(session: TrainingSession) {
     setSessions((current) => [session, ...current]);
+  }
+
+  function validateImportedSessions(value: unknown): TrainingSession[] | null {
+    if (!Array.isArray(value)) return null;
+
+    const validTypes: TrainingSession['type'][] = ['Ruck', 'Strength', 'Run', 'Mobility'];
+    const imported = value.filter((session): session is TrainingSession => {
+      if (!session || typeof session !== 'object') return false;
+      const candidate = session as Partial<TrainingSession>;
+      return (
+        typeof candidate.id === 'string'
+        && typeof candidate.title === 'string'
+        && typeof candidate.score === 'number'
+        && typeof candidate.durationMinutes === 'number'
+        && typeof candidate.rpe === 'number'
+        && typeof candidate.type === 'string'
+        && validTypes.includes(candidate.type as TrainingSession['type'])
+      );
+    });
+
+    return imported.length === value.length ? imported : null;
+  }
+
+  function exportData() {
+    if (typeof document === 'undefined') {
+      Alert.alert('Export unavailable', 'Data export is available in the web app.');
+      return;
+    }
+
+    const backup: ForgeBackup = {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      sessions,
+    };
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `forge-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  function importData() {
+    if (typeof document === 'undefined') {
+      Alert.alert('Import unavailable', 'Data import is available in the web app.');
+      return;
+    }
+
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json,.json';
+    input.onchange = () => {
+      const file = input.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(String(reader.result));
+          const imported = validateImportedSessions(Array.isArray(parsed) ? parsed : parsed.sessions);
+
+          if (!imported) {
+            Alert.alert('Import failed', 'That file does not look like a valid FORGE backup.');
+            return;
+          }
+
+          setSessions(imported);
+          Alert.alert('Import complete', `${imported.length} sessions restored.`);
+        } catch (error) {
+          console.error('Failed to import backup', error);
+          Alert.alert('Import failed', 'The selected backup file could not be read.');
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
   }
 
   const panResponder = useMemo(
@@ -242,7 +366,15 @@ export default function App() {
       case 'analytics':
         return <AnalyticsScreen sessions={sessions} />;
       case 'instructor':
-        return <InstructorScreen onSetPin={handleSetPin} onWipe={handleManualWipe} />;
+        return (
+          <InstructorScreen
+            pinEnabled={Boolean(savedPin)}
+            onSetPin={handleSetPin}
+            onWipe={handleManualWipe}
+            onExport={exportData}
+            onImport={importData}
+          />
+        );
       default:
         return (
           <HomeScreen
@@ -322,6 +454,57 @@ export default function App() {
       <Animated.View style={[styles.screenContainer, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
         {renderScreen()}
       </Animated.View>
+
+      {pinSetupMode && (
+        <View style={styles.pinSetupOverlay}>
+          <View style={[styles.pinSetupPanel, shadow.card]}>
+            <View style={styles.pinSetupHeader}>
+              <View>
+                <Text style={styles.pinSetupKicker}>APP LOCK</Text>
+                <Text style={styles.pinSetupTitle}>{pinSetupMode === 'set' ? 'Set PIN' : 'Change PIN'}</Text>
+              </View>
+              <Pressable style={styles.pinSetupClose} onPress={closePinSetup} accessibilityRole="button" accessibilityLabel="Close PIN setup">
+                <Ionicons name="close" size={20} color={colours.text} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.pinSetupCopy}>Use 4 to 8 digits. Entering 0000 at lock screen still performs duress wipe.</Text>
+
+            <TextInput
+              style={styles.pinSetupInput}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              placeholder="New PIN"
+              placeholderTextColor={colours.soft}
+              value={newPinInput}
+              onChangeText={(value) => {
+                setNewPinInput(value.replace(/[^0-9]/g, ''));
+                setPinSetupError('');
+              }}
+            />
+            <TextInput
+              style={styles.pinSetupInput}
+              keyboardType="number-pad"
+              secureTextEntry
+              maxLength={8}
+              placeholder="Confirm PIN"
+              placeholderTextColor={colours.soft}
+              value={confirmPinInput}
+              onChangeText={(value) => {
+                setConfirmPinInput(value.replace(/[^0-9]/g, ''));
+                setPinSetupError('');
+              }}
+            />
+
+            <Text style={styles.pinSetupError}>{pinSetupError || ' '}</Text>
+
+            <Pressable style={styles.pinSetupButton} onPress={savePinSetup}>
+              <Text style={styles.pinSetupButtonText}>Save PIN</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
 
       {/* ── Tab Bar ─────────────────────────────────── */}
       <View style={[styles.tabBar, shadow.card]}>
@@ -461,4 +644,81 @@ const styles = StyleSheet.create({
   pinDot: { color: colours.cyan, fontSize: 32 },
   hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 },
   pinErrorText: { color: colours.red, fontSize: 12, fontWeight: '700', minHeight: 16 },
+  pinSetupOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 20,
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+  },
+  pinSetupPanel: {
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: colours.surface,
+  },
+  pinSetupHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  pinSetupKicker: {
+    color: colours.cyan,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.8,
+  },
+  pinSetupTitle: {
+    color: colours.text,
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  pinSetupClose: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  pinSetupCopy: {
+    color: colours.muted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 10,
+    marginBottom: 14,
+  },
+  pinSetupInput: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 14,
+    color: colours.text,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 10,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  pinSetupError: {
+    minHeight: 18,
+    color: colours.red,
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 8,
+  },
+  pinSetupButton: {
+    alignItems: 'center',
+    backgroundColor: colours.cyan,
+    borderRadius: 16,
+    paddingVertical: 13,
+  },
+  pinSetupButtonText: {
+    color: colours.background,
+    fontSize: 15,
+    fontWeight: '900',
+  },
 });

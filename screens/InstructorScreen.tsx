@@ -8,11 +8,14 @@ import { colours } from '../theme';
 import { squadMembers } from '../data/mockData';
 
 interface InstructorScreenProps {
+  pinEnabled: boolean;
   onSetPin: () => void;
   onWipe: () => void;
+  onExport: () => void;
+  onImport: () => void;
 }
 
-export function InstructorScreen({ onSetPin, onWipe }: InstructorScreenProps) {
+export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImport }: InstructorScreenProps) {
   return (
     <Screen>
       <View style={styles.headerRow}>
@@ -20,15 +23,29 @@ export function InstructorScreen({ onSetPin, onWipe }: InstructorScreenProps) {
           <Text style={styles.muted}>Coach console</Text>
           <Text style={styles.title}>Squad Dashboard</Text>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Pressable onPress={onSetPin} style={[styles.assignButton, { backgroundColor: colours.amber }]}>
-            <Text style={styles.assignButtonText}>PIN</Text>
+      </View>
+
+      <Card>
+        <Text style={styles.cardTitle}>Security & Backup</Text>
+        <View style={styles.actionGrid}>
+          <Pressable onPress={onSetPin} style={[styles.actionButton, { borderColor: `${colours.amber}40`, backgroundColor: colours.amberDim }]}>
+            <Text style={[styles.actionLabel, { color: colours.amber }]}>{pinEnabled ? 'Change PIN' : 'Set PIN'}</Text>
+            <Text style={styles.actionMeta}>{pinEnabled ? 'App lock active' : 'Protect local data'}</Text>
           </Pressable>
-          <Pressable onPress={onWipe} style={[styles.assignButton, { backgroundColor: colours.red }]}>
-            <Text style={styles.assignButtonText}>WIPE</Text>
+          <Pressable onPress={onExport} style={[styles.actionButton, { borderColor: `${colours.cyan}40`, backgroundColor: colours.cyanDim }]}>
+            <Text style={[styles.actionLabel, { color: colours.cyan }]}>Export</Text>
+            <Text style={styles.actionMeta}>Download backup</Text>
+          </Pressable>
+          <Pressable onPress={onImport} style={[styles.actionButton, { borderColor: `${colours.green}40`, backgroundColor: colours.greenDim }]}>
+            <Text style={[styles.actionLabel, { color: colours.green }]}>Import</Text>
+            <Text style={styles.actionMeta}>Restore backup</Text>
+          </Pressable>
+          <Pressable onPress={onWipe} style={[styles.actionButton, { borderColor: `${colours.red}40`, backgroundColor: colours.redDim }]}>
+            <Text style={[styles.actionLabel, { color: colours.red }]}>Wipe</Text>
+            <Text style={styles.actionMeta}>Destroy local data</Text>
           </Pressable>
         </View>
-      </View>
+      </Card>
 
       <View style={styles.grid}>
         <MetricCard icon="people" label="Members" value="24" sub="active squad" />
@@ -92,6 +109,17 @@ const styles = StyleSheet.create({
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   assignButton: { backgroundColor: colours.cyan, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 14 },
   assignButtonText: { color: '#07111E', fontWeight: '900' },
+  actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  actionButton: {
+    width: '47%',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    minHeight: 74,
+    justifyContent: 'center',
+  },
+  actionLabel: { fontSize: 14, fontWeight: '900' },
+  actionMeta: { color: colours.muted, fontSize: 11, marginTop: 4 },
   memberCard: {
     borderColor: colours.border,
     borderWidth: 1,
