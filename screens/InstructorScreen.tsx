@@ -7,11 +7,28 @@ import { ProgressBar } from '../components/ProgressBar';
 import { colours } from '../theme';
 import { squadMembers } from '../data/mockData';
 
-export function InstructorScreen() {
+interface InstructorScreenProps {
+  onSetPin: () => void;
+  onWipe: () => void;
+}
+
+export function InstructorScreen({ onSetPin, onWipe }: InstructorScreenProps) {
   return (
     <Screen>
-      <Text style={styles.muted}>Coach console</Text>
-      <Text style={styles.title}>Squad Dashboard</Text>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={styles.muted}>Coach console</Text>
+          <Text style={styles.title}>Squad Dashboard</Text>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable onPress={onSetPin} style={[styles.assignButton, { backgroundColor: colours.amber }]}>
+            <Text style={styles.assignButtonText}>PIN</Text>
+          </Pressable>
+          <Pressable onPress={onWipe} style={[styles.assignButton, { backgroundColor: colours.red }]}>
+            <Text style={styles.assignButtonText}>WIPE</Text>
+          </Pressable>
+        </View>
+      </View>
 
       <View style={styles.grid}>
         <MetricCard icon="people" label="Members" value="24" sub="active squad" />

@@ -37,10 +37,16 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       { accuracy: Location.Accuracy.High, timeInterval: 5000, distanceInterval: 10 },
       (location) => {
         if (lastPosition.current) {
-          const distance = Location.distance(
-            lastPosition.current.coords,
-            location.coords
-          ) / 1000; // km
+          const lat1 = lastPosition.current.coords.latitude;
+          const lon1 = lastPosition.current.coords.longitude;
+          const lat2 = location.coords.latitude;
+          const lon2 = location.coords.longitude;
+          const p = 0.017453292519943295;    // Math.PI / 180
+          const c = Math.cos;
+          const a = 0.5 - c((lat2 - lat1) * p) / 2 + 
+                    c(lat1 * p) * c(lat2 * p) * 
+                    (1 - c((lon2 - lon1) * p)) / 2;
+          const distance = 12742 * Math.asin(Math.sqrt(a)); // 2 * R; R = 6371 km
           setCurrentDistance((prev) => prev + distance);
         }
         lastPosition.current = location;
