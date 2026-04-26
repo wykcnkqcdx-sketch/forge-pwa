@@ -79,6 +79,34 @@ export default function App() {
   }, [pulseAnim]);
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const manifestHref = new URL('manifest.webmanifest', window.location.href).toString();
+    const existingManifest = document.querySelector('link[rel="manifest"]');
+    const manifestLink = existingManifest ?? document.createElement('link');
+    manifestLink.setAttribute('rel', 'manifest');
+    manifestLink.setAttribute('href', manifestHref);
+    if (!existingManifest) document.head.appendChild(manifestLink);
+
+    const themeMeta = document.querySelector('meta[name="theme-color"]') ?? document.createElement('meta');
+    themeMeta.setAttribute('name', 'theme-color');
+    themeMeta.setAttribute('content', colours.background);
+    if (!themeMeta.parentElement) document.head.appendChild(themeMeta);
+
+    const appleMeta = document.querySelector('meta[name="apple-mobile-web-app-capable"]') ?? document.createElement('meta');
+    appleMeta.setAttribute('name', 'apple-mobile-web-app-capable');
+    appleMeta.setAttribute('content', 'yes');
+    if (!appleMeta.parentElement) document.head.appendChild(appleMeta);
+
+    if ('serviceWorker' in navigator) {
+      const serviceWorkerUrl = new URL('sw.js', window.location.href).toString();
+      navigator.serviceWorker.register(serviceWorkerUrl).catch((error) => {
+        console.warn('Service worker registration failed', error);
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     resetInactivityTimer();
     return () => { if (inactivityTimer.current) clearTimeout(inactivityTimer.current); };
   }, [resetInactivityTimer]);
