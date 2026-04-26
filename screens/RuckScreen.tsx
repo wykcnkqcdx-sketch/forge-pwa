@@ -12,6 +12,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [weight, setWeight] = useState(18);
   const [distance, setDistance] = useState(8);
   const [isTracking, setIsTracking] = useState(false);
+  const [isStarting, setIsStarting] = useState(false);
   const [currentDistance, setCurrentDistance] = useState(0);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -40,7 +41,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   };
 
   const startTracking = async () => {
-    if (isTracking) return;
+    if (isTracking || isStarting) return;
+    setIsStarting(true);
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -78,6 +80,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       console.error('Failed to start GPS tracking', error);
       stopTracking();
       Alert.alert('GPS unavailable', 'Unable to start GPS tracking on this device.');
+    } finally {
+      setIsStarting(false);
     }
   };
 
@@ -168,9 +172,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             </Pressable>
           </View>
         ) : (
-          <Pressable style={styles.trackButton} onPress={startTracking}>
-            <Ionicons name="play" size={20} color={colours.background} />
-            <Text style={styles.trackButtonText}>Start GPS Tracking</Text>
+          <Pressable
+            style={[styles.trackButton, isStarting && styles.trackButtonDisabled]}
+            onPress={startTracking}
+            disabled={isStarting}
+          >
+            <Ionicons name={isStarting ? 'sync' : 'play'} size={20} color={colours.background} />
+            <Text style={styles.trackButtonText}>{isStarting ? 'Starting GPS...' : 'Start GPS Tracking'}</Text>
           </Pressable>
         )}
       </View>
@@ -233,6 +241,7 @@ const styles = StyleSheet.create({
   trackingText: { color: colours.cyan, fontSize: 16, fontWeight: '700', marginTop: 8 },
   trackingControls: { marginBottom: 16 },
   trackButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colours.green, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
+  trackButtonDisabled: { opacity: 0.62 },
   trackButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   stopButton: { backgroundColor: colours.red },
   trackingActive: { flexDirection: 'row', gap: 12 },

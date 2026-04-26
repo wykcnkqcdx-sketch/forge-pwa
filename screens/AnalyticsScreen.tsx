@@ -9,10 +9,28 @@ import { TrainingSession } from '../data/mockData';
 
 export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
   const hasSessions = sessions.length > 0;
+  const recentSessions = sessions.slice(0, 7);
   const averageScore = hasSessions
     ? Math.round(sessions.reduce((total, session) => total + session.score, 0) / sessions.length)
     : 0;
   const compliance = hasSessions ? Math.min(100, 68 + sessions.length * 4) : 0;
+  const maxLoad = Math.max(...recentSessions.map((session) => session.durationMinutes * session.rpe), 1);
+  const loadBars = Array.from({ length: 7 }, (_, index) => {
+    const session = recentSessions[6 - index];
+    if (!session) return 0;
+    return Math.max(8, Math.round((session.durationMinutes * session.rpe / maxLoad) * 100));
+  });
+  const ruckSessions = sessions.filter((session) => session.type === 'Ruck');
+  const strengthSessions = sessions.filter((session) => session.type === 'Strength');
+  const ruckProgress = Math.min(100, ruckSessions.length * 18 + Math.max(0, ruckSessions[0]?.score ?? 0) * 0.4);
+  const strengthProgress = Math.min(100, strengthSessions.length * 20 + Math.max(0, strengthSessions[0]?.score ?? 0) * 0.35);
+  const latestRpe = sessions[0]?.rpe ?? 0;
+  const riskLevel = latestRpe >= 8 ? 'High load detected' : latestRpe >= 6 ? 'Moderate load detected' : 'Load stable';
+  const riskCopy = latestRpe >= 8
+    ? 'Prioritise recovery before the next hard effort.'
+    : latestRpe >= 6
+      ? 'Keep intensity controlled if sleep or HRV drops.'
+      : 'Current training stress is well controlled.';
 
   return (
     <Screen>
@@ -27,8 +45,8 @@ export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
       <Card>
         <Text style={styles.cardTitle}>Weekly Load</Text>
         <View style={styles.chart}>
-          {[42, 58, 36, 76, 64, 90, 72].map((value, index) => (
-            <View key={index} style={[styles.bar, { height: `${value}%` }]} />
+          {loadBars.map((value, index) => (
+            <View key={index} style={[styles.bar, !value && styles.barEmpty, { height: `${value}%` }]} />
           ))}
         </View>
         <View style={styles.days}>
@@ -42,8 +60,8 @@ export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
         <Text style={styles.cardTitle}>Risk Monitor</Text>
         {hasSessions ? (
           <View style={styles.warning}>
-            <Text style={styles.warningTitle}>Medium load increase detected</Text>
-            <Text style={styles.muted}>Reduce intensity if sleep or HRV drops.</Text>
+            <Text style={styles.warningTitle}>{riskLevel}</Text>
+            <Text style={styles.muted}>{riskCopy}</Text>
           </View>
         ) : (
           <View style={styles.emptyState}>
@@ -53,10 +71,10 @@ export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
         )}
 
         <Text style={styles.metricLabel}>Ruck progression</Text>
-        <ProgressBar value={hasSessions ? 74 : 0} />
+        <ProgressBar value={ruckProgress} />
 
         <Text style={styles.metricLabel}>Strength progression</Text>
-        <ProgressBar value={hasSessions ? 68 : 0} />
+        <ProgressBar value={strengthProgress} />
       </Card>
     </Screen>
   );
@@ -69,6 +87,7 @@ const styles = StyleSheet.create({
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 16 },
   chart: { height: 140, flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
   bar: { flex: 1, backgroundColor: colours.cyan, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
+  barEmpty: { backgroundColor: 'rgba(255,255,255,0.08)' },
   days: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 },
   day: { color: colours.muted, fontSize: 11 },
   warning: {

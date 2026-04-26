@@ -19,6 +19,8 @@ export function TrainScreen({ addSession }: { addSession: (session: TrainingSess
   const [saved, setSaved] = useState(false);
 
   function completeWorkout() {
+    if (saved) return;
+
     const session: TrainingSession = {
       id: Date.now().toString(),
       type: 'Strength',
@@ -69,7 +71,11 @@ export function TrainScreen({ addSession }: { addSession: (session: TrainingSess
         </Text>
       </Card>
 
-      <Pressable style={styles.primaryButton} onPress={completeWorkout}>
+      <Pressable
+        style={[styles.primaryButton, saved && styles.primaryButtonDisabled]}
+        onPress={completeWorkout}
+        disabled={saved}
+      >
         <Text style={styles.primaryButtonText}>{saved ? 'Session Saved' : 'Complete Workout'}</Text>
       </Pressable>
     </Screen>
@@ -112,5 +118,6 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
+  primaryButtonDisabled: { opacity: 0.62 },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
 });

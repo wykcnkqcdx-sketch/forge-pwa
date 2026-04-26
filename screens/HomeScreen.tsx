@@ -17,7 +17,16 @@ export function HomeScreen({
   goToRuck: () => void;
   goToAnalytics: () => void;
 }) {
-  const readiness = 82;
+  const recentSessions = sessions.slice(0, 3);
+  const weeklyLoad = sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe, 0);
+  const averageRecentRpe = recentSessions.length
+    ? recentSessions.reduce((total, session) => total + session.rpe, 0) / recentSessions.length
+    : 0;
+  const recoveryLabel = averageRecentRpe >= 7.5 ? 'Caution' : averageRecentRpe >= 6 ? 'Steady' : 'Good';
+  const recoverySub = recentSessions.length ? `Avg RPE ${averageRecentRpe.toFixed(1)}` : 'No recent load';
+  const readiness = recentSessions.length
+    ? Math.max(45, Math.min(96, Math.round(92 - averageRecentRpe * 3 + Math.min(8, recentSessions.length * 2))))
+    : 72;
   const statusColour = readiness >= 80 ? colours.green : readiness >= 60 ? colours.amber : colours.red;
   const statusLabel  = readiness >= 80 ? 'GREEN — Train as planned' : readiness >= 60 ? 'AMBER — Monitor load' : 'RED — Rest advised';
 
@@ -76,8 +85,8 @@ export function HomeScreen({
 
       {/* Metrics grid */}
       <View style={styles.grid}>
-        <MetricCard icon="pulse"  label="Weekly Load" value="486" sub="+8% vs last week" tone={colours.cyan} />
-        <MetricCard icon="flame"  label="Recovery"    value="Good" sub="Sleep stable"    tone={colours.green} />
+        <MetricCard icon="pulse"  label="Weekly Load" value={`${weeklyLoad}`} sub="duration x RPE" tone={colours.cyan} />
+        <MetricCard icon="flame"  label="Recovery"    value={recoveryLabel} sub={recoverySub} tone={averageRecentRpe >= 7.5 ? colours.amber : colours.green} />
       </View>
 
       {/* Recent sessions */}
@@ -89,23 +98,31 @@ export function HomeScreen({
         </Pressable>
       </View>
 
-      {sessions.slice(0, 3).map((session) => (
-        <View key={session.id} style={[styles.sessionRow, shadow.subtle]}>
-          <View style={[styles.sessionIconWrap, { backgroundColor: colours.cyanDim, borderColor: colours.border }]}>
-            <Ionicons name="barbell-outline" size={18} color={colours.cyan} />
+      {recentSessions.length > 0 ? (
+        recentSessions.map((session) => (
+          <View key={session.id} style={[styles.sessionRow, shadow.subtle]}>
+            <View style={[styles.sessionIconWrap, { backgroundColor: colours.cyanDim, borderColor: colours.border }]}>
+              <Ionicons name="barbell-outline" size={18} color={colours.cyan} />
+            </View>
+            <View style={styles.sessionCopy}>
+              <Text style={styles.sessionTitle}>{session.title}</Text>
+              <Text style={styles.sessionMeta}>
+                {session.type} · {session.durationMinutes} min · RPE {session.rpe}
+              </Text>
+            </View>
+            <View style={styles.sessionRight}>
+              <Text style={styles.score}>{session.score}</Text>
+              <Text style={styles.scoreLabel}>SCORE</Text>
+            </View>
           </View>
-          <View style={styles.sessionCopy}>
-            <Text style={styles.sessionTitle}>{session.title}</Text>
-            <Text style={styles.sessionMeta}>
-              {session.type} · {session.durationMinutes} min · RPE {session.rpe}
-            </Text>
-          </View>
-          <View style={styles.sessionRight}>
-            <Text style={styles.score}>{session.score}</Text>
-            <Text style={styles.scoreLabel}>SCORE</Text>
-          </View>
+        ))
+      ) : (
+        <View style={[styles.emptyState, shadow.subtle]}>
+          <Ionicons name="document-text-outline" size={22} color={colours.cyan} />
+          <Text style={styles.emptyTitle}>No sessions yet</Text>
+          <Text style={styles.emptyText}>Start a ruck or complete the strength block to populate your log.</Text>
         </View>
-      ))}
+      )}
     </Screen>
   );
 }
@@ -313,5 +330,25 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 1.5,
     marginTop: 1,
+  },
+  emptyState: {
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 16,
+    padding: 18,
+    backgroundColor: 'rgba(10, 20, 35, 0.70)',
+  },
+  emptyTitle: {
+    color: colours.text,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  emptyText: {
+    color: colours.muted,
+    fontSize: 12,
+    textAlign: 'center',
+    lineHeight: 17,
   },
 });
