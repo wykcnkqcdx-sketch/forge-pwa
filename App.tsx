@@ -254,7 +254,7 @@ export default function App() {
   function validateImportedSessions(value: unknown): TrainingSession[] | null {
     if (!Array.isArray(value)) return null;
 
-    const validTypes: TrainingSession['type'][] = ['Ruck', 'Strength', 'Run', 'Mobility'];
+    const validTypes: TrainingSession['type'][] = ['Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Run', 'Mobility'];
     const imported = value.filter((session): session is TrainingSession => {
       if (!session || typeof session !== 'object') return false;
       const candidate = session as Partial<TrainingSession>;
