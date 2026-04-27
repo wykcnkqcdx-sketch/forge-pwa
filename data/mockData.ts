@@ -43,6 +43,9 @@ export type TeamMessage = {
 
 export type FuelProfile = {
   bodyWeightKg: number;
+  heightCm: number;
+  age: number;
+  skinfoldMm: number;
   sleepScore: number;
   hydrationLoggedMl: number;
 };
@@ -77,6 +80,9 @@ export const wearableConnections: WearableConnection[] = [
 
 export const fuelProfile: FuelProfile = {
   bodyWeightKg: 82,
+  heightCm: 180,
+  age: 32,
+  skinfoldMm: 42,
   sleepScore: 78,
   hydrationLoggedMl: 1200,
 };
