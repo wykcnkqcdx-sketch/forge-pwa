@@ -11,11 +11,13 @@ export type TrainingSession = {
 export type SquadMember = {
   id: string;
   name: string;
+  email?: string;
   groupId: string;
   readiness: number;
   compliance: number;
   risk: 'Low' | 'Medium' | 'High';
   load: number;
+  inviteStatus?: 'Manual' | 'Invited' | 'Joined';
 };
 
 export type TrainingGroup = {
@@ -57,12 +59,12 @@ export const initialSessions: TrainingSession[] = [
 ];
 
 export const squadMembers: SquadMember[] = [
-  { id: '1', groupId: 'alpha', name: 'Cpl Ryan', readiness: 86, compliance: 92, risk: 'Low', load: 72 },
-  { id: '2', groupId: 'alpha', name: 'Pte Doyle', readiness: 61, compliance: 67, risk: 'Medium', load: 84 },
-  { id: '3', groupId: 'bravo', name: 'Pte Walsh', readiness: 44, compliance: 58, risk: 'High', load: 91 },
-  { id: '4', groupId: 'bravo', name: 'Sgt Murphy', readiness: 79, compliance: 84, risk: 'Low', load: 68 },
-  { id: '5', groupId: 'charlie', name: 'Pte Byrne', readiness: 74, compliance: 78, risk: 'Low', load: 70 },
-  { id: '6', groupId: 'charlie', name: 'Cpl Nolan', readiness: 69, compliance: 81, risk: 'Medium', load: 77 },
+  { id: '1', groupId: 'alpha', name: 'Cpl Ryan', email: 'ryan@example.com', readiness: 86, compliance: 92, risk: 'Low', load: 72, inviteStatus: 'Joined' },
+  { id: '2', groupId: 'alpha', name: 'Pte Doyle', email: 'doyle@example.com', readiness: 61, compliance: 67, risk: 'Medium', load: 84, inviteStatus: 'Joined' },
+  { id: '3', groupId: 'bravo', name: 'Pte Walsh', email: 'walsh@example.com', readiness: 44, compliance: 58, risk: 'High', load: 91, inviteStatus: 'Joined' },
+  { id: '4', groupId: 'bravo', name: 'Sgt Murphy', email: 'murphy@example.com', readiness: 79, compliance: 84, risk: 'Low', load: 68, inviteStatus: 'Joined' },
+  { id: '5', groupId: 'charlie', name: 'Pte Byrne', email: 'byrne@example.com', readiness: 74, compliance: 78, risk: 'Low', load: 70, inviteStatus: 'Joined' },
+  { id: '6', groupId: 'charlie', name: 'Cpl Nolan', email: 'nolan@example.com', readiness: 69, compliance: 81, risk: 'Medium', load: 77, inviteStatus: 'Joined' },
 ];
 
 export const trainingGroups: TrainingGroup[] = [

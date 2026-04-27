@@ -11,6 +11,7 @@ import { TrainingSession } from '../data/mockData';
 type TrackPoint = {
   latitude: number;
   longitude: number;
+  altitude: number | null;
   accuracy: number | null;
   timestamp: number;
 };
@@ -34,10 +35,34 @@ function formatElapsed(seconds: number) {
   return `${mins}:${String(secs).padStart(2, '0')}`;
 }
 
+function formatDuration(minutes: number) {
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  if (hrs <= 0) return `${mins} min`;
+  return `${hrs}h ${String(mins).padStart(2, '0')}m`;
+}
+
+function cardinalDirection(degrees: number) {
+  const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  return labels[Math.round(degrees / 45) % labels.length];
+}
+
+function bearingBetween(a: TrackPoint, b: TrackPoint) {
+  const toRad = Math.PI / 180;
+  const toDeg = 180 / Math.PI;
+  const lat1 = a.latitude * toRad;
+  const lat2 = b.latitude * toRad;
+  const deltaLon = (b.longitude - a.longitude) * toRad;
+  const y = Math.sin(deltaLon) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
+  return (Math.atan2(y, x) * toDeg + 360) % 360;
+}
+
 function toTrackPoint(location: Location.LocationObject): TrackPoint {
   return {
     latitude: location.coords.latitude,
     longitude: location.coords.longitude,
+    altitude: location.coords.altitude,
     accuracy: location.coords.accuracy,
     timestamp: location.timestamp,
   };
@@ -46,18 +71,32 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 export function RuckScreen({ addSession }: { addSession: (session: TrainingSession) => void }) {
   const [weight, setWeight] = useState(18);
   const [distance, setDistance] = useState(8);
+  const [plannedAscentM, setPlannedAscentM] = useState(300);
   const [isTracking, setIsTracking] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [currentDistance, setCurrentDistance] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [routePoints, setRoutePoints] = useState<TrackPoint[]>([]);
+  const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const locationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const headingSubscription = useRef<Location.LocationSubscription | null>(null);
 
   useEffect(() => {
+    Location.watchHeadingAsync((heading) => {
+      const nextHeading = heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading;
+      if (nextHeading >= 0) setCompassHeading(Math.round(nextHeading));
+    }).then((subscription) => {
+      headingSubscription.current = subscription;
+    }).catch((error) => {
+      console.warn('Compass heading unavailable', error);
+    });
+
     return () => {
       locationSubscription.current?.remove();
       locationSubscription.current = null;
+      headingSubscription.current?.remove();
+      headingSubscription.current = null;
     };
   }, []);
 
@@ -157,9 +196,20 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   };
 
   const pace = useMemo(() => (7.4 + weight / 25).toFixed(1), [weight]);
-  const score = useMemo(() => Math.max(55, Math.round(95 - weight * 0.6 - distance * 0.4)), [weight, distance]);
+  const naismithMinutes = useMemo(
+    () => Math.round(distance * 12 + plannedAscentM / 10),
+    [distance, plannedAscentM]
+  );
+  const score = useMemo(
+    () => Math.max(55, Math.round(95 - weight * 0.6 - distance * 0.4 - plannedAscentM / 160)),
+    [weight, distance, plannedAscentM]
+  );
   const activePace = currentDistance > 0.02 ? (elapsedSeconds / 60 / currentDistance).toFixed(1) : '--';
   const currentPoint = routePoints[routePoints.length - 1];
+  const previousPoint = routePoints[routePoints.length - 2];
+  const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
+  const activeHeading = compassHeading ?? routeBearing;
+  const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
   const mapPoints = useMemo(() => {
     if (routePoints.length === 0) return [];
 
@@ -187,13 +237,17 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setDistance((current) => Math.min(30, Math.max(2, current + amount)));
   }
 
+  function changeAscent(amount: number) {
+    setPlannedAscentM((current) => Math.min(2500, Math.max(0, current + amount)));
+  }
+
   function saveRuck() {
     const session: TrainingSession = {
       id: Date.now().toString(),
       type: 'Ruck',
       title: `${distance}km Loaded Ruck`,
       score,
-      durationMinutes: Math.round(distance * Number(pace)),
+      durationMinutes: naismithMinutes,
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
     };
@@ -307,6 +361,11 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         <MetricCard icon="footsteps" label="Distance" value={`${distance}km`} sub={`${pace}/km est.`} tone={colours.amber} />
       </View>
 
+      <View style={styles.grid}>
+        <MetricCard icon="trail-sign" label="Naismith" value={formatDuration(naismithMinutes)} sub={`${distance}km + ${plannedAscentM}m ascent`} tone={colours.green} />
+        <MetricCard icon="compass" label="Heading" value={activeHeading == null ? '--' : `${activeHeading}deg`} sub={activeHeading == null ? 'compass standby' : cardinalDirection(activeHeading)} tone={colours.cyan} />
+      </View>
+
       <Card>
         <Text style={styles.cardTitle}>Session Setup</Text>
 
@@ -335,6 +394,56 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             </Pressable>
           </View>
         </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Ascent</Text>
+          <View style={styles.buttons}>
+            <Pressable style={styles.smallButton} onPress={() => changeAscent(-50)}>
+              <Text style={styles.smallButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.controlValue}>{plannedAscentM}m</Text>
+            <Pressable style={styles.smallButton} onPress={() => changeAscent(50)}>
+              <Text style={styles.smallButtonText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Card>
+
+      <Card>
+        <View style={styles.navHeader}>
+          <View>
+            <Text style={styles.cardTitle}>Navigation Guide</Text>
+            <Text style={styles.muted}>Metric mountain planning</Text>
+          </View>
+          <View style={styles.compassDial}>
+            <Ionicons name="navigate" size={24} color={colours.background} />
+            <Text style={styles.compassText}>{activeHeading == null ? '---' : cardinalDirection(activeHeading)}</Text>
+          </View>
+        </View>
+        <View style={styles.navGrid}>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{formatDuration(naismithMinutes)}</Text>
+            <Text style={styles.navLabel}>Naismith time</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{plannedAscentM}m</Text>
+            <Text style={styles.navLabel}>Total ascent</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{routeBearing == null ? '--' : `${routeBearing}deg`}</Text>
+            <Text style={styles.navLabel}>Route bearing</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{currentAltitude == null ? '--' : `${currentAltitude}m`}</Text>
+            <Text style={styles.navLabel}>Altitude</Text>
+          </View>
+        </View>
+        <Text style={styles.navGuide}>
+          Naismith's Rule estimates 12 minutes per kilometre plus 10 minutes for every 100m of ascent. Add time for heavy load, rough ground, weather, stops, and navigation checks.
+        </Text>
+        <Text style={styles.navGuide}>
+          Compass basics: set the map, take a bearing, follow the direction of travel arrow, tick off distance in metres, and re-check at every handrail, attack point, and junction.
+        </Text>
       </Card>
 
       <Card style={{ backgroundColor: 'rgba(103,232,249,0.08)' }}>
@@ -462,6 +571,28 @@ const styles = StyleSheet.create({
   smallButton: { width: 36, height: 36, borderRadius: 12, backgroundColor: colours.cyan, alignItems: 'center', justifyContent: 'center' },
   smallButtonText: { color: '#07111E', fontSize: 20, fontWeight: '900' },
   controlValue: { color: colours.text, fontWeight: '900', width: 55, textAlign: 'center' },
+  navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
+  compassDial: {
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.cyan,
+  },
+  compassText: { color: colours.background, fontSize: 10, fontWeight: '900', marginTop: 1 },
+  navGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  navItem: {
+    width: '47%',
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    padding: 11,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  navValue: { color: colours.cyan, fontSize: 17, fontWeight: '900' },
+  navLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', marginTop: 3 },
+  navGuide: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 12 },
   score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
   primaryButton: { backgroundColor: colours.cyan, borderRadius: 22, paddingVertical: 16, alignItems: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },

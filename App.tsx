@@ -9,7 +9,7 @@ import { RuckScreen } from './screens/RuckScreen';
 import { TrainScreen } from './screens/TrainScreen';
 import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
-import { initialSessions, TrainingSession } from './data/mockData';
+import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
 import { colours, shadow } from './theme';
 
 type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
@@ -19,6 +19,7 @@ type ForgeBackup = {
   version: 1;
   exportedAt: string;
   sessions: TrainingSession[];
+  members: SquadMember[];
 };
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -33,6 +34,7 @@ const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
+  const [members, setMembers] = useState<SquadMember[]>(squadMembers);
   const [savedPin, setSavedPin] = useState<string | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -155,6 +157,9 @@ export default function App() {
       try {
         const storedSessions = await AsyncStorage.getItem('forge:sessions');
         if (storedSessions) setSessions(JSON.parse(storedSessions));
+
+        const storedMembers = await AsyncStorage.getItem('forge:members');
+        if (storedMembers) setMembers(JSON.parse(storedMembers));
         
         const storedPin = await AsyncStorage.getItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
@@ -172,6 +177,10 @@ export default function App() {
   }, [sessions, isReady]);
 
   useEffect(() => {
+    if (isReady) AsyncStorage.setItem('forge:members', JSON.stringify(members));
+  }, [members, isReady]);
+
+  useEffect(() => {
     if (isReady) {
       if (savedPin === null) AsyncStorage.removeItem('forge:pin');
       else AsyncStorage.setItem('forge:pin', savedPin);
@@ -180,10 +189,11 @@ export default function App() {
 
   function executeDuressWipe() {
     setSessions([]);
+    setMembers([]);
     setSavedPin(null);
     setIsUnlocked(true);
     setPinInput('');
-    AsyncStorage.multiRemove(['forge:sessions', 'forge:pin']);
+    AsyncStorage.multiRemove(['forge:sessions', 'forge:members', 'forge:pin']);
     Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
@@ -253,6 +263,10 @@ export default function App() {
     setSessions((current) => [session, ...current]);
   }
 
+  function addMember(member: SquadMember) {
+    setMembers((current) => [member, ...current]);
+  }
+
   function validateImportedSessions(value: unknown): TrainingSession[] | null {
     if (!Array.isArray(value)) return null;
 
@@ -274,6 +288,26 @@ export default function App() {
     return imported.length === value.length ? imported : null;
   }
 
+  function validateImportedMembers(value: unknown): SquadMember[] | null {
+    if (!Array.isArray(value)) return null;
+
+    const imported = value.filter((member): member is SquadMember => {
+      if (!member || typeof member !== 'object') return false;
+      const candidate = member as Partial<SquadMember>;
+      return (
+        typeof candidate.id === 'string'
+        && typeof candidate.name === 'string'
+        && typeof candidate.groupId === 'string'
+        && typeof candidate.readiness === 'number'
+        && typeof candidate.compliance === 'number'
+        && typeof candidate.load === 'number'
+        && (candidate.risk === 'Low' || candidate.risk === 'Medium' || candidate.risk === 'High')
+      );
+    });
+
+    return imported.length === value.length ? imported : null;
+  }
+
   function exportData() {
     if (typeof document === 'undefined') {
       Alert.alert('Export unavailable', 'Data export is available in the web app.');
@@ -284,6 +318,7 @@ export default function App() {
       version: 1,
       exportedAt: new Date().toISOString(),
       sessions,
+      members,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -314,6 +349,9 @@ export default function App() {
         try {
           const parsed = JSON.parse(String(reader.result));
           const imported = validateImportedSessions(Array.isArray(parsed) ? parsed : parsed.sessions);
+          const importedMembers = !Array.isArray(parsed) && parsed.members
+            ? validateImportedMembers(parsed.members)
+            : null;
 
           if (!imported) {
             Alert.alert('Import failed', 'That file does not look like a valid FORGE backup.');
@@ -321,7 +359,8 @@ export default function App() {
           }
 
           setSessions(imported);
-          Alert.alert('Import complete', `${imported.length} sessions restored.`);
+          if (importedMembers) setMembers(importedMembers);
+          Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
         } catch (error) {
           console.error('Failed to import backup', error);
           Alert.alert('Import failed', 'The selected backup file could not be read.');
@@ -373,10 +412,12 @@ export default function App() {
         return (
           <InstructorScreen
             pinEnabled={Boolean(savedPin)}
+            members={members}
             onSetPin={handleSetPin}
             onWipe={handleManualWipe}
             onExport={exportData}
             onImport={importData}
+            onAddMember={addMember}
           />
         );
       default:

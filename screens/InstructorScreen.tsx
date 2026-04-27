@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
-import { Alert, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
+import { Alert, Linking, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours } from '../theme';
-import { squadMembers, trainingGroups, wearableConnections } from '../data/mockData';
+import { SquadMember, trainingGroups, wearableConnections } from '../data/mockData';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
+  members: SquadMember[];
   onSetPin: () => void;
   onWipe: () => void;
   onExport: () => void;
   onImport: () => void;
+  onAddMember: (member: SquadMember) => void;
 }
 
-export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImport }: InstructorScreenProps) {
+const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
+
+export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExport, onImport, onAddMember }: InstructorScreenProps) {
   const [groups, setGroups] = useState(trainingGroups);
-  const [members, setMembers] = useState(squadMembers);
   const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState(trainingGroups[0]?.id ?? 'alpha');
   const groupScores = groups.map((group) => {
     const groupMembers = members.filter((member) => member.groupId === group.id);
@@ -55,24 +59,43 @@ export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImp
 
   function addMember() {
     const trimmedName = newMemberName.trim();
+    const trimmedEmail = newMemberEmail.trim().toLowerCase();
     if (!trimmedName) {
       Alert.alert('Name required', 'Enter a team member name before adding them.');
       return;
     }
 
-    setMembers((current) => [
-      {
-        id: `member-${Date.now()}`,
-        groupId: selectedGroupId,
-        name: trimmedName,
-        readiness: 72,
-        compliance: 80,
-        risk: 'Low',
-        load: 65,
-      },
-      ...current,
-    ]);
+    if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
+      Alert.alert('Email check', 'Enter a valid email address or leave email blank for manual tracking.');
+      return;
+    }
+
+    onAddMember({
+      id: `member-${Date.now()}`,
+      groupId: selectedGroupId,
+      name: trimmedName,
+      email: trimmedEmail || undefined,
+      readiness: 72,
+      compliance: 80,
+      risk: 'Low',
+      load: 65,
+      inviteStatus: trimmedEmail ? 'Invited' : 'Manual',
+    });
+
     setNewMemberName('');
+    setNewMemberEmail('');
+
+    if (trimmedEmail) {
+      const subject = encodeURIComponent('Join FORGE Tactical Fitness');
+      const body = encodeURIComponent(
+        `You have been added to the FORGE Tactical Fitness squad dashboard.\n\nOpen the app here:\n${appInviteUrl}\n\nFor now, the coach tracks your metrics locally. Shared login and live team sync will need a backend account system.`
+      );
+      Linking.openURL(`mailto:${trimmedEmail}?subject=${subject}&body=${body}`).catch(() => {
+        Alert.alert('Member invited', `${trimmedName} was added. Copy the app link and send it to ${trimmedEmail}.`);
+      });
+    } else {
+      Alert.alert('Member added', `${trimmedName} is now tracked manually in this squad.`);
+    }
   }
 
   function handleWearableConnect(name: string, status: string) {
@@ -129,6 +152,15 @@ export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImp
           placeholder="Name or callsign"
           placeholderTextColor={colours.soft}
         />
+        <TextInput
+          style={styles.memberInput}
+          value={newMemberEmail}
+          onChangeText={setNewMemberEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          placeholder="Email for invite link"
+          placeholderTextColor={colours.soft}
+        />
         <View style={styles.groupPicker}>
           {groups.map((group) => {
             const isActive = group.id === selectedGroupId;
@@ -144,8 +176,11 @@ export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImp
           })}
         </View>
         <Pressable style={styles.addMemberButton} onPress={addMember}>
-          <Text style={styles.addMemberButtonText}>Add Member</Text>
+          <Text style={styles.addMemberButtonText}>{newMemberEmail.trim() ? 'Add & Invite Member' : 'Add Manual Member'}</Text>
         </Pressable>
+        <Text style={styles.inviteHelp}>
+          Email sends the live app link. They can open/install the PWA, but shared logins and automatic team sync need a backend next.
+        </Text>
       </Card>
 
       <Card>
@@ -225,8 +260,9 @@ export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImp
               <View style={styles.memberCopy}>
                 <Text style={styles.memberName}>{member.name}</Text>
                 <Text style={styles.muted}>
-                  {groups.find((group) => group.id === member.groupId)?.name ?? 'Unassigned'} - Compliance {member.compliance}% - Risk {member.risk}
+                  {groups.find((group) => group.id === member.groupId)?.name ?? 'Unassigned'} - {member.inviteStatus ?? 'Manual'} - Compliance {member.compliance}% - Risk {member.risk}
                 </Text>
+                {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
               </View>
               <Text
                 style={[
@@ -324,6 +360,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   addMemberButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
+  inviteHelp: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
   memberCard: {
     borderColor: colours.border,
     borderWidth: 1,
@@ -334,6 +371,7 @@ const styles = StyleSheet.create({
   },
   memberCopy: { flex: 1 },
   memberName: { color: colours.text, fontWeight: '900' },
+  memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
   groupCard: {
     borderColor: colours.border,
