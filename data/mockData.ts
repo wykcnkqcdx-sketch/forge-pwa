@@ -33,6 +33,20 @@ export type WearableConnection = {
   lastSync: string;
 };
 
+export type TeamMessage = {
+  id: string;
+  author: string;
+  group: string;
+  message: string;
+  time: string;
+};
+
+export type FuelProfile = {
+  bodyWeightKg: number;
+  sleepScore: number;
+  hydrationLoggedMl: number;
+};
+
 export const initialSessions: TrainingSession[] = [
   { id: '1', type: 'Ruck', title: 'Loaded Intervals', score: 88, durationMinutes: 45, rpe: 7, loadKg: 18 },
   { id: '2', type: 'Strength', title: 'Lower Body Strength', score: 81, durationMinutes: 52, rpe: 8 },
@@ -59,4 +73,16 @@ export const wearableConnections: WearableConnection[] = [
   { id: 'garmin', name: 'Garmin', status: 'Planned', signal: 'HRV, GPS, training load', lastSync: 'OAuth needed' },
   { id: 'fitbit', name: 'Fitbit', status: 'Planned', signal: 'Sleep, resting HR', lastSync: 'OAuth needed' },
   { id: 'strava', name: 'Strava', status: 'Ready', signal: 'Runs, rides, routes', lastSync: 'Manual export ready' },
+];
+
+export const fuelProfile: FuelProfile = {
+  bodyWeightKg: 82,
+  sleepScore: 78,
+  hydrationLoggedMl: 1200,
+};
+
+export const teamMessages: TeamMessage[] = [
+  { id: '1', author: 'Coach', group: 'Alpha', message: 'Hydrate before loaded work. Add electrolytes if ruck is over 60 min.', time: '08:10' },
+  { id: '2', author: 'Cpl Ryan', group: 'Alpha', message: 'Strength block complete. RPE felt like 7.', time: '09:25' },
+  { id: '3', author: 'Pte Byrne', group: 'Charlie', message: 'Zone 2 done. Sleep was rough, keeping intensity down.', time: '10:05' },
 ];

@@ -7,11 +7,12 @@ import { HomeScreen } from './screens/HomeScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { RuckScreen } from './screens/RuckScreen';
 import { TrainScreen } from './screens/TrainScreen';
+import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { initialSessions, TrainingSession } from './data/mockData';
 import { colours, shadow } from './theme';
 
-type Tab = 'home' | 'train' | 'ruck' | 'analytics' | 'instructor';
+type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
 type PinSetupMode = 'set' | 'change' | null;
 
 type ForgeBackup = {
@@ -24,6 +25,7 @@ const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap
   { id: 'home',       label: 'Home',    icon: 'home-outline',      iconActive: 'home' },
   { id: 'train',      label: 'Train',   icon: 'barbell-outline',   iconActive: 'barbell' },
   { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline', iconActive: 'footsteps' },
+  { id: 'fuel',       label: 'Fuel',    icon: 'restaurant-outline', iconActive: 'restaurant' },
   { id: 'analytics',  label: 'Intel',   icon: 'analytics-outline', iconActive: 'analytics' },
   { id: 'instructor', label: 'Coach',   icon: 'people-outline',    iconActive: 'people' },
 ];
@@ -363,6 +365,8 @@ export default function App() {
         return <TrainScreen addSession={addSession} />;
       case 'ruck':
         return <RuckScreen addSession={addSession} />;
+      case 'fuel':
+        return <FuelScreen sessions={sessions} />;
       case 'analytics':
         return <AnalyticsScreen sessions={sessions} />;
       case 'instructor':
@@ -595,17 +599,17 @@ const styles = StyleSheet.create({
   activePill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
+    gap: 4,
     backgroundColor: colours.cyan,
     borderRadius: 20,
-    paddingHorizontal: 12,
+    paddingHorizontal: 9,
     paddingVertical: 7,
     ...shadow.cyan,
   },
 
   activePillLabel: {
     color: colours.background,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
     letterSpacing: 0.4,
   },
@@ -618,7 +622,7 @@ const styles = StyleSheet.create({
 
   inactiveLabel: {
     color: colours.muted,
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '700',
     letterSpacing: 0.2,
   },
