@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, Text, View, StyleSheet, Pressable } from 'react-native';
+import { Alert, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -17,35 +17,62 @@ interface InstructorScreenProps {
 
 export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImport }: InstructorScreenProps) {
   const [groups, setGroups] = useState(trainingGroups);
+  const [members, setMembers] = useState(squadMembers);
+  const [newMemberName, setNewMemberName] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState(trainingGroups[0]?.id ?? 'alpha');
   const groupScores = groups.map((group) => {
-    const members = squadMembers.filter((member) => member.groupId === group.id);
-    const readiness = members.length
-      ? Math.round(members.reduce((total, member) => total + member.readiness, 0) / members.length)
+    const groupMembers = members.filter((member) => member.groupId === group.id);
+    const readiness = groupMembers.length
+      ? Math.round(groupMembers.reduce((total, member) => total + member.readiness, 0) / groupMembers.length)
       : 0;
-    const compliance = members.length
-      ? Math.round(members.reduce((total, member) => total + member.compliance, 0) / members.length)
+    const compliance = groupMembers.length
+      ? Math.round(groupMembers.reduce((total, member) => total + member.compliance, 0) / groupMembers.length)
       : 0;
-    const load = members.length
-      ? Math.round(members.reduce((total, member) => total + member.load, 0) / members.length)
+    const load = groupMembers.length
+      ? Math.round(groupMembers.reduce((total, member) => total + member.load, 0) / groupMembers.length)
       : 0;
     const teamScore = Math.round(readiness * 0.5 + compliance * 0.3 + Math.max(0, 100 - load) * 0.2);
 
-    return { ...group, members, readiness, compliance, load, teamScore };
+    return { ...group, members: groupMembers, readiness, compliance, load, teamScore };
   });
-  const atRiskCount = squadMembers.filter((member) => member.risk !== 'Low').length;
+  const atRiskCount = members.filter((member) => member.risk !== 'Low').length;
   const averageTeamScore = Math.round(groupScores.reduce((total, group) => total + group.teamScore, 0) / groupScores.length);
 
   function createGroup() {
     const nextNumber = groups.length + 1;
+    const nextId = `custom-${Date.now()}`;
     setGroups((current) => [
       ...current,
       {
-        id: `custom-${Date.now()}`,
+        id: nextId,
         name: `Group ${nextNumber}`,
         focus: 'Custom programme',
         targetScore: 78,
       },
     ]);
+    setSelectedGroupId(nextId);
+  }
+
+  function addMember() {
+    const trimmedName = newMemberName.trim();
+    if (!trimmedName) {
+      Alert.alert('Name required', 'Enter a team member name before adding them.');
+      return;
+    }
+
+    setMembers((current) => [
+      {
+        id: `member-${Date.now()}`,
+        groupId: selectedGroupId,
+        name: trimmedName,
+        readiness: 72,
+        compliance: 80,
+        risk: 'Low',
+        load: 65,
+      },
+      ...current,
+    ]);
+    setNewMemberName('');
   }
 
   function handleWearableConnect(name: string, status: string) {
@@ -89,9 +116,37 @@ export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImp
       </Card>
 
       <View style={styles.grid}>
-        <MetricCard icon="people" label="Members" value={`${squadMembers.length}`} sub="active squad" />
+        <MetricCard icon="people" label="Members" value={`${members.length}`} sub="active squad" />
         <MetricCard icon="podium" label="Team Score" value={`${averageTeamScore}`} sub={`${atRiskCount} need review`} tone={atRiskCount > 2 ? colours.amber : colours.green} />
       </View>
+
+      <Card>
+        <Text style={styles.cardTitle}>Add Team Member</Text>
+        <TextInput
+          style={styles.memberInput}
+          value={newMemberName}
+          onChangeText={setNewMemberName}
+          placeholder="Name or callsign"
+          placeholderTextColor={colours.soft}
+        />
+        <View style={styles.groupPicker}>
+          {groups.map((group) => {
+            const isActive = group.id === selectedGroupId;
+            return (
+              <Pressable
+                key={group.id}
+                style={[styles.groupPickerPill, isActive && styles.groupPickerPillActive]}
+                onPress={() => setSelectedGroupId(group.id)}
+              >
+                <Text style={[styles.groupPickerText, isActive && styles.groupPickerTextActive]}>{group.name}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Pressable style={styles.addMemberButton} onPress={addMember}>
+          <Text style={styles.addMemberButtonText}>Add Member</Text>
+        </Pressable>
+      </Card>
 
       <Card>
         <View style={styles.cardHeader}>
@@ -164,7 +219,7 @@ export function InstructorScreen({ pinEnabled, onSetPin, onWipe, onExport, onImp
           </Pressable>
         </View>
 
-        {squadMembers.map((member) => (
+        {members.map((member) => (
           <View key={member.id} style={styles.memberCard}>
             <View style={styles.headerRow}>
               <View style={styles.memberCopy}>
@@ -235,6 +290,40 @@ const styles = StyleSheet.create({
   },
   actionLabel: { fontSize: 14, fontWeight: '900' },
   actionMeta: { color: colours.muted, fontSize: 11, marginTop: 4 },
+  memberInput: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    color: colours.text,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 15,
+    fontWeight: '800',
+    marginBottom: 10,
+  },
+  groupPicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  groupPickerPill: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  groupPickerPillActive: {
+    borderColor: `${colours.cyan}70`,
+    backgroundColor: colours.cyanDim,
+  },
+  groupPickerText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  groupPickerTextActive: { color: colours.cyan },
+  addMemberButton: {
+    alignItems: 'center',
+    backgroundColor: colours.cyan,
+    borderRadius: 14,
+    paddingVertical: 12,
+  },
+  addMemberButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
   memberCard: {
     borderColor: colours.border,
     borderWidth: 1,
