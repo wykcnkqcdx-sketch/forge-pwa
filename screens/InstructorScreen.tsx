@@ -249,7 +249,7 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
       <Card>
         <View style={styles.headerRow}>
           <Text style={styles.cardTitle}>Squad Readiness</Text>
-          <Pressable style={styles.assignButton}>
+          <Pressable style={styles.assignButton} onPress={() => Alert.alert('Assign Training', 'Select a training block to assign to the squad. (Backend sync required for live updates)')}>
             <Text style={styles.assignButtonText}>Assign</Text>
           </Pressable>
         </View>

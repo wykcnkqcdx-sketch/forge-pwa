@@ -83,6 +83,14 @@ export function HomeScreen({
         </Pressable>
       </Card>
 
+      {/* AI Insights Card */}
+      <Card style={{ backgroundColor: `${colours.cyan}10`, borderColor: `${colours.cyan}30`, borderWidth: 1 }}>
+        <Text style={[styles.cardTitle, { color: colours.cyan }]}>AI Insights</Text>
+        <Text style={{ color: colours.text, fontSize: 14, lineHeight: 21 }}>
+          {readiness >= 80 ? 'Your readiness is high. It is a great day to push your limits on the assigned training.' : readiness >= 60 ? 'Your readiness is moderate. Proceed with the assigned workout but monitor your RPE.' : 'Your readiness is low. Consider swapping the assigned workout for a mobility or recovery session.'}
+        </Text>
+      </Card>
+
       {/* Metrics grid */}
       <View style={styles.grid}>
         <MetricCard icon="pulse"  label="Weekly Load" value={`${weeklyLoad}`} sub="duration x RPE" tone={colours.cyan} />
