@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -12,10 +12,14 @@ export function HomeScreen({
   sessions,
   goToRuck,
   goToAnalytics,
+  deleteSession,
+  editSession,
 }: {
   sessions: TrainingSession[];
   goToRuck: () => void;
   goToAnalytics: () => void;
+  deleteSession: (id: string) => void;
+  editSession: (id: string, updates: Partial<TrainingSession>) => void;
 }) {
   const recentSessions = sessions.slice(0, 3);
   const weeklyLoad = sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe, 0);
@@ -29,6 +33,41 @@ export function HomeScreen({
     : 72;
   const statusColour = readiness >= 80 ? colours.green : readiness >= 60 ? colours.amber : colours.red;
   const statusLabel  = readiness >= 80 ? 'GREEN — Train as planned' : readiness >= 60 ? 'AMBER — Monitor load' : 'RED — Rest advised';
+
+  const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
+  const [editScore, setEditScore] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+
+  function confirmDelete(id: string) {
+    Alert.alert(
+      'Delete Session',
+      'Are you sure you want to permanently delete this logged session?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteSession(id) },
+      ]
+    );
+  }
+
+  function openEdit(session: TrainingSession) {
+    setEditingSession(session);
+    setEditScore(String(session.score));
+    setEditDuration(String(session.durationMinutes));
+  }
+
+  function saveEdit() {
+    if (!editingSession) return;
+    const newScore = parseInt(editScore, 10);
+    const newDuration = parseInt(editDuration, 10);
+
+    if (isNaN(newScore) || isNaN(newDuration)) {
+      Alert.alert('Invalid Input', 'Score and duration must be numbers.');
+      return;
+    }
+
+    editSession(editingSession.id, { score: newScore, durationMinutes: newDuration });
+    setEditingSession(null);
+  }
 
   return (
     <Screen>
@@ -122,6 +161,14 @@ export function HomeScreen({
               <Text style={styles.score}>{session.score}</Text>
               <Text style={styles.scoreLabel}>SCORE</Text>
             </View>
+          <View style={styles.actions}>
+            <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
+              <Ionicons name="pencil" size={18} color={colours.cyan} />
+            </Pressable>
+            <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
+              <Ionicons name="trash-outline" size={18} color={colours.red} />
+            </Pressable>
+          </View>
           </View>
         ))
       ) : (
@@ -131,6 +178,37 @@ export function HomeScreen({
           <Text style={styles.emptyText}>Start a ruck or complete the strength block to populate your log.</Text>
         </View>
       )}
+
+    {/* Edit Modal */}
+    <Modal visible={!!editingSession} transparent animationType="fade">
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalPanel, shadow.card]}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Edit Session</Text>
+            <Pressable onPress={() => setEditingSession(null)} style={styles.closeBtn}>
+              <Ionicons name="close" size={20} color={colours.text} />
+            </Pressable>
+          </View>
+          <Text style={styles.inputLabel}>SCORE</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="number-pad"
+            value={editScore}
+            onChangeText={setEditScore}
+          />
+          <Text style={styles.inputLabel}>DURATION (MINS)</Text>
+          <TextInput
+            style={styles.input}
+            keyboardType="number-pad"
+            value={editDuration}
+            onChangeText={setEditDuration}
+          />
+          <Pressable style={styles.saveBtn} onPress={saveEdit}>
+            <Text style={styles.saveBtnText}>Save Changes</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
     </Screen>
   );
 }
@@ -339,6 +417,15 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
     marginTop: 1,
   },
+  actions: {
+    flexDirection: 'row',
+    marginLeft: 4,
+  },
+  actionBtn: {
+    marginLeft: 2,
+    padding: 6,
+    justifyContent: 'center',
+  },
   emptyState: {
     alignItems: 'center',
     gap: 6,
@@ -358,5 +445,68 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 17,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 20,
+    backgroundColor: 'rgba(0,0,0,0.62)',
+  },
+  modalPanel: {
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: 20,
+    padding: 18,
+    backgroundColor: colours.surface,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  modalTitle: {
+    color: colours.text,
+    fontSize: 20,
+    fontWeight: '900',
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.07)',
+  },
+  inputLabel: {
+    color: colours.muted,
+    fontSize: 10,
+    fontWeight: '900',
+    marginBottom: 6,
+    letterSpacing: 1.2,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 14,
+    color: colours.text,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  saveBtn: {
+    alignItems: 'center',
+    backgroundColor: colours.cyan,
+    borderRadius: 16,
+    paddingVertical: 13,
+    marginTop: 4,
+  },
+  saveBtnText: {
+    color: colours.background,
+    fontSize: 15,
+    fontWeight: '900',
   },
 });

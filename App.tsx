@@ -263,6 +263,16 @@ export default function App() {
     setSessions((current) => [session, ...current]);
   }
 
+  function deleteSession(id: string) {
+    setSessions((current) => current.filter((s) => s.id !== id));
+  }
+
+  function editSession(id: string, updates: Partial<TrainingSession>) {
+    setSessions((current) =>
+      current.map((s) => (s.id === id ? { ...s, ...updates } : s))
+    );
+  }
+
   function addMember(member: SquadMember) {
     setMembers((current) => [member, ...current]);
   }
@@ -426,6 +436,8 @@ export default function App() {
             sessions={sessions}
             goToRuck={() => switchTab('ruck')}
             goToAnalytics={() => switchTab('analytics')}
+            deleteSession={deleteSession}
+            editSession={editSession}
           />
         );
     }
