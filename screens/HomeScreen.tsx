@@ -7,6 +7,7 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow } from '../theme';
 import { TrainingSession } from '../data/mockData';
+import { getMapPoints } from '../utils/mapUtils';
 
 export function HomeScreen({
   sessions,
@@ -147,28 +148,45 @@ export function HomeScreen({
 
       {recentSessions.length > 0 ? (
         recentSessions.map((session) => (
-          <View key={session.id} style={[styles.sessionRow, shadow.subtle]}>
-            <View style={[styles.sessionIconWrap, { backgroundColor: colours.cyanDim, borderColor: colours.border }]}>
-              <Ionicons name="barbell-outline" size={18} color={colours.cyan} />
+          <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
+            <View style={styles.sessionRow}>
+              <View style={[styles.sessionIconWrap, { backgroundColor: colours.cyanDim, borderColor: colours.border }]}>
+                <Ionicons 
+                  name={session.type === 'Ruck' ? 'footsteps-outline' : 'barbell-outline'} 
+                  size={18} 
+                  color={colours.cyan} 
+                />
+              </View>
+              <View style={styles.sessionCopy}>
+                <Text style={styles.sessionTitle}>{session.title}</Text>
+                <Text style={styles.sessionMeta}>
+                  {session.type} · {session.durationMinutes} min · RPE {session.rpe}
+                </Text>
+              </View>
+              <View style={styles.sessionRight}>
+                <Text style={styles.score}>{session.score}</Text>
+                <Text style={styles.scoreLabel}>SCORE</Text>
+              </View>
+              <View style={styles.actions}>
+                <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
+                  <Ionicons name="pencil" size={18} color={colours.cyan} />
+                </Pressable>
+                <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
+                  <Ionicons name="trash-outline" size={18} color={colours.red} />
+                </Pressable>
+              </View>
             </View>
-            <View style={styles.sessionCopy}>
-              <Text style={styles.sessionTitle}>{session.title}</Text>
-              <Text style={styles.sessionMeta}>
-                {session.type} · {session.durationMinutes} min · RPE {session.rpe}
-              </Text>
-            </View>
-            <View style={styles.sessionRight}>
-              <Text style={styles.score}>{session.score}</Text>
-              <Text style={styles.scoreLabel}>SCORE</Text>
-            </View>
-          <View style={styles.actions}>
-            <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
-              <Ionicons name="pencil" size={18} color={colours.cyan} />
-            </Pressable>
-            <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
-              <Ionicons name="trash-outline" size={18} color={colours.red} />
-            </Pressable>
-          </View>
+            
+            {session.routePoints && session.routePoints.length > 0 && (
+              <View style={styles.miniMapStage}>
+                {getMapPoints(session.routePoints).map((point, index) => (
+                  <View
+                    key={index}
+                    style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}
+                  />
+                ))}
+              </View>
+            )}
           </View>
         ))
       ) : (
@@ -373,16 +391,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  /* Session rows */
+  /* Session Cards */
+  sessionCard: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 16,
+    backgroundColor: 'rgba(10, 20, 35, 0.70)',
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
   sessionRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 16,
     padding: 12,
-    backgroundColor: 'rgba(10, 20, 35, 0.70)',
   },
   sessionIconWrap: {
     width: 38,
@@ -445,6 +467,23 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     lineHeight: 17,
+  },
+  miniMapStage: {
+    height: 80,
+    backgroundColor: 'rgba(4,8,15,0.4)',
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    position: 'relative',
+  },
+  trailDot: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginLeft: -2,
+    marginTop: -2,
+    backgroundColor: colours.cyan,
+    opacity: 0.8,
   },
   modalOverlay: {
     flex: 1,

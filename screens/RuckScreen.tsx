@@ -9,16 +9,7 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { colours } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
-
-function distanceBetween(a: TrackPoint, b: TrackPoint) {
-  const p = 0.017453292519943295; // Math.PI / 180
-  const c = Math.cos;
-  const haversine = 0.5 - c((b.latitude - a.latitude) * p) / 2
-    + c(a.latitude * p) * c(b.latitude * p)
-    * (1 - c((b.longitude - a.longitude) * p)) / 2;
-
-  return 12742 * Math.asin(Math.sqrt(haversine)); // 2 * R; R = 6371 km
-}
+import { getMapPoints, distanceBetween, bearingBetween } from '../utils/mapUtils';
 
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
@@ -43,17 +34,6 @@ function cardinalDirection(degrees: number) {
 
 function formatHeading(degrees: number) {
   return `${String(Math.round(degrees)).padStart(3, '0')}°`;
-}
-
-function bearingBetween(a: TrackPoint, b: TrackPoint) {
-  const toRad = Math.PI / 180;
-  const toDeg = 180 / Math.PI;
-  const lat1 = a.latitude * toRad;
-  const lat2 = b.latitude * toRad;
-  const deltaLon = (b.longitude - a.longitude) * toRad;
-  const y = Math.sin(deltaLon) * Math.cos(lat2);
-  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(deltaLon);
-  return (Math.atan2(y, x) * toDeg + 360) % 360;
 }
 
 function toTrackPoint(location: Location.LocationObject): TrackPoint {
@@ -308,24 +288,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
   const activeHeading = compassHeading ?? routeBearing;
   const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
-  const mapPoints = useMemo(() => {
-    if (routePoints.length === 0) return [];
-
-    const lats = routePoints.map((point) => point.latitude);
-    const lons = routePoints.map((point) => point.longitude);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLon = Math.min(...lons);
-    const maxLon = Math.max(...lons);
-    const latRange = Math.max(maxLat - minLat, 0.0005);
-    const lonRange = Math.max(maxLon - minLon, 0.0005);
-
-    return routePoints.map((point) => ({
-      ...point,
-      x: 8 + ((point.longitude - minLon) / lonRange) * 84,
-      y: 92 - ((point.latitude - minLat) / latRange) * 84,
-    }));
-  }, [routePoints]);
+  const mapPoints = useMemo(() => getMapPoints(routePoints), [routePoints]);
 
   function changeWeight(amount: number) {
     setWeight((current) => Math.min(35, Math.max(5, current + amount)));

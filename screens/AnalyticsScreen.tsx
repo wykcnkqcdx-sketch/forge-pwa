@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -7,6 +7,7 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
+import { getMapPoints } from '../utils/mapUtils';
 
 export function AnalyticsScreen({ 
   sessions,
@@ -41,23 +42,32 @@ export function AnalyticsScreen({
       ? 'Keep intensity controlled if sleep or HRV drops.'
       : 'Current training stress is well controlled.';
 
-  function getMapPoints(points: TrackPoint[] | undefined) {
-    if (!points || points.length === 0) return [];
-    
-    const lats = points.map((p) => p.latitude);
-    const lons = points.map((p) => p.longitude);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLon = Math.min(...lons);
-    const maxLon = Math.max(...lons);
-    const latRange = Math.max(maxLat - minLat, 0.0005);
-    const lonRange = Math.max(maxLon - minLon, 0.0005);
+  const totalScore = useMemo(() => sessions.reduce((total, session) => total + session.score, 0), [sessions]);
+  const currentLevel = Math.floor(totalScore / 500) + 1;
+  const currentLevelProgress = totalScore % 500;
+  const nextLevelProgressPct = Math.round((currentLevelProgress / 500) * 100);
+  const pointsToNext = 500 - currentLevelProgress;
 
-    return points.map((p) => ({
-      x: 8 + ((p.longitude - minLon) / lonRange) * 84,
-      y: 92 - ((p.latitude - minLat) / latRange) * 84,
-    }));
-  }
+  const [filterType, setFilterType] = useState<TrainingSession['type'] | 'All'>('All');
+  const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
+  const [displayLimit, setDisplayLimit] = useState(10);
+
+  useEffect(() => {
+    setDisplayLimit(10);
+  }, [filterType, sortOrder]);
+
+  const filteredSessions = useMemo(() => {
+    let result = sessions;
+    if (filterType !== 'All') {
+      result = result.filter((s) => s.type === filterType);
+    }
+    if (sortOrder === 'score') {
+      result = [...result].sort((a, b) => b.score - a.score);
+    }
+    return result;
+  }, [sessions, filterType, sortOrder]);
+
+  const displayedSessions = filteredSessions.slice(0, displayLimit);
 
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
   const [editScore, setEditScore] = useState('');
@@ -105,6 +115,17 @@ export function AnalyticsScreen({
       </View>
 
       <Card>
+        <View style={styles.levelHeader}>
+          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Operator Level</Text>
+          <View style={styles.levelBadge}>
+            <Text style={styles.levelBadgeText}>LVL {currentLevel}</Text>
+          </View>
+        </View>
+        <ProgressBar value={nextLevelProgressPct} colour={colours.cyan} />
+        <Text style={[styles.muted, { marginTop: 10 }]}>{pointsToNext} pts to rank up ({totalScore} total)</Text>
+      </Card>
+
+      <Card>
         <Text style={styles.cardTitle}>Weekly Load</Text>
         <View style={styles.chart}>
           {loadBars.map((value, index) => (
@@ -141,51 +162,91 @@ export function AnalyticsScreen({
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Session Log</Text>
+        <Pressable 
+          style={styles.sortBtn} 
+          onPress={() => setSortOrder(current => current === 'latest' ? 'score' : 'latest')}
+        >
+          <Ionicons name={sortOrder === 'latest' ? 'time-outline' : 'trophy-outline'} size={12} color={colours.cyan} />
+          <Text style={styles.sortBtnText}>{sortOrder === 'latest' ? 'Latest' : 'Top Score'}</Text>
+        </Pressable>
       </View>
 
+      {hasSessions && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContainer}>
+          {['All', 'Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility', 'Run'].map((type) => {
+            const isActive = filterType === type;
+            return (
+              <Pressable
+                key={type}
+                style={[styles.filterPill, isActive && styles.filterPillActive]}
+                onPress={() => setFilterType(type as TrainingSession['type'] | 'All')}
+              >
+                <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{type}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      )}
+
       {hasSessions ? (
-        sessions.map((session) => (
-          <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
-            <View style={styles.sessionRow}>
-              <View style={styles.sessionIconWrap}>
-                <Ionicons 
-                  name={session.type === 'Ruck' ? 'footsteps-outline' : 'barbell-outline'} 
-                  size={18} 
-                  color={colours.cyan} 
-                />
+        displayedSessions.length > 0 ? (
+          <React.Fragment>
+            {displayedSessions.map((session) => (
+              <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
+                <View style={styles.sessionRow}>
+                  <View style={styles.sessionIconWrap}>
+                    <Ionicons 
+                      name={session.type === 'Ruck' ? 'footsteps-outline' : 'barbell-outline'} 
+                      size={18} 
+                      color={colours.cyan} 
+                    />
+                  </View>
+                  <View style={styles.sessionCopy}>
+                    <Text style={styles.sessionTitle}>{session.title}</Text>
+                    <Text style={styles.sessionMeta}>
+                      {session.type} · {session.durationMinutes} min · RPE {session.rpe}
+                    </Text>
+                  </View>
+                  <View style={styles.sessionRight}>
+                    <Text style={styles.score}>{session.score}</Text>
+                    <Text style={styles.scoreLabel}>SCORE</Text>
+                  </View>
+                  <View style={styles.actions}>
+                    <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
+                      <Ionicons name="pencil" size={18} color={colours.cyan} />
+                    </Pressable>
+                    <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
+                      <Ionicons name="trash-outline" size={18} color={colours.red} />
+                    </Pressable>
+                  </View>
+                </View>
+                
+                {session.routePoints && session.routePoints.length > 0 && (
+                  <View style={styles.miniMapStage}>
+                    {getMapPoints(session.routePoints).map((point, index) => (
+                      <View
+                        key={index}
+                        style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}
+                      />
+                    ))}
+                  </View>
+                )}
               </View>
-              <View style={styles.sessionCopy}>
-                <Text style={styles.sessionTitle}>{session.title}</Text>
-                <Text style={styles.sessionMeta}>
-                  {session.type} · {session.durationMinutes} min · RPE {session.rpe}
-                </Text>
-              </View>
-              <View style={styles.sessionRight}>
-                <Text style={styles.score}>{session.score}</Text>
-                <Text style={styles.scoreLabel}>SCORE</Text>
-              </View>
-              <View style={styles.actions}>
-                <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
-                  <Ionicons name="pencil" size={18} color={colours.cyan} />
-                </Pressable>
-                <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
-                  <Ionicons name="trash-outline" size={18} color={colours.red} />
-                </Pressable>
-              </View>
-            </View>
-            
-            {session.routePoints && session.routePoints.length > 0 && (
-              <View style={styles.miniMapStage}>
-                {getMapPoints(session.routePoints).map((point, index) => (
-                  <View
-                    key={index}
-                    style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}
-                  />
-                ))}
-              </View>
+            ))}
+
+            {displayLimit < filteredSessions.length && (
+              <Pressable style={styles.loadMoreBtn} onPress={() => setDisplayLimit((curr) => curr + 10)}>
+                <Text style={styles.loadMoreText}>Load More</Text>
+              </Pressable>
             )}
+          </React.Fragment>
+        ) : (
+          <View style={[styles.logEmptyState, shadow.subtle]}>
+            <Ionicons name="funnel-outline" size={22} color={colours.cyan} />
+            <Text style={styles.emptyTitle}>No matches</Text>
+            <Text style={styles.logEmptyText}>No sessions found for the selected filter.</Text>
           </View>
-        ))
+        )
       ) : (
         <View style={[styles.logEmptyState, shadow.subtle]}>
           <Ionicons name="document-text-outline" size={22} color={colours.cyan} />
@@ -223,6 +284,9 @@ const styles = StyleSheet.create({
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
   grid: { flexDirection: 'row', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 16 },
+  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  levelBadge: { backgroundColor: colours.cyanDim, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: `${colours.cyan}40` },
+  levelBadgeText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
   chart: { height: 140, flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
   bar: { flex: 1, backgroundColor: colours.cyan, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
   barEmpty: { backgroundColor: 'rgba(255,255,255,0.08)' },
@@ -255,6 +319,14 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   sectionTitle: { color: colours.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.2 },
+  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyanDim, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: `${colours.cyan}40` },
+  sortBtnText: { color: colours.cyan, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  filterScroll: { flexGrow: 0, marginBottom: 12, marginHorizontal: -20 },
+  filterContainer: { gap: 8, paddingHorizontal: 20 },
+  filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
+  filterPillActive: { borderColor: `${colours.cyan}80`, backgroundColor: colours.cyanDim },
+  filterText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  filterTextActive: { color: colours.cyan },
   sessionCard: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
@@ -316,4 +388,15 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 14, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16, fontSize: 16, fontWeight: '800' },
   saveBtn: { alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 16, paddingVertical: 13, marginTop: 4 },
   saveBtnText: { color: colours.background, fontSize: 15, fontWeight: '900' },
+  loadMoreBtn: {
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginTop: 4,
+    marginBottom: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.2)',
+  },
+  loadMoreText: { color: colours.cyan, fontSize: 13, fontWeight: '800' },
 });
