@@ -417,7 +417,13 @@ export default function App() {
       case 'fuel':
         return <FuelScreen sessions={sessions} />;
       case 'analytics':
-        return <AnalyticsScreen sessions={sessions} />;
+        return (
+          <AnalyticsScreen 
+            sessions={sessions} 
+            deleteSession={deleteSession}
+            editSession={editSession}
+          />
+        );
       case 'instructor':
         return (
           <InstructorScreen

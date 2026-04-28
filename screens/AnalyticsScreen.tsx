@@ -1,13 +1,22 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { colours } from '../theme';
-import { TrainingSession } from '../data/mockData';
+import { colours, shadow } from '../theme';
+import { TrainingSession, TrackPoint } from '../data/mockData';
 
-export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
+export function AnalyticsScreen({ 
+  sessions,
+  deleteSession,
+  editSession
+}: { 
+  sessions: TrainingSession[];
+  deleteSession: (id: string) => void;
+  editSession: (id: string, updates: Partial<TrainingSession>) => void;
+}) {
   const hasSessions = sessions.length > 0;
   const recentSessions = sessions.slice(0, 7);
   const averageScore = hasSessions
@@ -31,6 +40,59 @@ export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
     : latestRpe >= 6
       ? 'Keep intensity controlled if sleep or HRV drops.'
       : 'Current training stress is well controlled.';
+
+  function getMapPoints(points: TrackPoint[] | undefined) {
+    if (!points || points.length === 0) return [];
+    
+    const lats = points.map((p) => p.latitude);
+    const lons = points.map((p) => p.longitude);
+    const minLat = Math.min(...lats);
+    const maxLat = Math.max(...lats);
+    const minLon = Math.min(...lons);
+    const maxLon = Math.max(...lons);
+    const latRange = Math.max(maxLat - minLat, 0.0005);
+    const lonRange = Math.max(maxLon - minLon, 0.0005);
+
+    return points.map((p) => ({
+      x: 8 + ((p.longitude - minLon) / lonRange) * 84,
+      y: 92 - ((p.latitude - minLat) / latRange) * 84,
+    }));
+  }
+
+  const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
+  const [editScore, setEditScore] = useState('');
+  const [editDuration, setEditDuration] = useState('');
+
+  function confirmDelete(id: string) {
+    Alert.alert(
+      'Delete Session',
+      'Are you sure you want to permanently delete this logged session?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => deleteSession(id) },
+      ]
+    );
+  }
+
+  function openEdit(session: TrainingSession) {
+    setEditingSession(session);
+    setEditScore(String(session.score));
+    setEditDuration(String(session.durationMinutes));
+  }
+
+  function saveEdit() {
+    if (!editingSession) return;
+    const newScore = parseInt(editScore, 10);
+    const newDuration = parseInt(editDuration, 10);
+
+    if (isNaN(newScore) || isNaN(newDuration)) {
+      Alert.alert('Invalid Input', 'Score and duration must be numbers.');
+      return;
+    }
+
+    editSession(editingSession.id, { score: newScore, durationMinutes: newDuration });
+    setEditingSession(null);
+  }
 
   return (
     <Screen>
@@ -76,6 +138,82 @@ export function AnalyticsScreen({ sessions }: { sessions: TrainingSession[] }) {
         <Text style={styles.metricLabel}>Strength progression</Text>
         <ProgressBar value={strengthProgress} />
       </Card>
+
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Session Log</Text>
+      </View>
+
+      {hasSessions ? (
+        sessions.map((session) => (
+          <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
+            <View style={styles.sessionRow}>
+              <View style={styles.sessionIconWrap}>
+                <Ionicons 
+                  name={session.type === 'Ruck' ? 'footsteps-outline' : 'barbell-outline'} 
+                  size={18} 
+                  color={colours.cyan} 
+                />
+              </View>
+              <View style={styles.sessionCopy}>
+                <Text style={styles.sessionTitle}>{session.title}</Text>
+                <Text style={styles.sessionMeta}>
+                  {session.type} · {session.durationMinutes} min · RPE {session.rpe}
+                </Text>
+              </View>
+              <View style={styles.sessionRight}>
+                <Text style={styles.score}>{session.score}</Text>
+                <Text style={styles.scoreLabel}>SCORE</Text>
+              </View>
+              <View style={styles.actions}>
+                <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
+                  <Ionicons name="pencil" size={18} color={colours.cyan} />
+                </Pressable>
+                <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
+                  <Ionicons name="trash-outline" size={18} color={colours.red} />
+                </Pressable>
+              </View>
+            </View>
+            
+            {session.routePoints && session.routePoints.length > 0 && (
+              <View style={styles.miniMapStage}>
+                {getMapPoints(session.routePoints).map((point, index) => (
+                  <View
+                    key={index}
+                    style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}
+                  />
+                ))}
+              </View>
+            )}
+          </View>
+        ))
+      ) : (
+        <View style={[styles.logEmptyState, shadow.subtle]}>
+          <Ionicons name="document-text-outline" size={22} color={colours.cyan} />
+          <Text style={styles.emptyTitle}>No sessions logged</Text>
+          <Text style={styles.logEmptyText}>Complete a workout or ruck to populate your log.</Text>
+        </View>
+      )}
+
+      {/* Edit Modal */}
+      <Modal visible={!!editingSession} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalPanel, shadow.card]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Session</Text>
+              <Pressable onPress={() => setEditingSession(null)} style={styles.closeBtn}>
+                <Ionicons name="close" size={20} color={colours.text} />
+              </Pressable>
+            </View>
+            <Text style={styles.inputLabel}>SCORE</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" value={editScore} onChangeText={setEditScore} />
+            <Text style={styles.inputLabel}>DURATION (MINS)</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" value={editDuration} onChangeText={setEditDuration} />
+            <Pressable style={styles.saveBtn} onPress={saveEdit}>
+              <Text style={styles.saveBtnText}>Save Changes</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </Screen>
   );
 }
@@ -109,4 +247,73 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { color: colours.text, fontWeight: '900' },
   metricLabel: { color: colours.text, marginTop: 15, marginBottom: 8, fontWeight: '800' },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 2,
+    marginTop: 12,
+  },
+  sectionTitle: { color: colours.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.2 },
+  sessionCard: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 16,
+    backgroundColor: 'rgba(10, 20, 35, 0.70)',
+    marginBottom: 10,
+    overflow: 'hidden',
+  },
+  sessionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+  },
+  sessionIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    backgroundColor: colours.cyanDim,
+    borderColor: colours.border,
+  },
+  sessionCopy: { flex: 1 },
+  sessionTitle: { color: colours.text, fontWeight: '800', fontSize: 13 },
+  sessionMeta: { color: colours.muted, fontSize: 11, marginTop: 2 },
+  sessionRight: { alignItems: 'flex-end' },
+  score: { color: colours.cyan, fontSize: 20, fontWeight: '900' },
+  scoreLabel: { color: colours.soft, fontSize: 8, fontWeight: '900', letterSpacing: 1.5, marginTop: 1 },
+  actions: { flexDirection: 'row', marginLeft: 4 },
+  actionBtn: { marginLeft: 2, padding: 6, justifyContent: 'center' },
+  logEmptyState: { alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 16, padding: 18, backgroundColor: 'rgba(10, 20, 35, 0.70)' },
+  logEmptyText: { color: colours.muted, fontSize: 12, textAlign: 'center', lineHeight: 17 },
+  miniMapStage: {
+    height: 80,
+    backgroundColor: 'rgba(4,8,15,0.4)',
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    position: 'relative',
+  },
+  trailDot: {
+    position: 'absolute',
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    marginLeft: -2,
+    marginTop: -2,
+    backgroundColor: colours.cyan,
+    opacity: 0.8,
+  },
+  modalOverlay: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.62)' },
+  modalPanel: { borderWidth: 1, borderColor: colours.border, borderRadius: 20, padding: 18, backgroundColor: colours.surface },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+  modalTitle: { color: colours.text, fontSize: 20, fontWeight: '900' },
+  closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)' },
+  inputLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', marginBottom: 6, letterSpacing: 1.2 },
+  input: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 14, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16, fontSize: 16, fontWeight: '800' },
+  saveBtn: { alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 16, paddingVertical: 13, marginTop: 4 },
+  saveBtnText: { color: colours.background, fontSize: 15, fontWeight: '900' },
 });

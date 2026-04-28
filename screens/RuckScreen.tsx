@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter } from 'react-native';
+import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -8,15 +8,7 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { colours } from '../theme';
-import { TrainingSession } from '../data/mockData';
-
-type TrackPoint = {
-  latitude: number;
-  longitude: number;
-  altitude: number | null;
-  accuracy: number | null;
-  timestamp: number;
-};
+import { TrainingSession, TrackPoint } from '../data/mockData';
 
 function distanceBetween(a: TrackPoint, b: TrackPoint) {
   const p = 0.017453292519943295; // Math.PI / 180
@@ -111,6 +103,24 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
+  const rotationAnim = useRef(new Animated.Value(0)).current;
+  const prevHeading = useRef(0);
+
+  useEffect(() => {
+    if (activeHeading == null) return;
+
+    // Calculate shortest path to prevent the 359° -> 1° spin-around glitch
+    let delta = activeHeading - ((prevHeading.current % 360 + 360) % 360);
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+
+    prevHeading.current += delta;
+    Animated.timing(rotationAnim, {
+      toValue: prevHeading.current,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [activeHeading, rotationAnim]);
 
   useEffect(() => {
     async function restoreSession() {
@@ -263,6 +273,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       durationMinutes: Math.round(duration),
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
+      routePoints: routePoints.length > 0 ? routePoints : undefined,
     };
     addSession(session);
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
@@ -503,7 +514,20 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             <Text style={styles.muted}>Metric mountain planning</Text>
           </View>
           <View style={styles.compassDial}>
-            <Ionicons name="navigate" size={24} color={colours.background} />
+            <Animated.View
+              style={{
+                transform: [
+                  {
+                    rotate: rotationAnim.interpolate({
+                      inputRange: [0, 360],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  },
+                ],
+              }}
+            >
+              <Ionicons name="navigate" size={24} color={colours.background} />
+            </Animated.View>
             <Text style={styles.compassText}>{activeHeading == null ? '---' : formatHeading(activeHeading)}</Text>
           </View>
         </View>
