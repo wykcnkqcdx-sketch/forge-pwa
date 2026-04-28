@@ -47,6 +47,8 @@ export function AnalyticsScreen({
   const currentLevelProgress = totalScore % 500;
   const nextLevelProgressPct = Math.round((currentLevelProgress / 500) * 100);
   const pointsToNext = 500 - currentLevelProgress;
+  const badgeColor = currentLevel > 10 ? colours.amber : colours.cyan;
+  const badgeDim = currentLevel > 10 ? colours.amberDim : colours.cyanDim;
 
   const [filterType, setFilterType] = useState<TrainingSession['type'] | 'All'>('All');
   const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
@@ -117,11 +119,11 @@ export function AnalyticsScreen({
       <Card>
         <View style={styles.levelHeader}>
           <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Operator Level</Text>
-          <View style={styles.levelBadge}>
-            <Text style={styles.levelBadgeText}>LVL {currentLevel}</Text>
+          <View style={[styles.levelBadge, { backgroundColor: badgeDim, borderColor: `${badgeColor}40` }]}>
+            <Text style={[styles.levelBadgeText, { color: badgeColor }]}>LVL {currentLevel}</Text>
           </View>
         </View>
-        <ProgressBar value={nextLevelProgressPct} colour={colours.cyan} />
+        <ProgressBar value={nextLevelProgressPct} colour={badgeColor} />
         <Text style={[styles.muted, { marginTop: 10 }]}>{pointsToNext} pts to rank up ({totalScore} total)</Text>
       </Card>
 
@@ -285,8 +287,8 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 16 },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  levelBadge: { backgroundColor: colours.cyanDim, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: `${colours.cyan}40` },
-  levelBadgeText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
+  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  levelBadgeText: { fontSize: 12, fontWeight: '900' },
   chart: { height: 140, flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
   bar: { flex: 1, backgroundColor: colours.cyan, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
   barEmpty: { backgroundColor: 'rgba(255,255,255,0.08)' },
