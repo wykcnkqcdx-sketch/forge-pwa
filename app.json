@@ -10,10 +10,21 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.forge.tacticalfitness"
+      "bundleIdentifier": "com.forge.tacticalfitness",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "FORGE uses your location to track GPS ruck sessions.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FORGE uses background location to continue tracking rucks while the app is locked."
+      }
     },
     "android": {
       "package": "com.forge.tacticalfitness",
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#070B12"
       }

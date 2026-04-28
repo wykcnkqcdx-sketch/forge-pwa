@@ -125,7 +125,7 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
         <View style={styles.actionGrid}>
           <Pressable onPress={onSetPin} style={[styles.actionButton, { borderColor: `${colours.amber}40`, backgroundColor: colours.amberDim }]}>
             <Text style={[styles.actionLabel, { color: colours.amber }]}>{pinEnabled ? 'Change PIN' : 'Set PIN'}</Text>
-            <Text style={styles.actionMeta}>{pinEnabled ? 'App lock active' : 'Protect local data'}</Text>
+            <Text style={styles.actionMeta}>{pinEnabled ? 'App lock active' : 'Local app lock'}</Text>
           </Pressable>
           <Pressable onPress={onExport} style={[styles.actionButton, { borderColor: `${colours.cyan}40`, backgroundColor: colours.cyanDim }]}>
             <Text style={[styles.actionLabel, { color: colours.cyan }]}>Export</Text>
@@ -137,7 +137,7 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
           </Pressable>
           <Pressable onPress={onWipe} style={[styles.actionButton, { borderColor: `${colours.red}40`, backgroundColor: colours.redDim }]}>
             <Text style={[styles.actionLabel, { color: colours.red }]}>Wipe</Text>
-            <Text style={styles.actionMeta}>Destroy local data</Text>
+            <Text style={styles.actionMeta}>Clear local data</Text>
           </Pressable>
         </View>
       </Card>

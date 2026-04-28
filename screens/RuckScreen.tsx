@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated } from 'react-native';
+import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -47,29 +47,31 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 }
 
 const LOCATION_TASK_NAME = 'background-location-task';
+const supportsBackgroundLocation = Platform.OS !== 'web';
 
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
-  if (error) {
-    console.error('Background Location Task Error:', error);
-    return;
-  }
-  if (data) {
-    const { locations } = data as { locations: Location.LocationObject[] };
-
-    try {
-      const stored = await AsyncStorage.getItem('forge:ruck_route');
-      const existingPoints: TrackPoint[] = stored ? JSON.parse(stored) : [];
-      const newPoints = locations.map(toTrackPoint);
-      
-      await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([...existingPoints, ...newPoints]));
-    } catch (e) {
-      console.error('Failed to save background locations', e);
+if (supportsBackgroundLocation) {
+  TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
+    if (error) {
+      console.error('Background Location Task Error:', error);
+      return;
     }
+    if (data) {
+      const { locations } = data as { locations: Location.LocationObject[] };
 
-    // Send coordinates to the UI if the app is active
-    DeviceEventEmitter.emit('onLocationUpdate', locations);
-  }
-});
+      try {
+        const stored = await AsyncStorage.getItem('forge:ruck_route');
+        const existingPoints: TrackPoint[] = stored ? JSON.parse(stored) : [];
+        const newPoints = locations.map(toTrackPoint);
+
+        await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([...existingPoints, ...newPoints]));
+      } catch (e) {
+        console.error('Failed to save background locations', e);
+      }
+
+      DeviceEventEmitter.emit('onLocationUpdate', locations);
+    }
+  });
+}
 
 export function RuckScreen({ addSession }: { addSession: (session: TrainingSession) => void }) {
   const [weight, setWeight] = useState(18);
@@ -83,6 +85,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
+  const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const prevHeading = useRef(0);
 
@@ -92,6 +95,19 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const activeHeading = compassHeading ?? routeBearing;
   const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
   const mapPoints = useMemo(() => getMapPoints(routePoints), [routePoints]);
+
+  const recordLocation = useCallback((location: Location.LocationObject) => {
+    const nextPoint = toTrackPoint(location);
+
+    setRoutePoints((points) => {
+      const previousPoint = points[points.length - 1];
+      if (previousPoint && previousPoint.timestamp === nextPoint.timestamp) return points;
+      if (previousPoint) {
+        setCurrentDistance((current) => current + distanceBetween(previousPoint, nextPoint));
+      }
+      return [...points, nextPoint].slice(-120);
+    });
+  }, []);
 
   useEffect(() => {
     if (activeHeading == null) return;
@@ -128,8 +144,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             setStartTime(start);
             setElapsedSeconds(Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000)));
 
-            const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-            if (hasStarted) setIsTracking(true);
+            if (supportsBackgroundLocation) {
+              const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+              if (hasStarted) setIsTracking(true);
+            }
           }
         }
       } catch (e) {
@@ -156,6 +174,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   }, []);
 
   useEffect(() => {
+    return () => {
+      foregroundLocationSubscription.current?.remove();
+      foregroundLocationSubscription.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
     if (!isTracking || !startTime) return undefined;
 
     const timer = setInterval(() => {
@@ -168,29 +193,20 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   useEffect(() => {
     if (!isTracking) return;
 
-    const recordPoint = (location: Location.LocationObject) => {
-      const nextPoint = toTrackPoint(location);
-
-      setRoutePoints((points) => {
-        const previousPoint = points[points.length - 1];
-        if (previousPoint && previousPoint.timestamp === nextPoint.timestamp) return points; // Deduplicate
-        if (previousPoint) {
-          setCurrentDistance((current) => current + distanceBetween(previousPoint, nextPoint));
-        }
-        return [...points, nextPoint].slice(-120);
-      });
-    };
-
     const subscription = DeviceEventEmitter.addListener('onLocationUpdate', (locations: Location.LocationObject[]) => {
-      locations.forEach(recordPoint);
+      locations.forEach(recordLocation);
     });
 
     return () => subscription.remove();
-  }, [isTracking]);
+  }, [isTracking, recordLocation]);
 
   const stopTracking = async () => {
     setIsTracking(false);
+    foregroundLocationSubscription.current?.remove();
+    foregroundLocationSubscription.current = null;
+
     try {
+      if (!supportsBackgroundLocation) return;
       const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
       if (hasStarted) {
         await Location.stopLocationUpdatesAsync(LOCATION_TASK_NAME);
@@ -211,27 +227,38 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         return;
       }
 
-      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-      if (bgStatus !== 'granted') {
-        Alert.alert('Permission denied', 'Background location permission is required for locked-screen tracking.');
-        return;
-      }
-
       const firstPosition = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
 
       await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([toTrackPoint(firstPosition)]));
 
-      await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-        accuracy: Location.Accuracy.High,
-        timeInterval: 3000,
-        distanceInterval: 5,
-        showsBackgroundLocationIndicator: true,
-        foregroundService: {
-          notificationTitle: 'FORGE Ruck Tracker',
-          notificationBody: 'GPS tracking active',
-          notificationColor: colours.cyan,
-        },
-      });
+      if (supportsBackgroundLocation) {
+        const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+        if (bgStatus !== 'granted') {
+          Alert.alert('Permission denied', 'Background location permission is required for locked-screen tracking.');
+          return;
+        }
+
+        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 3000,
+          distanceInterval: 5,
+          showsBackgroundLocationIndicator: true,
+          foregroundService: {
+            notificationTitle: 'FORGE Ruck Tracker',
+            notificationBody: 'GPS tracking active',
+            notificationColor: colours.cyan,
+          },
+        });
+      } else {
+        foregroundLocationSubscription.current = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 3000,
+            distanceInterval: 5,
+          },
+          recordLocation
+        );
+      }
 
       setIsTracking(true);
       setCurrentDistance(0);
@@ -322,6 +349,9 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     <Screen>
       <Text style={styles.muted}>Loaded movement</Text>
       <Text style={styles.title}>Ruck Tracker</Text>
+      {!supportsBackgroundLocation && (
+        <Text style={styles.platformNote}>Web tracking runs while this tab stays open. Use the native app for locked-screen GPS.</Text>
+      )}
 
       <Card style={styles.mapCard}>
         <View style={styles.mapHeader}>
@@ -539,6 +569,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 const styles = StyleSheet.create({
   muted: { color: colours.muted, fontSize: 13 },
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
+  platformNote: { color: colours.amber, fontSize: 12, lineHeight: 18, marginTop: -8, marginBottom: 8 },
   mapCard: { backgroundColor: '#0F1F35' },
   mapHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   mapLabel: { color: colours.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.8 },

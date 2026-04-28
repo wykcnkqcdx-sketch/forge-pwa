@@ -475,6 +475,8 @@ export default function App() {
   }
 
   if (savedPin && !isUnlocked) {
+    const pinLength = Math.max(4, savedPin.length);
+
     return (
       <View style={styles.lockScreen}>
         <View style={styles.lockContent}>
@@ -482,7 +484,7 @@ export default function App() {
           <Text style={styles.lockSub}>Enter PIN to access tactical dashboard.</Text>
           <View style={styles.pinWrapper}>
             <View style={styles.pinDisplay}>
-              {[0, 1, 2, 3].map((i) => (
+              {Array.from({ length: pinLength }, (_, i) => (
                 <View key={i} style={[styles.pinBox, pinInput.length > i && styles.pinBoxFilled]}>
                   <Text style={styles.pinDot}>{pinInput.length > i ? '•' : ''}</Text>
                 </View>
@@ -491,15 +493,16 @@ export default function App() {
             <TextInput
               style={styles.hiddenInput}
               keyboardType="number-pad"
-              maxLength={4}
+              maxLength={pinLength}
               value={pinInput}
               onChangeText={(val) => {
                 const numericVal = val.replace(/[^0-9]/g, '');
                 setPinInput(numericVal);
                 setPinError(false);
-                if (numericVal.length === 4) {
-                  if (numericVal === '0000') executeDuressWipe();
-                  else if (numericVal === savedPin) { setIsUnlocked(true); setPinInput(''); }
+                if (numericVal === '0000') {
+                  executeDuressWipe();
+                } else if (numericVal.length === savedPin.length) {
+                  if (numericVal === savedPin) { setIsUnlocked(true); setPinInput(''); }
                   else { setPinError(true); setTimeout(() => setPinInput(''), 300); }
                 }
               }}
