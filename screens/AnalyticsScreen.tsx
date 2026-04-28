@@ -245,7 +245,7 @@ export function AnalyticsScreen({
                 
                 {session.routePoints && session.routePoints.length > 0 && (
                   <View style={styles.miniMapStage}>
-                    {getMapPoints(session.routePoints).map((point, index) => (
+                    {getMapPoints(session.routePoints).map((point: TrackPoint & { x: number; y: number }, index: number) => (
                       <View
                         key={index}
                         style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}

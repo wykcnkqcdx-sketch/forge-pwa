@@ -48,7 +48,7 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 
 const LOCATION_TASK_NAME = 'background-location-task';
 
-TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }) => {
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
   if (error) {
     console.error('Background Location Task Error:', error);
     return;
@@ -85,6 +85,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const prevHeading = useRef(0);
+
+  const currentPoint = routePoints[routePoints.length - 1];
+  const previousPoint = routePoints[routePoints.length - 2];
+  const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
+  const activeHeading = compassHeading ?? routeBearing;
+  const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
+  const mapPoints = useMemo(() => getMapPoints(routePoints), [routePoints]);
 
   useEffect(() => {
     if (activeHeading == null) return;
@@ -283,12 +290,6 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     [weight, distance, plannedAscentM]
   );
   const activePace = currentDistance > 0.02 ? (elapsedSeconds / 60 / currentDistance).toFixed(1) : '--';
-  const currentPoint = routePoints[routePoints.length - 1];
-  const previousPoint = routePoints[routePoints.length - 2];
-  const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
-  const activeHeading = compassHeading ?? routeBearing;
-  const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
-  const mapPoints = useMemo(() => getMapPoints(routePoints), [routePoints]);
 
   function changeWeight(amount: number) {
     setWeight((current) => Math.min(35, Math.max(5, current + amount)));
@@ -348,7 +349,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               <Text style={styles.mapEmptyText}>Start GPS to draw your route</Text>
             </View>
           ) : (
-            mapPoints.map((point, index) => {
+            mapPoints.map((point: TrackPoint & { x: number; y: number }, index: number) => {
               const isCurrent = index === mapPoints.length - 1;
               return (
                 <View

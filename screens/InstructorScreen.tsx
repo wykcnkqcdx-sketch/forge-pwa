@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Alert, Linking, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -29,13 +29,13 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
     return groups.map((group) => {
       const groupMembers = members.filter((member) => member.groupId === group.id);
       const readiness = groupMembers.length
-        ? Math.round(groupMembers.reduce((total, member) => total + member.readiness, 0) / groupMembers.length)
+        ? Math.round(groupMembers.reduce((total: number, member) => total + member.readiness, 0) / groupMembers.length)
         : 0;
       const compliance = groupMembers.length
-        ? Math.round(groupMembers.reduce((total, member) => total + member.compliance, 0) / groupMembers.length)
+        ? Math.round(groupMembers.reduce((total: number, member) => total + member.compliance, 0) / groupMembers.length)
         : 0;
       const load = groupMembers.length
-        ? Math.round(groupMembers.reduce((total, member) => total + member.load, 0) / groupMembers.length)
+        ? Math.round(groupMembers.reduce((total: number, member) => total + member.load, 0) / groupMembers.length)
         : 0;
       const teamScore = Math.round(readiness * 0.5 + compliance * 0.3 + Math.max(0, 100 - load) * 0.2);
 
@@ -44,7 +44,7 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
   }, [groups, members]);
 
   const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
-  const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
+  const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total: number, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
 
   function createGroup() {
     const nextNumber = groups.length + 1;

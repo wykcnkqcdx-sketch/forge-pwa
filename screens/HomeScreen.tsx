@@ -6,7 +6,7 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow } from '../theme';
-import { TrainingSession } from '../data/mockData';
+import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints } from '../utils/mapUtils';
 
 export function HomeScreen({
@@ -179,7 +179,7 @@ export function HomeScreen({
             
             {session.routePoints && session.routePoints.length > 0 && (
               <View style={styles.miniMapStage}>
-                {getMapPoints(session.routePoints).map((point, index) => (
+                {getMapPoints(session.routePoints).map((point: TrackPoint & { x: number; y: number }, index: number) => (
                   <View
                     key={index}
                     style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}
