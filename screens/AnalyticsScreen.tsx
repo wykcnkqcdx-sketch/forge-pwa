@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LineChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -24,12 +25,19 @@ export function AnalyticsScreen({
     ? Math.round(sessions.reduce((total, session) => total + session.score, 0) / sessions.length)
     : 0;
   const compliance = hasSessions ? Math.min(100, 68 + sessions.length * 4) : 0;
-  const maxLoad = Math.max(...recentSessions.map((session) => session.durationMinutes * session.rpe), 1);
-  const loadBars = Array.from({ length: 7 }, (_, index) => {
-    const session = recentSessions[6 - index];
-    if (!session) return 0;
-    return Math.max(8, Math.round((session.durationMinutes * session.rpe / maxLoad) * 100));
-  });
+  
+  const screenWidth = Dimensions.get('window').width;
+  const weeklyChartData = useMemo(() => {
+    const data = Array.from({ length: 7 }, (_, index) => {
+      const session = recentSessions[6 - index];
+      return session ? session.durationMinutes * session.rpe : 0;
+    });
+    return {
+      labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
+      datasets: [{ data: data.some(d => d > 0) ? data : [0, 0, 0, 0, 0, 0, 0] }]
+    };
+  }, [recentSessions]);
+
   const ruckSessions = sessions.filter((session) => session.type === 'Ruck');
   const strengthSessions = sessions.filter((session) => session.type === 'Strength');
   const ruckProgress = Math.min(100, ruckSessions.length * 18 + Math.max(0, ruckSessions[0]?.score ?? 0) * 0.4);
@@ -129,16 +137,28 @@ export function AnalyticsScreen({
 
       <Card>
         <Text style={styles.cardTitle}>Weekly Load</Text>
-        <View style={styles.chart}>
-          {loadBars.map((value, index) => (
-            <View key={index} style={[styles.bar, !value && styles.barEmpty, { height: `${value}%` }]} />
-          ))}
-        </View>
-        <View style={styles.days}>
-          {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, index) => (
-            <Text key={`${day}-${index}`} style={styles.day}>{day}</Text>
-          ))}
-        </View>
+        <LineChart
+          data={weeklyChartData}
+          width={screenWidth - 76}
+          height={180}
+          yAxisLabel=""
+          yAxisSuffix=""
+          withInnerLines={false}
+          withOuterLines={false}
+          chartConfig={{
+            backgroundColor: 'transparent',
+            backgroundGradientFrom: '#000000',
+            backgroundGradientFromOpacity: 0,
+            backgroundGradientTo: '#000000',
+            backgroundGradientToOpacity: 0,
+            decimalPlaces: 0,
+            color: (opacity = 1) => `rgba(0, 229, 255, ${opacity})`,
+            labelColor: (opacity = 1) => colours.muted,
+            propsForDots: { r: '4', strokeWidth: '2', stroke: colours.background },
+          }}
+          bezier
+          style={styles.lineChart}
+        />
       </Card>
 
       <Card>
@@ -289,11 +309,7 @@ const styles = StyleSheet.create({
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
   levelBadgeText: { fontSize: 12, fontWeight: '900' },
-  chart: { height: 140, flexDirection: 'row', gap: 8, alignItems: 'flex-end' },
-  bar: { flex: 1, backgroundColor: colours.cyan, borderTopLeftRadius: 12, borderTopRightRadius: 12 },
-  barEmpty: { backgroundColor: 'rgba(255,255,255,0.08)' },
-  days: { flexDirection: 'row', justifyContent: 'space-around', marginTop: 10 },
-  day: { color: colours.muted, fontSize: 11 },
+  lineChart: { marginVertical: 8, marginLeft: -12 },
   warning: {
     borderColor: 'rgba(253,230,138,0.25)',
     borderWidth: 1,

@@ -129,6 +129,7 @@ export type TrainingMode = {
   score: number;
   coach: string;
   defaultExerciseIds: string[];
+  unlockLevel?: number;
 };
 
 export const exerciseLibrary: Exercise[] = [
@@ -208,5 +209,18 @@ export const trainingModes: TrainingMode[] = [
     score: 79,
     coach: 'Move with intent, but cap intensity if form starts to break.',
     defaultExerciseIds: ['sandbag-clean', 'shuttle-run', 'push-up-ladder', 'bear-crawl', 'mobility-reset'],
+  },
+  {
+    key: 'elite',
+    type: 'Workout',
+    label: 'Elite',
+    title: 'Tier 1 Operator',
+    icon: 'skull',
+    tone: colours.red,
+    rpe: 10,
+    score: 150,
+    coach: 'You have unlocked the Elite block. Push beyond normal limits, but respect the recovery cost.',
+    defaultExerciseIds: ['trap-bar-deadlift', 'front-squat', 'sandbag-clean', 'shuttle-run', 'burpee'],
+    unlockLevel: 10,
   },
 ];

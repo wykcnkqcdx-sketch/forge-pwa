@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -9,17 +10,42 @@ import { TrainingSession, ExerciseCategory, Exercise, exerciseLibrary, trainingM
 
 const categories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 
-export function TrainScreen({ addSession }: { addSession: (session: TrainingSession) => void }) {
-  const [activeKey, setActiveKey] = useState(trainingModes[0].key);
+export function TrainScreen({ addSession, sessions }: { addSession: (session: TrainingSession) => void; sessions: TrainingSession[] }) {
+  const totalScore = useMemo(() => sessions.reduce((total, s) => total + s.score, 0), [sessions]);
+  const currentLevel = Math.floor(totalScore / 500) + 1;
+  const unlockProgressPct = Math.min(100, Math.round((totalScore / 4500) * 100)); // 4500 pts = Level 10
+
+  const availableModes = useMemo(() => {
+    return trainingModes.filter((mode) => !mode.unlockLevel || currentLevel >= mode.unlockLevel);
+  }, [currentLevel]);
+
+  useEffect(() => {
+    async function checkUnlockAlert() {
+      if (currentLevel >= 10) {
+        const hasSeen = await AsyncStorage.getItem('forge:elite_unlocked_alert');
+        if (!hasSeen) {
+          Alert.alert(
+            'Tier 1 Operator Unlocked',
+            'Congratulations! You have reached Level 10 and unlocked the Elite training block.'
+          );
+          await AsyncStorage.setItem('forge:elite_unlocked_alert', 'true');
+        }
+      }
+    }
+    checkUnlockAlert();
+  }, [currentLevel]);
+
+  const [activeKey, setActiveKey] = useState(availableModes[0].key);
   const [activeCategory, setActiveCategory] = useState<'All' | ExerciseCategory>('All');
   const [savedKeys, setSavedKeys] = useState<string[]>([]);
   const [selectedByMode, setSelectedByMode] = useState<Record<string, string[]>>(
     Object.fromEntries(trainingModes.map((mode) => [mode.key, mode.defaultExerciseIds]))
   );
-  const [focusedExerciseId, setFocusedExerciseId] = useState(trainingModes[0].defaultExerciseIds[0]);
+
+  const [focusedExerciseId, setFocusedExerciseId] = useState(availableModes[0].defaultExerciseIds[0]);
   const activeMode = useMemo(
-    () => trainingModes.find((mode) => mode.key === activeKey) ?? trainingModes[0],
-    [activeKey]
+    () => availableModes.find((mode) => mode.key === activeKey) ?? availableModes[0],
+    [activeKey, availableModes]
   );
   const selectedIds = selectedByMode[activeMode.key] ?? [];
   const selectedExercises = selectedIds
@@ -33,7 +59,7 @@ export function TrainScreen({ addSession }: { addSession: (session: TrainingSess
   const saved = savedKeys.includes(activeMode.key);
 
   function switchMode(key: string) {
-    const nextMode = trainingModes.find((mode) => mode.key === key) ?? trainingModes[0];
+    const nextMode = availableModes.find((mode) => mode.key === key) ?? availableModes[0];
     setActiveKey(nextMode.key);
     setFocusedExerciseId((selectedByMode[nextMode.key] ?? nextMode.defaultExerciseIds)[0]);
   }
@@ -75,7 +101,7 @@ export function TrainScreen({ addSession }: { addSession: (session: TrainingSess
       <Text style={styles.title}>{activeMode.title}</Text>
 
       <View style={styles.modeTabs}>
-        {trainingModes.map((mode) => {
+        {availableModes.map((mode) => {
           const isActive = mode.key === activeMode.key;
           return (
             <Pressable
@@ -94,6 +120,16 @@ export function TrainScreen({ addSession }: { addSession: (session: TrainingSess
             </Pressable>
           );
         })}
+
+        {currentLevel < 10 && (
+          <View style={[styles.modeTab, styles.lockedTab]}>
+            <Ionicons name="lock-closed" size={13} color={colours.soft} />
+            <Text style={styles.lockedText}>{unlockProgressPct}%</Text>
+            <View style={styles.lockedBarBg}>
+              <View style={[styles.lockedBarFill, { width: `${unlockProgressPct}%` }]} />
+            </View>
+          </View>
+        )}
       </View>
 
       <View style={styles.grid}>
@@ -218,6 +254,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   modeTabText: { fontSize: 12, fontWeight: '900' },
+  lockedTab: { borderColor: 'rgba(255,255,255,0.03)', backgroundColor: 'transparent', gap: 6 },
+  lockedText: { color: colours.soft, fontSize: 11, fontWeight: '900' },
+  lockedBarBg: { width: 32, height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' },
+  lockedBarFill: { height: '100%', backgroundColor: colours.soft },
   grid: { flexDirection: 'row', gap: 12 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12 },
   cardTitle: { color: colours.text, fontSize: 18, fontWeight: '900' },
