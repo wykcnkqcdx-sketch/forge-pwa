@@ -98,22 +98,22 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState<TeamMessage[]>(teamMessages);
 
-  const activeGoal = goals.find((item) => item.id === goal) ?? goals[1];
-  const bmi = Math.round((bodyWeightKg / Math.pow(heightCm / 100, 2)) * 10) / 10;
-  const bmiInfo = getBmiCategory(bmi);
-  const maxHr = Math.max(120, 220 - age);
-  const estimatedBodyFat = Math.round(clamp(5 + skinfoldMm * 0.45, 5, 45) * 10) / 10;
+  const activeGoal = useMemo(() => goals.find((item) => item.id === goal) ?? goals[1], [goal]);
+  const bmi = useMemo(() => Math.round((bodyWeightKg / Math.pow(heightCm / 100, 2)) * 10) / 10, [bodyWeightKg, heightCm]);
+  const bmiInfo = useMemo(() => getBmiCategory(bmi), [bmi]);
+  const maxHr = useMemo(() => Math.max(120, 220 - age), [age]);
+  const estimatedBodyFat = useMemo(() => Math.round(clamp(5 + skinfoldMm * 0.45, 5, 45) * 10) / 10, [skinfoldMm]);
   const caloriesUsed = useMemo(
     () => sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe * 7, 0),
     [sessions]
   );
-  const baseCalories = Math.round(bodyWeightKg * 31);
-  const calorieTarget = baseCalories + activeGoal.offset + Math.round(caloriesUsed / 7);
-  const proteinTarget = Math.round(bodyWeightKg * (goal === 'gain' ? 2.0 : 1.8));
-  const carbTarget = Math.round((calorieTarget * (goal === 'loss' ? 0.38 : 0.48)) / 4);
-  const fatTarget = Math.round((calorieTarget * 0.25) / 9);
-  const hydrationTargetMl = Math.round(bodyWeightKg * 35 + Math.min(1200, caloriesUsed / 7));
-  const hydrationPct = Math.round((hydrationLoggedMl / hydrationTargetMl) * 100);
+  const baseCalories = useMemo(() => Math.round(bodyWeightKg * 31), [bodyWeightKg]);
+  const calorieTarget = useMemo(() => baseCalories + activeGoal.offset + Math.round(caloriesUsed / 7), [baseCalories, activeGoal.offset, caloriesUsed]);
+  const proteinTarget = useMemo(() => Math.round(bodyWeightKg * (goal === 'gain' ? 2.0 : 1.8)), [bodyWeightKg, goal]);
+  const carbTarget = useMemo(() => Math.round((calorieTarget * (goal === 'loss' ? 0.38 : 0.48)) / 4), [calorieTarget, goal]);
+  const fatTarget = useMemo(() => Math.round((calorieTarget * 0.25) / 9), [calorieTarget]);
+  const hydrationTargetMl = useMemo(() => Math.round(bodyWeightKg * 35 + Math.min(1200, caloriesUsed / 7)), [bodyWeightKg, caloriesUsed]);
+  const hydrationPct = useMemo(() => Math.round((hydrationLoggedMl / hydrationTargetMl) * 100), [hydrationLoggedMl, hydrationTargetMl]);
   const sleepTone = sleepScore >= 80 ? colours.green : sleepScore >= 65 ? colours.amber : colours.red;
   const fuelTiming = goal === 'gain'
     ? 'Add a carb/protein meal within 90 minutes after training.'

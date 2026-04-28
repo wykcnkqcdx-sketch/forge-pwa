@@ -24,23 +24,27 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState(trainingGroups[0]?.id ?? 'alpha');
-  const groupScores = groups.map((group) => {
-    const groupMembers = members.filter((member) => member.groupId === group.id);
-    const readiness = groupMembers.length
-      ? Math.round(groupMembers.reduce((total, member) => total + member.readiness, 0) / groupMembers.length)
-      : 0;
-    const compliance = groupMembers.length
-      ? Math.round(groupMembers.reduce((total, member) => total + member.compliance, 0) / groupMembers.length)
-      : 0;
-    const load = groupMembers.length
-      ? Math.round(groupMembers.reduce((total, member) => total + member.load, 0) / groupMembers.length)
-      : 0;
-    const teamScore = Math.round(readiness * 0.5 + compliance * 0.3 + Math.max(0, 100 - load) * 0.2);
 
-    return { ...group, members: groupMembers, readiness, compliance, load, teamScore };
-  });
-  const atRiskCount = members.filter((member) => member.risk !== 'Low').length;
-  const averageTeamScore = Math.round(groupScores.reduce((total, group) => total + group.teamScore, 0) / groupScores.length);
+  const groupScores = useMemo(() => {
+    return groups.map((group) => {
+      const groupMembers = members.filter((member) => member.groupId === group.id);
+      const readiness = groupMembers.length
+        ? Math.round(groupMembers.reduce((total, member) => total + member.readiness, 0) / groupMembers.length)
+        : 0;
+      const compliance = groupMembers.length
+        ? Math.round(groupMembers.reduce((total, member) => total + member.compliance, 0) / groupMembers.length)
+        : 0;
+      const load = groupMembers.length
+        ? Math.round(groupMembers.reduce((total, member) => total + member.load, 0) / groupMembers.length)
+        : 0;
+      const teamScore = Math.round(readiness * 0.5 + compliance * 0.3 + Math.max(0, 100 - load) * 0.2);
+
+      return { ...group, members: groupMembers, readiness, compliance, load, teamScore };
+    });
+  }, [groups, members]);
+
+  const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
+  const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
 
   function createGroup() {
     const nextNumber = groups.length + 1;
