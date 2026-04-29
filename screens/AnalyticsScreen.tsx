@@ -8,15 +8,20 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
+import { ReadinessLog } from '../data/domain';
 import { getMapPoints } from '../utils/mapUtils';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 
 export function AnalyticsScreen({ 
   sessions,
+  readinessLogs,
+  addReadinessLog,
   deleteSession,
   editSession
 }: { 
   sessions: TrainingSession[];
+  readinessLogs: ReadinessLog[];
+  addReadinessLog: (log: ReadinessLog) => void;
   deleteSession: (id: string) => void;
   editSession: (id: string, updates: Partial<TrainingSession>) => void;
 }) {
@@ -31,6 +36,12 @@ export function AnalyticsScreen({
   
   const screenWidth = Dimensions.get('window').width;
   const [trendDays, setTrendDays] = useState<7 | 28 | 90>(7);
+
+  const latestReadiness = readinessLogs[0];
+  const [loggingReadiness, setLoggingReadiness] = useState(false);
+  const [sleepInput, setSleepInput] = useState('3');
+  const [sorenessInput, setSorenessInput] = useState('3');
+  const [stressInput, setStressInput] = useState('3');
 
   const trendChartData = useMemo(() => {
     const now = new Date();
@@ -143,6 +154,18 @@ export function AnalyticsScreen({
     setEditingSession(null);
   }
 
+  function saveReadiness() {
+    addReadinessLog({
+      id: `readiness-${Date.now()}`,
+      date: new Date().toISOString(),
+      sleepQuality: (parseInt(sleepInput) || 3) as ReadinessLog['sleepQuality'],
+      soreness: (parseInt(sorenessInput) || 3) as ReadinessLog['soreness'],
+      stress: (parseInt(stressInput) || 3) as ReadinessLog['stress'],
+      hydration: 'Adequate',
+    });
+    setLoggingReadiness(false);
+  }
+
   return (
     <Screen>
       <Text style={styles.muted}>Performance intelligence</Text>
@@ -222,14 +245,37 @@ export function AnalyticsScreen({
           ACWR {performance.acuteChronicRatio} - Strain {performance.strain} - {performance.ruckKm}km ruck load this week
         </Text>
 
-        <Text style={styles.metricLabel}>Readiness Factors</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15, marginBottom: 8 }}>
+          <Text style={[styles.metricLabel, { marginTop: 0, marginBottom: 0 }]}>Readiness Factors</Text>
+          <Pressable style={styles.sortBtn} onPress={() => setLoggingReadiness(true)}>
+            <Text style={styles.sortBtnText}>LOG TODAY</Text>
+          </Pressable>
+        </View>
         <View style={styles.factorGrid}>
-          {['Sleep', 'Soreness', 'Pain', 'Hydration', 'Mood', 'Illness', 'Rest HR', 'HRV'].map(factor => (
-            <View key={factor} style={styles.factorItem}>
-              <Text style={styles.factorLabel}>{factor}</Text>
-              <Text style={styles.factorValue}>--</Text>
-            </View>
-          ))}
+          <View style={styles.factorItem}>
+            <Text style={styles.factorLabel}>Sleep</Text>
+            <Text style={styles.factorValue}>{latestReadiness?.sleepQuality ? `${latestReadiness.sleepQuality}/5` : '--'}</Text>
+          </View>
+          <View style={styles.factorItem}>
+            <Text style={styles.factorLabel}>Soreness</Text>
+            <Text style={styles.factorValue}>{latestReadiness?.soreness ? `${latestReadiness.soreness}/5` : '--'}</Text>
+          </View>
+          <View style={styles.factorItem}>
+            <Text style={styles.factorLabel}>Stress</Text>
+            <Text style={styles.factorValue}>{latestReadiness?.stress ? `${latestReadiness.stress}/5` : '--'}</Text>
+          </View>
+          <View style={styles.factorItem}>
+            <Text style={styles.factorLabel}>Hydration</Text>
+            <Text style={styles.factorValue}>{latestReadiness?.hydration ?? '--'}</Text>
+          </View>
+          <View style={styles.factorItem}>
+            <Text style={styles.factorLabel}>Rest HR</Text>
+            <Text style={styles.factorValue}>{latestReadiness?.restingHR ? `${latestReadiness.restingHR}` : '--'}</Text>
+          </View>
+          <View style={styles.factorItem}>
+            <Text style={styles.factorLabel}>HRV</Text>
+            <Text style={styles.factorValue}>{latestReadiness?.hrv ? `${latestReadiness.hrv}` : '--'}</Text>
+          </View>
         </View>
         <Text style={styles.medicalDisclaimer}>* Readiness is an estimate based on recent load and subjective feedback. Training guidance only, not medical advice.</Text>
       </Card>
@@ -345,6 +391,29 @@ export function AnalyticsScreen({
             <TextInput style={styles.input} keyboardType="number-pad" value={editDuration} onChangeText={setEditDuration} />
             <Pressable style={styles.saveBtn} onPress={saveEdit}>
               <Text style={styles.saveBtnText}>Save Changes</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Readiness Modal */}
+      <Modal visible={loggingReadiness} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalPanel, shadow.card]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Daily Readiness</Text>
+              <Pressable onPress={() => setLoggingReadiness(false)} style={styles.closeBtn}>
+                <Ionicons name="close" size={20} color={colours.text} />
+              </Pressable>
+            </View>
+            <Text style={styles.inputLabel}>SLEEP QUALITY (1-5)</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" maxLength={1} value={sleepInput} onChangeText={setSleepInput} />
+            <Text style={styles.inputLabel}>MUSCLE SORENESS (1-5)</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" maxLength={1} value={sorenessInput} onChangeText={setSorenessInput} />
+            <Text style={styles.inputLabel}>OVERALL STRESS (1-5)</Text>
+            <TextInput style={styles.input} keyboardType="number-pad" maxLength={1} value={stressInput} onChangeText={setStressInput} />
+            <Pressable style={styles.saveBtn} onPress={saveReadiness}>
+              <Text style={styles.saveBtnText}>Save Log</Text>
             </Pressable>
           </View>
         </View>
