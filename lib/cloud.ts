@@ -18,6 +18,7 @@ type RemoteSquadMemberRow = {
   id: string;
   user_id: string;
   name: string;
+  gym_name: string | null;
   email: string | null;
   group_id: string;
   readiness: number;
@@ -26,6 +27,13 @@ type RemoteSquadMemberRow = {
   load: number;
   invite_status: SquadMember['inviteStatus'] | null;
   assignment: string | null;
+  ghost_mode: boolean | null;
+  streak_days: number | null;
+  weekly_volume: number | null;
+  last_workout_title: string | null;
+  last_workout_at: string | null;
+  last_workout_note: string | null;
+  hype_count: number | null;
 };
 
 type CloudSnapshot = {
@@ -62,6 +70,7 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     id: member.id,
     user_id: userId,
     name: member.name,
+    gym_name: member.gymName ?? null,
     email: member.email ?? null,
     group_id: member.groupId,
     readiness: member.readiness,
@@ -70,6 +79,13 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     load: member.load,
     invite_status: member.inviteStatus ?? null,
     assignment: member.assignment ?? null,
+    ghost_mode: member.ghostMode ?? false,
+    streak_days: member.streakDays ?? 0,
+    weekly_volume: member.weeklyVolume ?? 0,
+    last_workout_title: member.lastWorkoutTitle ?? null,
+    last_workout_at: member.lastWorkoutAt ?? null,
+    last_workout_note: member.lastWorkoutNote ?? null,
+    hype_count: member.hypeCount ?? 0,
   };
 }
 
@@ -91,6 +107,7 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
   return {
     id: row.id,
     name: row.name,
+    gymName: row.gym_name ?? undefined,
     email: row.email ?? undefined,
     groupId: row.group_id,
     readiness: row.readiness,
@@ -99,6 +116,13 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
     load: row.load,
     inviteStatus: row.invite_status ?? undefined,
     assignment: row.assignment ?? undefined,
+    ghostMode: row.ghost_mode ?? undefined,
+    streakDays: row.streak_days ?? undefined,
+    weeklyVolume: row.weekly_volume ?? undefined,
+    lastWorkoutTitle: row.last_workout_title ?? undefined,
+    lastWorkoutAt: row.last_workout_at ?? undefined,
+    lastWorkoutNote: row.last_workout_note ?? undefined,
+    hypeCount: row.hype_count ?? undefined,
   };
 }
 

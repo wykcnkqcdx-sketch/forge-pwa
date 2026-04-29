@@ -49,6 +49,7 @@ export function InstructorScreen({
   onCloudSignOut,
 }: InstructorScreenProps) {
   const [newMemberName, setNewMemberName] = useState('');
+  const [newMemberGymName, setNewMemberGymName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupFocus, setNewGroupFocus] = useState('');
@@ -139,6 +140,7 @@ export function InstructorScreen({
 
   function addMember() {
     const trimmedName = newMemberName.trim();
+    const trimmedGymName = newMemberGymName.trim();
     const trimmedEmail = newMemberEmail.trim().toLowerCase();
     if (!trimmedName) {
       Alert.alert('Name required', 'Enter a team member name before adding them.');
@@ -153,21 +155,28 @@ export function InstructorScreen({
     const memberId = `member-${Date.now()}`;
     const inviteUrl = `${appInviteUrl}?member=${encodeURIComponent(memberId)}`;
     const inviteSubject = 'Join FORGE Tactical Fitness';
-    const inviteBody = `You have been added to the FORGE Tactical Fitness squad dashboard.\n\nOpen your member portal here:\n${inviteUrl}\n\nYou will see your assigned training and team progress. Shared login and live team sync still need backend team storage.`;
+    const displayName = trimmedGymName || trimmedName;
+    const inviteBody = `You've been invited by your coach, ${displayName}.\n\nOpen your FORGE member portal here:\n${inviteUrl}\n\nYou will see your assigned training and team progress. Shared login and live team sync still need backend team storage.`;
 
     onAddMember({
       id: memberId,
       groupId: selectedGroupId,
       name: trimmedName,
+      gymName: displayName,
       email: trimmedEmail || undefined,
       readiness: 72,
       compliance: 80,
       risk: 'Low',
       load: 65,
       inviteStatus: trimmedEmail ? 'Invited' : 'Manual',
+      ghostMode: false,
+      streakDays: 0,
+      weeklyVolume: 0,
+      hypeCount: 0,
     });
 
     setNewMemberName('');
+    setNewMemberGymName('');
     setNewMemberEmail('');
 
     if (trimmedEmail) {
@@ -177,19 +186,19 @@ export function InstructorScreen({
 
       if (Platform.OS === 'web') {
         window.location.href = mailtoUrl;
-        window.alert(`${trimmedName} was added. Your email app should open with the invite draft. If it does not, send them this link: ${inviteUrl}`);
+        window.alert(`${displayName} was added. Your email app should open with the invite draft. If it does not, send them this link: ${inviteUrl}`);
         return;
       }
 
       Linking.openURL(mailtoUrl)
         .then(() => {
-          Alert.alert('Member invited', `${trimmedName} was added and an invite draft was opened.`);
+          Alert.alert('Member invited', `${displayName} was added and an invite draft was opened.`);
         })
         .catch(() => {
-          Alert.alert('Member added', `${trimmedName} was added. Copy the invite link and send it to ${trimmedEmail}.`);
+          Alert.alert('Member added', `${displayName} was added. Copy the invite link and send it to ${trimmedEmail}.`);
         });
     } else {
-      Alert.alert('Member added', `${trimmedName} is now tracked manually in this squad.`);
+      Alert.alert('Member added', `${displayName} is now tracked manually in this squad.`);
     }
   }
 
@@ -319,6 +328,13 @@ export function InstructorScreen({
           value={newMemberName}
           onChangeText={setNewMemberName}
           placeholder="Name or callsign"
+          placeholderTextColor={colours.soft}
+        />
+        <TextInput
+          style={styles.memberInput}
+          value={newMemberGymName}
+          onChangeText={setNewMemberGymName}
+          placeholder="Gym name for member portal"
           placeholderTextColor={colours.soft}
         />
         <TextInput
@@ -512,8 +528,10 @@ export function InstructorScreen({
                 <Text style={styles.muted}>
                   {groups.find((group) => group.id === member.groupId)?.name ?? 'Unassigned'} - {member.inviteStatus ?? 'Manual'} - Compliance {member.compliance}% - Risk {member.risk}
                 </Text>
+                {member.gymName && <Text style={styles.memberPortalName}>Portal: {member.gymName}{member.ghostMode ? ' - Ghost Mode' : ''}</Text>}
                 {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
                 {member.assignment && <Text style={styles.memberAssignment}>Assigned: {member.assignment}</Text>}
+                {member.lastWorkoutNote && <Text style={styles.memberNote}>Note: {member.lastWorkoutNote}</Text>}
               </View>
               <View style={styles.memberActions}>
                 <Text
@@ -709,8 +727,10 @@ const styles = StyleSheet.create({
   },
   memberCopy: { flex: 1 },
   memberName: { color: colours.text, fontWeight: '900' },
+  memberPortalName: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  memberNote: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
   memberActions: {
     alignItems: 'flex-end',

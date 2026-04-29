@@ -35,6 +35,16 @@ create table if not exists public.squad_members (
 alter table public.training_sessions enable row level security;
 alter table public.squad_members enable row level security;
 
+alter table public.squad_members
+add column if not exists gym_name text,
+add column if not exists ghost_mode boolean default false,
+add column if not exists streak_days integer default 0,
+add column if not exists weekly_volume integer default 0,
+add column if not exists last_workout_title text,
+add column if not exists last_workout_at timestamptz,
+add column if not exists last_workout_note text,
+add column if not exists hype_count integer default 0;
+
 create policy "training sessions are private to owner"
 on public.training_sessions
 for all

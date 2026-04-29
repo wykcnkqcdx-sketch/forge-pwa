@@ -6,6 +6,7 @@ export type { TrackPoint, TrainingSession } from './domain';
 export type SquadMember = {
   id: string;
   name: string;
+  gymName?: string;
   email?: string;
   groupId: string;
   readiness: number;
@@ -14,6 +15,13 @@ export type SquadMember = {
   load: number;
   inviteStatus?: 'Manual' | 'Invited' | 'Joined';
   assignment?: string;
+  ghostMode?: boolean;
+  streakDays?: number;
+  weeklyVolume?: number;
+  lastWorkoutTitle?: string;
+  lastWorkoutAt?: string;
+  lastWorkoutNote?: string;
+  hypeCount?: number;
 };
 
 export type TrainingGroup = {
@@ -55,12 +63,12 @@ export const initialSessions: TrainingSession[] = [
 ];
 
 export const squadMembers: SquadMember[] = [
-  { id: '1', groupId: 'alpha', name: 'Cpl Ryan', email: 'ryan@example.com', readiness: 86, compliance: 92, risk: 'Low', load: 72, inviteStatus: 'Joined', assignment: 'Strength Training' },
-  { id: '2', groupId: 'alpha', name: 'Pte Doyle', email: 'doyle@example.com', readiness: 61, compliance: 67, risk: 'Medium', load: 84, inviteStatus: 'Joined', assignment: 'Mobility Reset' },
-  { id: '3', groupId: 'bravo', name: 'Pte Walsh', email: 'walsh@example.com', readiness: 44, compliance: 58, risk: 'High', load: 91, inviteStatus: 'Joined', assignment: 'Recovery Walk' },
-  { id: '4', groupId: 'bravo', name: 'Sgt Murphy', email: 'murphy@example.com', readiness: 79, compliance: 84, risk: 'Low', load: 68, inviteStatus: 'Joined', assignment: 'Ruck Intervals' },
-  { id: '5', groupId: 'charlie', name: 'Pte Byrne', email: 'byrne@example.com', readiness: 74, compliance: 78, risk: 'Low', load: 70, inviteStatus: 'Joined', assignment: 'Zone 2 Run' },
-  { id: '6', groupId: 'charlie', name: 'Cpl Nolan', email: 'nolan@example.com', readiness: 69, compliance: 81, risk: 'Medium', load: 77, inviteStatus: 'Joined', assignment: 'Resistance Training' },
+  { id: '1', groupId: 'alpha', name: 'Cpl Ryan', gymName: 'Ryan', email: 'ryan@example.com', readiness: 86, compliance: 92, risk: 'Low', load: 72, inviteStatus: 'Joined', assignment: 'Strength Training', streakDays: 4, weeklyVolume: 820, lastWorkoutTitle: 'Strength Training', lastWorkoutAt: '2026-04-28T08:30:00.000Z', hypeCount: 6 },
+  { id: '2', groupId: 'alpha', name: 'Pte Doyle', gymName: 'Doyle', email: 'doyle@example.com', readiness: 61, compliance: 67, risk: 'Medium', load: 84, inviteStatus: 'Joined', assignment: 'Mobility Reset', streakDays: 2, weeklyVolume: 360, lastWorkoutTitle: 'Mobility Reset', lastWorkoutAt: '2026-04-27T18:00:00.000Z', hypeCount: 3 },
+  { id: '3', groupId: 'bravo', name: 'Pte Walsh', gymName: 'Walsh', email: 'walsh@example.com', readiness: 44, compliance: 58, risk: 'High', load: 91, inviteStatus: 'Joined', assignment: 'Recovery Walk', streakDays: 1, weeklyVolume: 240, lastWorkoutTitle: 'Recovery Walk', lastWorkoutAt: '2026-04-26T12:00:00.000Z', hypeCount: 2 },
+  { id: '4', groupId: 'bravo', name: 'Sgt Murphy', gymName: 'Murphy', email: 'murphy@example.com', readiness: 79, compliance: 84, risk: 'Low', load: 68, inviteStatus: 'Joined', assignment: 'Ruck Intervals', streakDays: 5, weeklyVolume: 910, lastWorkoutTitle: 'Ruck Intervals', lastWorkoutAt: '2026-04-28T07:15:00.000Z', hypeCount: 7 },
+  { id: '5', groupId: 'charlie', name: 'Pte Byrne', gymName: 'Byrne', email: 'byrne@example.com', readiness: 74, compliance: 78, risk: 'Low', load: 70, inviteStatus: 'Joined', assignment: 'Zone 2 Run', streakDays: 3, weeklyVolume: 640, lastWorkoutTitle: 'Zone 2 Run', lastWorkoutAt: '2026-04-27T09:20:00.000Z', hypeCount: 5 },
+  { id: '6', groupId: 'charlie', name: 'Cpl Nolan', gymName: 'Nolan', email: 'nolan@example.com', readiness: 69, compliance: 81, risk: 'Medium', load: 77, inviteStatus: 'Joined', assignment: 'Resistance Training', streakDays: 2, weeklyVolume: 520, lastWorkoutTitle: 'Resistance Training', lastWorkoutAt: '2026-04-26T16:45:00.000Z', hypeCount: 4 },
 ];
 
 export const trainingGroups: TrainingGroup[] = [

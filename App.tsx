@@ -765,6 +765,7 @@ export default function App() {
           member={activeMember}
           members={members}
           groups={groups}
+          onUpdateMember={updateMember}
           onCoachView={openCoachView}
         />
       </View>
