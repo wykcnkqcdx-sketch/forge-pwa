@@ -4,7 +4,6 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
 import { SquadMember, trainingGroups, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 
@@ -71,7 +70,42 @@ export function InstructorScreen({
 
   const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
   const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total: number, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
-  const coachGuidance = useMemo(() => buildCoachGuidance(members, sessions), [members, sessions]);
+  const coachGuidance = useMemo(() => {
+    let lowSleepCount = 0;
+    let highSorenessCount = 0;
+    let highStressCount = 0;
+
+    members.forEach(m => {
+      if (m.readinessData) {
+        if (m.readinessData.sleep <= 2) lowSleepCount++;
+        if (m.readinessData.soreness >= 4) highSorenessCount++;
+        if (m.readinessData.stress >= 4) highStressCount++;
+      }
+    });
+
+    if (lowSleepCount > 1 || highStressCount > 1) {
+      return {
+        summary: `${lowSleepCount} members report poor sleep and ${highStressCount} flag high stress. Systemic fatigue is accumulating across the squad.`,
+        action: 'Shift affected operators to recovery protocols. Consider reducing total ruck volume by 20% this week.',
+        tone: colours.red,
+      };
+    }
+
+    if (highSorenessCount > 1) {
+      return {
+        summary: `${highSorenessCount} operators are reporting high localized muscle soreness following recent blocks.`,
+        action: 'Implement a mobility reset for affected members before the next heavy strength block.',
+        tone: colours.amber,
+      };
+    }
+
+    return {
+      summary: 'Team readiness markers are stable. Sleep, soreness, and stress factors remain within acceptable tactical thresholds.',
+      action: 'Proceed with the scheduled training blocks. Maintain progressive overload.',
+      tone: colours.green,
+    };
+  }, [members]);
+
   const cloudTone = cloudStatus === 'synced'
     ? colours.green
     : cloudStatus === 'syncing'
@@ -418,12 +452,30 @@ export function InstructorScreen({
             </View>
             <ProgressBar value={member.readiness} />
           <View style={styles.factorGrid}>
-            {['Sleep', 'Soreness', 'Pain', 'Hydration', 'Mood', 'Illness', 'Rest HR', 'HRV'].map(factor => (
-              <View key={factor} style={styles.factorItem}>
-                <Text style={styles.factorLabel}>{factor}</Text>
-                <Text style={styles.factorValue}>--</Text>
-              </View>
-            ))}
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Sleep</Text>
+              <Text style={styles.factorValue}>{member.readinessData?.sleep ? `${member.readinessData.sleep}/5` : '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Soreness</Text>
+              <Text style={styles.factorValue}>{member.readinessData?.soreness ? `${member.readinessData.soreness}/5` : '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Stress</Text>
+              <Text style={styles.factorValue}>{member.readinessData?.stress ? `${member.readinessData.stress}/5` : '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Hydration</Text>
+              <Text style={styles.factorValue}>{member.readinessData?.hydration ?? '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Rest HR</Text>
+              <Text style={styles.factorValue}>{member.readinessData?.restHr ? `${member.readinessData.restHr}` : '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>HRV</Text>
+              <Text style={styles.factorValue}>{member.readinessData?.hrv ? `${member.readinessData.hrv}` : '--'}</Text>
+            </View>
           </View>
           </View>
         ))}
