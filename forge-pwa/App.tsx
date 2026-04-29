@@ -14,6 +14,7 @@ import { AuthScreen } from './screens/AuthScreen';
 import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { getSecureItem, setSecureItem, removeSecureItem } from './lib/storage';
 import { colours, shadow } from './theme';
 
 type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
@@ -55,6 +56,7 @@ export default function App() {
   const [confirmPinInput, setConfirmPinInput] = useState('');
   const [pinSetupError, setPinSetupError] = useState('');
   const [isReady, setIsReady] = useState(false);
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const [typedText, setTypedText] = useState('');
   const prevTabIndex = useRef(0);
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -130,6 +132,12 @@ export default function App() {
       const serviceWorkerUrl = new URL('sw.js', window.location.href).toString();
       navigator.serviceWorker.register(serviceWorkerUrl).catch((error) => {
         console.warn('Service worker registration failed', error);
+      });
+
+      navigator.serviceWorker.addEventListener('message', (event) => {
+        if (event.data && event.data.type === 'UPDATE_AVAILABLE') {
+          setUpdateAvailable(true);
+        }
       });
     }
   }, []);
@@ -207,7 +215,7 @@ export default function App() {
         const storedMembers = await AsyncStorage.getItem('forge:members');
         if (storedMembers) setMembers(JSON.parse(storedMembers));
         
-        const storedPin = await AsyncStorage.getItem('forge:pin');
+        const storedPin = await getSecureItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
       } catch (error) {
         console.error('Failed to load local data', error);
@@ -228,8 +236,8 @@ export default function App() {
 
   useEffect(() => {
     if (isReady) {
-      if (savedPin === null) AsyncStorage.removeItem('forge:pin');
-      else AsyncStorage.setItem('forge:pin', savedPin);
+      if (savedPin === null) removeSecureItem('forge:pin');
+      else setSecureItem('forge:pin', savedPin);
     }
   }, [savedPin, isReady]);
 
@@ -300,7 +308,8 @@ export default function App() {
     setSavedPin(null);
     setIsUnlocked(true);
     setPinInput('');
-    AsyncStorage.multiRemove(['forge:sessions', 'forge:members', 'forge:pin']);
+    removeSecureItem('forge:pin');
+    AsyncStorage.multiRemove(['forge:sessions', 'forge:members']);
     Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
@@ -674,6 +683,15 @@ export default function App() {
       </View>
     );
   }
+  
+  const renderUpdateBanner = () => {
+    if (!updateAvailable) return null;
+    return (
+      <Pressable style={styles.updateBanner} onPress={() => window.location.reload()}>
+        <Text style={styles.updateBannerText}>APP UPDATE AVAILABLE \u2014 TAP TO RELOAD</Text>
+      </Pressable>
+    );
+  };
 
   return (
     <View style={styles.app} {...panResponder.panHandlers}>
@@ -681,6 +699,7 @@ export default function App() {
         {renderScreen()}
       </Animated.View>
 
+      {renderUpdateBanner()}
       {pinSetupMode && (
         <View style={styles.pinSetupOverlay}>
           <View style={[styles.pinSetupPanel, shadow.card]}>
@@ -946,5 +965,22 @@ const styles = StyleSheet.create({
     color: colours.background,
     fontSize: 15,
     fontWeight: '900',
+  },
+  updateBanner: {
+    position: 'absolute',
+    top: 40,
+    left: 20,
+    right: 20,
+    backgroundColor: colours.cyan,
+    padding: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+    zIndex: 50,
+  },
+  updateBannerText: {
+    color: colours.background,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
 });

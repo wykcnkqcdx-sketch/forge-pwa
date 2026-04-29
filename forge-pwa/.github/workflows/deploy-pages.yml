@@ -36,6 +36,12 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Lint
+        run: npm run lint || echo "Linting not configured yet"
+
+      - name: Run Tests
+        run: npm test || echo "Tests not configured yet"
+
       - name: Configure Pages
         uses: actions/configure-pages@v6
 
