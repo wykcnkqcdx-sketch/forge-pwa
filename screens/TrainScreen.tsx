@@ -88,6 +88,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
       score: activeMode.score,
       durationMinutes: estimatedMinutes,
       rpe: activeMode.rpe,
+      completedAt: new Date().toISOString(),
     };
 
     addSession(session);

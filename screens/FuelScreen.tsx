@@ -7,6 +7,7 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours } from '../theme';
 import { fuelProfile, teamMessages, TrainingSession, TeamMessage } from '../data/mockData';
+import { buildPerformanceProfile } from '../lib/performance';
 
 type WeightGoal = 'loss' | 'maintain' | 'gain';
 
@@ -98,14 +99,15 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
   const [chatInput, setChatInput] = useState('');
   const [messages, setMessages] = useState<TeamMessage[]>(teamMessages);
 
+  const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
   const activeGoal = useMemo(() => goals.find((item) => item.id === goal) ?? goals[1], [goal]);
   const bmi = useMemo(() => Math.round((bodyWeightKg / Math.pow(heightCm / 100, 2)) * 10) / 10, [bodyWeightKg, heightCm]);
   const bmiInfo = useMemo(() => getBmiCategory(bmi), [bmi]);
   const maxHr = useMemo(() => Math.max(120, 220 - age), [age]);
   const estimatedBodyFat = useMemo(() => Math.round(clamp(5 + skinfoldMm * 0.45, 5, 45) * 10) / 10, [skinfoldMm]);
   const caloriesUsed = useMemo(
-    () => sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe * 7, 0),
-    [sessions]
+    () => performance.weeklyLoad * 7,
+    [performance.weeklyLoad]
   );
   const baseCalories = useMemo(() => Math.round(bodyWeightKg * 31), [bodyWeightKg]);
   const calorieTarget = useMemo(() => baseCalories + activeGoal.offset + Math.round(caloriesUsed / 7), [baseCalories, activeGoal.offset, caloriesUsed]);
@@ -166,7 +168,7 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
       </View>
 
       <View style={styles.grid}>
-        <MetricCard icon="flame" label="Calories Used" value={`${caloriesUsed}`} sub="last 7 sessions" tone={colours.amber} />
+        <MetricCard icon="flame" label="Load Cost" value={`${performance.weeklyLoad}`} sub="last 7 days" tone={performance.riskTone} />
         <MetricCard icon="restaurant" label="Fuel Target" value={`${calorieTarget}`} sub="kcal today" tone={activeGoal.tone} />
       </View>
 

@@ -288,6 +288,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
       routePoints: routePoints.length > 0 ? routePoints : undefined,
+      completedAt: new Date().toISOString(),
     };
     addSession(session);
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
@@ -339,6 +340,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       durationMinutes: naismithMinutes,
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
+      completedAt: new Date().toISOString(),
     };
 
     addSession(session);

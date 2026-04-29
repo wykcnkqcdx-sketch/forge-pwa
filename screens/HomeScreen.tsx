@@ -29,16 +29,12 @@ export function HomeScreen({
   const performance = buildPerformanceProfile(sessions);
   const recentSessions = sortSessionsByDate(sessions).slice(0, 3);
   const weeklyLoad = performance.weeklyLoad;
-  const averageRecentRpe = recentSessions.length
-    ? recentSessions.reduce((total, session) => total + session.rpe, 0) / recentSessions.length
-    : 0;
-  const recoveryLabel = averageRecentRpe >= 7.5 ? 'Caution' : averageRecentRpe >= 6 ? 'Steady' : 'Good';
+  const averageRecentRpe = performance.averageRpe;
+  const recoveryLabel = performance.readinessBand === 'GREEN' ? 'Good' : performance.readinessBand === 'AMBER' ? 'Steady' : 'Caution';
   const recoverySub = recentSessions.length ? `Avg RPE ${averageRecentRpe.toFixed(1)}` : 'No recent load';
-  const readiness = recentSessions.length
-    ? Math.max(45, Math.min(96, Math.round(92 - averageRecentRpe * 3 + Math.min(8, recentSessions.length * 2))))
-    : 72;
-  const statusColour = readiness >= 80 ? colours.green : readiness >= 60 ? colours.amber : colours.red;
-  const statusLabel  = readiness >= 80 ? 'GREEN — Train as planned' : readiness >= 60 ? 'AMBER — Monitor load' : 'RED — Rest advised';
+  const readiness = performance.readiness;
+  const statusColour = performance.readinessTone;
+  const statusLabel = `${performance.readinessBand} - ${performance.readinessLabel}`;
   const aiGuidance = buildAthleteGuidance(sessions);
 
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
@@ -87,7 +83,7 @@ export function HomeScreen({
         <View style={[styles.statusBadge, { borderColor: `${statusColour}55`, backgroundColor: `${statusColour}12` }]}>
           <View style={[styles.statusDot, { backgroundColor: statusColour }]} />
           <Text style={[styles.statusText, { color: statusColour }]}>
-            {readiness >= 80 ? 'GREEN' : readiness >= 60 ? 'AMBER' : 'RED'}
+            {performance.readinessBand}
           </Text>
         </View>
       </View>
@@ -142,8 +138,8 @@ export function HomeScreen({
 
       {/* Metrics grid */}
       <View style={styles.grid}>
-        <MetricCard icon="pulse"  label="Weekly Load" value={`${weeklyLoad}`} sub="duration x RPE" tone={colours.cyan} />
-        <MetricCard icon="flame"  label="Recovery"    value={recoveryLabel} sub={recoverySub} tone={averageRecentRpe >= 7.5 ? colours.amber : colours.green} />
+        <MetricCard icon="pulse"  label="Weekly Load" value={`${weeklyLoad}`} sub={`ACWR ${performance.acuteChronicRatio}`} tone={colours.cyan} />
+        <MetricCard icon="flame"  label="Recovery"    value={recoveryLabel} sub={recoverySub} tone={performance.riskTone} />
       </View>
 
       {/* Recent sessions */}

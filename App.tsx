@@ -439,9 +439,10 @@ export default function App() {
         && typeof candidate.title === 'string'
         && typeof candidate.score === 'number'
         && typeof candidate.durationMinutes === 'number'
-        && typeof candidate.rpe === 'number'
-        && typeof candidate.type === 'string'
-        && validTypes.includes(candidate.type as TrainingSession['type'])
+                && typeof candidate.rpe === 'number'
+                && typeof candidate.type === 'string'
+                && validTypes.includes(candidate.type as TrainingSession['type'])
+                && (candidate.completedAt === undefined || typeof candidate.completedAt === 'string')
       );
     });
 

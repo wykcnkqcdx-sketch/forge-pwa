@@ -9,6 +9,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints } from '../utils/mapUtils';
+import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } from '../lib/performance';
 
 export function AnalyticsScreen({ 
   sessions,
@@ -20,35 +21,29 @@ export function AnalyticsScreen({
   editSession: (id: string, updates: Partial<TrainingSession>) => void;
 }) {
   const hasSessions = sessions.length > 0;
-  const recentSessions = sessions.slice(0, 7);
+  const orderedSessions = useMemo(() => sortSessionsByDate(sessions), [sessions]);
+  const recentSessions = orderedSessions.slice(0, 7);
+  const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
   const averageScore = hasSessions
     ? Math.round(sessions.reduce((total, session) => total + session.score, 0) / sessions.length)
     : 0;
-  const compliance = hasSessions ? Math.min(100, 68 + sessions.length * 4) : 0;
+  const compliance = hasSessions ? Math.min(100, Math.round(55 + recentSessions.length * 6 + Math.max(0, 20 - performance.highIntensityCount * 4))) : 0;
   
   const screenWidth = Dimensions.get('window').width;
   const weeklyChartData = useMemo(() => {
-    const data = Array.from({ length: 7 }, (_, index) => {
-      const session = recentSessions[6 - index];
-      return session ? session.durationMinutes * session.rpe : 0;
-    });
+    const data = buildWeeklyLoadSeries(sessions);
     return {
       labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
       datasets: [{ data: data.some(d => d > 0) ? data : [0, 0, 0, 0, 0, 0, 0] }]
     };
-  }, [recentSessions]);
+  }, [sessions]);
 
   const ruckSessions = sessions.filter((session) => session.type === 'Ruck');
   const strengthSessions = sessions.filter((session) => session.type === 'Strength');
   const ruckProgress = Math.min(100, ruckSessions.length * 18 + Math.max(0, ruckSessions[0]?.score ?? 0) * 0.4);
   const strengthProgress = Math.min(100, strengthSessions.length * 20 + Math.max(0, strengthSessions[0]?.score ?? 0) * 0.35);
-  const latestRpe = sessions[0]?.rpe ?? 0;
-  const riskLevel = latestRpe >= 8 ? 'High load detected' : latestRpe >= 6 ? 'Moderate load detected' : 'Load stable';
-  const riskCopy = latestRpe >= 8
-    ? 'Prioritise recovery before the next hard effort.'
-    : latestRpe >= 6
-      ? 'Keep intensity controlled if sleep or HRV drops.'
-      : 'Current training stress is well controlled.';
+  const riskLevel = `${performance.loadRisk} load risk`;
+  const riskCopy = performance.recommendation;
 
   const totalScore = useMemo(() => sessions.reduce((total, session) => total + session.score, 0), [sessions]);
   const currentLevel = Math.floor(totalScore / 500) + 1;
@@ -67,7 +62,7 @@ export function AnalyticsScreen({
   }, [filterType, sortOrder]);
 
   const filteredSessions = useMemo(() => {
-    let result = sessions;
+    let result = orderedSessions;
     if (filterType !== 'All') {
       result = result.filter((s) => s.type === filterType);
     }
@@ -75,7 +70,7 @@ export function AnalyticsScreen({
       result = [...result].sort((a, b) => b.score - a.score);
     }
     return result;
-  }, [sessions, filterType, sortOrder]);
+  }, [orderedSessions, filterType, sortOrder]);
 
   const displayedSessions = filteredSessions.slice(0, displayLimit);
 
@@ -120,7 +115,7 @@ export function AnalyticsScreen({
       <Text style={styles.title}>Analytics</Text>
 
       <View style={styles.grid}>
-        <MetricCard icon="speedometer" label="Avg Score" value={`${averageScore}`} sub="latest sessions" />
+        <MetricCard icon="speedometer" label="Readiness" value={`${performance.readiness}`} sub={performance.readinessLabel} tone={performance.readinessTone} />
         <MetricCard icon="checkmark-circle" label="Compliance" value={`${compliance}%`} sub="weekly" tone={colours.violet} />
       </View>
 
@@ -165,7 +160,7 @@ export function AnalyticsScreen({
         <Text style={styles.cardTitle}>Risk Monitor</Text>
         {hasSessions ? (
           <View style={styles.warning}>
-            <Text style={styles.warningTitle}>{riskLevel}</Text>
+            <Text style={[styles.warningTitle, { color: performance.riskTone }]}>{riskLevel}</Text>
             <Text style={styles.muted}>{riskCopy}</Text>
           </View>
         ) : (
@@ -180,6 +175,11 @@ export function AnalyticsScreen({
 
         <Text style={styles.metricLabel}>Strength progression</Text>
         <ProgressBar value={strengthProgress} />
+        <Text style={styles.metricLabel}>Load monotony</Text>
+        <ProgressBar value={Math.min(100, performance.monotony * 30)} colour={performance.riskTone} />
+        <Text style={styles.loadIntel}>
+          ACWR {performance.acuteChronicRatio} - strain {performance.strain} - {performance.ruckKm}km ruck load this week
+        </Text>
       </Card>
 
       <View style={styles.sectionHeader}>
@@ -319,6 +319,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
   },
   warningTitle: { color: colours.amber, fontWeight: '900' },
+  loadIntel: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
   emptyState: {
     borderColor: colours.border,
     borderWidth: 1,

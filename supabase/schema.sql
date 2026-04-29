@@ -8,9 +8,13 @@ create table if not exists public.training_sessions (
   rpe integer not null,
   load_kg integer,
   route_points jsonb,
+  completed_at timestamptz,
   inserted_at timestamptz not null default now(),
   primary key (user_id, id)
 );
+
+alter table public.training_sessions
+add column if not exists completed_at timestamptz;
 
 create table if not exists public.squad_members (
   user_id uuid not null references auth.users(id) on delete cascade,

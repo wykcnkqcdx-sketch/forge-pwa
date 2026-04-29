@@ -11,6 +11,7 @@ type RemoteTrainingSessionRow = {
   rpe: number;
   load_kg: number | null;
   route_points: TrainingSession['routePoints'] | null;
+  completed_at: string | null;
 };
 
 type RemoteSquadMemberRow = {
@@ -52,6 +53,7 @@ function toRemoteSession(userId: string, session: TrainingSession): RemoteTraini
     rpe: session.rpe,
     load_kg: session.loadKg ?? null,
     route_points: session.routePoints ?? null,
+    completed_at: session.completedAt ?? null,
   };
 }
 
@@ -81,6 +83,7 @@ function fromRemoteSession(row: RemoteTrainingSessionRow): TrainingSession {
     rpe: row.rpe,
     loadKg: row.load_kg ?? undefined,
     routePoints: row.route_points ?? undefined,
+    completedAt: row.completed_at ?? undefined,
   };
 }
 
@@ -102,7 +105,7 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
 export async function fetchCloudSnapshot(userId: string): Promise<CloudSnapshot> {
   const client = ensureSupabase();
   const [sessionResponse, memberResponse] = await Promise.all([
-    client.from('training_sessions').select('*').eq('user_id', userId).order('id', { ascending: false }),
+    client.from('training_sessions').select('*').eq('user_id', userId).order('completed_at', { ascending: false, nullsFirst: false }),
     client.from('squad_members').select('*').eq('user_id', userId).order('name', { ascending: true }),
   ]);
 
