@@ -1,5 +1,6 @@
 import { SquadMember, TrainingSession } from '../data/mockData';
 import { colours } from '../theme';
+import { buildPerformanceProfile } from './performance';
 
 export type AiGuidance = {
   title: string;
@@ -9,44 +10,40 @@ export type AiGuidance = {
 };
 
 export function buildAthleteGuidance(sessions: TrainingSession[]): AiGuidance {
-  const recentSessions = sessions.slice(0, 5);
-  const weeklyLoad = sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe, 0);
-  const averageRpe = recentSessions.length
-    ? recentSessions.reduce((total, session) => total + session.rpe, 0) / recentSessions.length
-    : 0;
+  const profile = buildPerformanceProfile(sessions);
 
-  if (recentSessions.length === 0) {
+  if (sessions.length === 0) {
     return {
-      title: 'AI Guidance',
+      title: 'Coach Guidance',
       summary: 'No recent sessions are logged yet, so the coach model is starting from a neutral baseline.',
       action: 'Log one ruck or one gym session to unlock sharper training and recovery guidance.',
       tone: colours.cyan,
     };
   }
 
-  if (averageRpe >= 7.5 || weeklyLoad >= 360) {
+  if (profile.loadRisk === 'High') {
     return {
-      title: 'AI Guidance',
-      summary: 'Your recent work is heavy and recovery cost is stacking.',
-      action: 'Keep the next block aerobic or mobility-focused, then re-test intensity after sleep and hydration improve.',
-      tone: colours.amber,
+      title: 'Coach Guidance',
+      summary: `Load risk is high: ACWR ${profile.acuteChronicRatio}, monotony ${profile.monotony}, strain ${profile.strain}.`,
+      action: profile.recommendation,
+      tone: colours.red,
     };
   }
 
-  if (averageRpe <= 5.5 && weeklyLoad < 220) {
+  if (profile.loadRisk === 'Low' && profile.readinessBand === 'GREEN') {
     return {
-      title: 'AI Guidance',
-      summary: 'Current load looks manageable and there is room to progress.',
-      action: 'Push the assigned session with intent today and add one quality strength or threshold block this week.',
+      title: 'Coach Guidance',
+      summary: `Readiness is green with weekly load ${profile.weeklyLoad} and ${profile.ruckKm}km of ruck work in the last 7 days.`,
+      action: profile.recommendation,
       tone: colours.green,
     };
   }
 
   return {
-    title: 'AI Guidance',
-    summary: 'Your load sits in a usable middle range with enough stress to adapt but not enough to force a deload.',
-    action: 'Train as planned, cap sloppy reps, and keep fuelling tight around the hardest session.',
-    tone: colours.cyan,
+    title: 'Coach Guidance',
+    summary: `Readiness is ${profile.readinessBand.toLowerCase()} with ${profile.loadRisk.toLowerCase()} load risk.`,
+    action: profile.recommendation,
+    tone: profile.riskTone,
   };
 }
 

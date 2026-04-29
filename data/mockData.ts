@@ -17,6 +17,7 @@ export type TrainingSession = {
   rpe: number;
   loadKg?: number;
   routePoints?: TrackPoint[];
+  completedAt?: string;
 };
 
 export type SquadMember = {
@@ -65,9 +66,9 @@ export type FuelProfile = {
 };
 
 export const initialSessions: TrainingSession[] = [
-  { id: '1', type: 'Ruck', title: 'Loaded Intervals', score: 88, durationMinutes: 45, rpe: 7, loadKg: 18 },
-  { id: '2', type: 'Strength', title: 'Lower Body Strength', score: 81, durationMinutes: 52, rpe: 8 },
-  { id: '3', type: 'Run', title: 'Zone 2 Run', score: 76, durationMinutes: 38, rpe: 5 },
+  { id: '1', type: 'Ruck', title: 'Loaded Intervals', score: 88, durationMinutes: 45, rpe: 7, loadKg: 18, completedAt: '2026-04-28T08:30:00.000Z' },
+  { id: '2', type: 'Strength', title: 'Lower Body Strength', score: 81, durationMinutes: 52, rpe: 8, completedAt: '2026-04-26T17:15:00.000Z' },
+  { id: '3', type: 'Run', title: 'Zone 2 Run', score: 76, durationMinutes: 38, rpe: 5, completedAt: '2026-04-24T07:45:00.000Z' },
 ];
 
 export const squadMembers: SquadMember[] = [

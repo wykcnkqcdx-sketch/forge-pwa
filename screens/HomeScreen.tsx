@@ -6,6 +6,7 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { buildAthleteGuidance } from '../lib/aiGuidance';
+import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 import { colours, shadows, typography } from '../theme';
 import { statusColors, buttonPrimary, tagStyle, responsiveSpacing } from '../utils/styling';
 
@@ -25,8 +26,9 @@ export function HomeScreen({
   deleteSession: (id: string) => void;
   editSession: (id: string, updates: Partial<TrainingSession>) => void;
 }) {
-  const recentSessions = sessions.slice(0, 3);
-  const weeklyLoad = sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe, 0);
+  const performance = buildPerformanceProfile(sessions);
+  const recentSessions = sortSessionsByDate(sessions).slice(0, 3);
+  const weeklyLoad = performance.weeklyLoad;
   const averageRecentRpe = recentSessions.length
     ? recentSessions.reduce((total, session) => total + session.rpe, 0) / recentSessions.length
     : 0;
