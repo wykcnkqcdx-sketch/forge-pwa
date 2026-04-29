@@ -9,3 +9,4 @@ yarn-error.log*
 .claude/worktrees/
 pwa/
 pwa-publish-git/
+.claude/
