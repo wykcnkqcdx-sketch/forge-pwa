@@ -5,7 +5,7 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { colours, shadow } from '../theme';
+
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints } from '../utils/mapUtils';
 
