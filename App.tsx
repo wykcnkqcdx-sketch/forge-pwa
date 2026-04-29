@@ -3,13 +3,17 @@ import { ActivityIndicator, Alert, Animated, PanResponder, Pressable, StyleSheet
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Session } from '@supabase/supabase-js';
 import { HomeScreen } from './screens/HomeScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { RuckScreen } from './screens/RuckScreen';
 import { TrainScreen } from './screens/TrainScreen';
 import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
+import { AuthScreen } from './screens/AuthScreen';
 import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
+import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { colours, shadow } from './theme';
 
 type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
@@ -35,6 +39,13 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
   const [members, setMembers] = useState<SquadMember[]>(squadMembers);
+  const [cloudSession, setCloudSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
+  const [authLoading, setAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState('');
+  const [cloudStatus, setCloudStatus] = useState<'local' | 'auth' | 'syncing' | 'synced' | 'error'>(
+    isSupabaseConfigured ? 'auth' : 'local'
+  );
   const [savedPin, setSavedPin] = useState<string | null>(null);
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [pinInput, setPinInput] = useState('');
@@ -50,6 +61,8 @@ export default function App() {
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cloudHydrated = useRef(false);
+  const skipNextRemotePush = useRef(false);
 
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
@@ -122,6 +135,39 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) {
+      setAuthReady(true);
+      return;
+    }
+
+    let mounted = true;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (!mounted) return;
+      if (error) {
+        console.error('Failed to restore auth session', error);
+        setAuthError(error.message);
+      }
+      setCloudSession(data.session ?? null);
+      setAuthReady(true);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCloudSession(session ?? null);
+      setAuthReady(true);
+      setAuthError('');
+      setCloudStatus(session ? 'syncing' : 'auth');
+      cloudHydrated.current = false;
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
     resetInactivityTimer();
     return () => { if (inactivityTimer.current) clearTimeout(inactivityTimer.current); };
   }, [resetInactivityTimer]);
@@ -186,6 +232,65 @@ export default function App() {
       else AsyncStorage.setItem('forge:pin', savedPin);
     }
   }, [savedPin, isReady]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !cloudSession?.user || !isReady) return;
+
+    let cancelled = false;
+    async function hydrateCloud() {
+      try {
+        setCloudStatus('syncing');
+        const snapshot = await fetchCloudSnapshot(cloudSession.user.id);
+        if (cancelled) return;
+
+        if (snapshot.sessions.length > 0 || snapshot.members.length > 0) {
+          skipNextRemotePush.current = true;
+          if (snapshot.sessions.length > 0) setSessions(snapshot.sessions);
+          if (snapshot.members.length > 0) setMembers(snapshot.members);
+        } else {
+          await pushCloudSnapshot(cloudSession.user.id, sessions, members);
+        }
+
+        if (!cancelled) {
+          cloudHydrated.current = true;
+          setCloudStatus('synced');
+        }
+      } catch (error) {
+        console.error('Failed to hydrate cloud data', error);
+        if (!cancelled) {
+          cloudHydrated.current = true;
+          setCloudStatus('error');
+        }
+      }
+    }
+
+    hydrateCloud();
+    return () => {
+      cancelled = true;
+    };
+  }, [cloudSession?.user?.id, isReady]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !cloudSession?.user || !isReady || !cloudHydrated.current) return;
+
+    if (skipNextRemotePush.current) {
+      skipNextRemotePush.current = false;
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setCloudStatus('syncing');
+        await pushCloudSnapshot(cloudSession.user.id, sessions, members);
+        setCloudStatus('synced');
+      } catch (error) {
+        console.error('Failed to sync cloud data', error);
+        setCloudStatus('error');
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [sessions, members, cloudSession?.user?.id, isReady]);
 
   function executeDuressWipe() {
     setSessions([]);
@@ -275,6 +380,49 @@ export default function App() {
 
   function addMember(member: SquadMember) {
     setMembers((current) => [member, ...current]);
+  }
+
+  function updateMember(id: string, updates: Partial<SquadMember>) {
+    setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...updates } : member)));
+  }
+
+  async function signInWithEmail(email: string, password: string) {
+    if (!supabase) return;
+    if (!email || !password) {
+      setAuthError('Email and password are required.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError('');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) setAuthError(error.message);
+    setAuthLoading(false);
+  }
+
+  async function signUpWithEmail(email: string, password: string) {
+    if (!supabase) return;
+    if (!email || !password) {
+      setAuthError('Email and password are required.');
+      return;
+    }
+
+    setAuthLoading(true);
+    setAuthError('');
+    const { error } = await supabase.auth.signUp({ email, password });
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setAuthError('Account created. Check your email if confirmation is enabled, then sign in.');
+    }
+    setAuthLoading(false);
+  }
+
+  async function signOutCloud() {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+    setCloudSession(null);
+    setCloudStatus('auth');
   }
 
   function validateImportedSessions(value: unknown): TrainingSession[] | null {
@@ -428,12 +576,18 @@ export default function App() {
         return (
           <InstructorScreen
             pinEnabled={Boolean(savedPin)}
+            sessions={sessions}
             members={members}
             onSetPin={handleSetPin}
             onWipe={handleManualWipe}
             onExport={exportData}
             onImport={importData}
             onAddMember={addMember}
+            onUpdateMember={updateMember}
+            cloudEnabled={isSupabaseConfigured}
+            cloudStatus={cloudStatus}
+            cloudEmail={cloudSession?.user.email ?? null}
+            onCloudSignOut={signOutCloud}
           />
         );
       default:
@@ -449,7 +603,7 @@ export default function App() {
     }
   }
 
-  if (!isReady) {
+  if (!isReady || !authReady) {
     return (
       <View style={styles.lockScreen}>
         <View style={styles.lockContent}>
@@ -472,6 +626,10 @@ export default function App() {
         </View>
       </View>
     );
+  }
+
+  if (isSupabaseConfigured && !cloudSession) {
+    return <AuthScreen loading={authLoading} error={authError} onSignIn={signInWithEmail} onSignUp={signUpWithEmail} />;
   }
 
   if (savedPin && !isUnlocked) {

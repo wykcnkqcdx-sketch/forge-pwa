@@ -5,6 +5,7 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
+import { buildAthleteGuidance } from '../lib/aiGuidance';
 import { colours, shadows, typography } from '../theme';
 import { statusColors, buttonPrimary, tagStyle, responsiveSpacing } from '../utils/styling';
 
@@ -36,6 +37,7 @@ export function HomeScreen({
     : 72;
   const statusColour = readiness >= 80 ? colours.green : readiness >= 60 ? colours.amber : colours.red;
   const statusLabel  = readiness >= 80 ? 'GREEN — Train as planned' : readiness >= 60 ? 'AMBER — Monitor load' : 'RED — Rest advised';
+  const aiGuidance = buildAthleteGuidance(sessions);
 
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
   const [editScore, setEditScore] = useState('');
@@ -126,10 +128,13 @@ export function HomeScreen({
       </Card>
 
       {/* AI Insights Card */}
-      <Card style={{ backgroundColor: `${colours.cyan}10`, borderColor: `${colours.cyan}30`, borderWidth: 1 }}>
-        <Text style={[styles.cardTitle, { color: colours.cyan }]}>AI Insights</Text>
+      <Card style={{ backgroundColor: `${aiGuidance.tone}10`, borderColor: `${aiGuidance.tone}30`, borderWidth: 1 }}>
+        <Text style={[styles.cardTitle, { color: aiGuidance.tone }]}>{aiGuidance.title}</Text>
         <Text style={{ color: colours.text, fontSize: 14, lineHeight: 21 }}>
-          {readiness >= 80 ? 'Your readiness is high. It is a great day to push your limits on the assigned training.' : readiness >= 60 ? 'Your readiness is moderate. Proceed with the assigned workout but monitor your RPE.' : 'Your readiness is low. Consider swapping the assigned workout for a mobility or recovery session.'}
+          {aiGuidance.summary}
+        </Text>
+        <Text style={{ color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 10 }}>
+          {aiGuidance.action}
         </Text>
       </Card>
 

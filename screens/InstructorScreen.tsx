@@ -1,29 +1,55 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Linking, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
+import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
-import { SquadMember, trainingGroups, wearableConnections } from '../data/mockData';
+import { SquadMember, trainingGroups, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
+  sessions: TrainingSession[];
   members: SquadMember[];
   onSetPin: () => void;
   onWipe: () => void;
   onExport: () => void;
   onImport: () => void;
   onAddMember: (member: SquadMember) => void;
+  onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
+  cloudEnabled: boolean;
+  cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
+  cloudEmail: string | null;
+  onCloudSignOut: () => void;
 }
 
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
+const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
 
-export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExport, onImport, onAddMember }: InstructorScreenProps) {
+export function InstructorScreen({
+  pinEnabled,
+  sessions,
+  members,
+  onSetPin,
+  onWipe,
+  onExport,
+  onImport,
+  onAddMember,
+  onUpdateMember,
+  cloudEnabled,
+  cloudStatus,
+  cloudEmail,
+  onCloudSignOut,
+}: InstructorScreenProps) {
   const [groups, setGroups] = useState(trainingGroups);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState(trainingGroups[0]?.id ?? 'alpha');
+  const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [assignmentMemberId, setAssignmentMemberId] = useState('');
+  const [assignmentGroupId, setAssignmentGroupId] = useState(trainingGroups[0]?.id ?? 'alpha');
+  const [assignmentLabel, setAssignmentLabel] = useState(assignmentTemplates[0]);
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -45,6 +71,14 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
 
   const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
   const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total: number, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
+  const coachGuidance = useMemo(() => buildCoachGuidance(members, sessions), [members, sessions]);
+  const cloudTone = cloudStatus === 'synced'
+    ? colours.green
+    : cloudStatus === 'syncing'
+      ? colours.cyan
+      : cloudStatus === 'error'
+        ? colours.red
+        : colours.amber;
 
   function createGroup() {
     const nextNumber = groups.length + 1;
@@ -111,6 +145,21 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
     Alert.alert('Connection ready', `${name} can be connected once device permissions are granted.`);
   }
 
+  function applyAssignment() {
+    if (!assignmentMemberId) {
+      Alert.alert('Pick a member', 'Select a squad member before applying an assignment.');
+      return;
+    }
+
+    const member = members.find((item) => item.id === assignmentMemberId);
+    const group = groups.find((item) => item.id === assignmentGroupId);
+    if (!member || !group) return;
+
+    onUpdateMember(member.id, { groupId: group.id, assignment: assignmentLabel });
+    setAssignmentOpen(false);
+    Alert.alert('Assignment saved', `${member.name} is now assigned to ${assignmentLabel} in ${group.name}.`);
+  }
+
   return (
     <Screen>
       <View style={styles.headerRow}>
@@ -142,10 +191,39 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
         </View>
       </Card>
 
+      <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Cloud Access</Text>
+          {cloudEnabled && cloudEmail ? (
+            <Pressable style={styles.cloudSignOutButton} onPress={onCloudSignOut}>
+              <Text style={styles.cloudSignOutText}>Sign Out</Text>
+            </Pressable>
+          ) : null}
+        </View>
+        <View style={[styles.cloudBadge, { borderColor: `${cloudTone}40`, backgroundColor: `${cloudTone}12` }]}>
+          <Text style={[styles.cloudBadgeText, { color: cloudTone }]}>
+            {cloudEnabled ? cloudStatus.toUpperCase() : 'LOCAL ONLY'}
+          </Text>
+        </View>
+        <Text style={styles.cloudCopy}>
+          {cloudEnabled
+            ? cloudEmail
+              ? `${cloudEmail} is connected. Sessions and members sync to the backend when cloud status is healthy.`
+              : 'Backend keys are configured. Sign in to enable auth, database sync, and shared team storage.'
+            : 'Add Supabase keys to enable login auth and cloud database sync. Until then, the app keeps working from local storage.'}
+        </Text>
+      </Card>
+
       <View style={styles.grid}>
         <MetricCard icon="people" label="Members" value={`${members.length}`} sub="active squad" />
         <MetricCard icon="podium" label="Team Score" value={`${averageTeamScore}`} sub={`${atRiskCount} need review`} tone={atRiskCount > 2 ? colours.amber : colours.green} />
       </View>
+
+      <Card style={[styles.aiCard, { borderColor: `${coachGuidance.tone}40` }]}>
+        <Text style={[styles.cardTitle, { color: coachGuidance.tone }]}>AI Coach Guidance</Text>
+        <Text style={styles.aiSummary}>{coachGuidance.summary}</Text>
+        <Text style={styles.aiAction}>{coachGuidance.action}</Text>
+      </Card>
 
       <Card>
         <Text style={styles.cardTitle}>Add Team Member</Text>
@@ -253,10 +331,66 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
       <Card>
         <View style={styles.headerRow}>
           <Text style={styles.cardTitle}>Squad Readiness</Text>
-          <Pressable style={styles.assignButton} onPress={() => Alert.alert('Assign Training', 'Select a training block to assign to the squad. (Backend sync required for live updates)')}>
-            <Text style={styles.assignButtonText}>Assign</Text>
+          <Pressable style={styles.assignButton} onPress={() => setAssignmentOpen((current) => !current)}>
+            <Text style={styles.assignButtonText}>{assignmentOpen ? 'Close' : 'Assign'}</Text>
           </Pressable>
         </View>
+
+        {assignmentOpen ? (
+          <View style={styles.assignmentPanel}>
+            <Text style={styles.assignmentLabel}>Select member</Text>
+            <View style={styles.assignmentWrap}>
+              {members.map((member) => {
+                const active = member.id === assignmentMemberId;
+                return (
+                  <Pressable
+                    key={member.id}
+                    style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                    onPress={() => setAssignmentMemberId(member.id)}
+                  >
+                    <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{member.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.assignmentLabel}>Assign to group</Text>
+            <View style={styles.assignmentWrap}>
+              {groups.map((group) => {
+                const active = group.id === assignmentGroupId;
+                return (
+                  <Pressable
+                    key={group.id}
+                    style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                    onPress={() => setAssignmentGroupId(group.id)}
+                  >
+                    <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{group.name}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.assignmentLabel}>Training block</Text>
+            <View style={styles.assignmentWrap}>
+              {assignmentTemplates.map((item) => {
+                const active = item === assignmentLabel;
+                return (
+                  <Pressable
+                    key={item}
+                    style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                    onPress={() => setAssignmentLabel(item)}
+                  >
+                    <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable style={styles.applyAssignmentButton} onPress={applyAssignment}>
+              <Text style={styles.applyAssignmentText}>Apply Assignment</Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {members.map((member) => (
           <View key={member.id} style={styles.memberCard}>
@@ -267,6 +401,7 @@ export function InstructorScreen({ pinEnabled, members, onSetPin, onWipe, onExpo
                   {groups.find((group) => group.id === member.groupId)?.name ?? 'Unassigned'} - {member.inviteStatus ?? 'Manual'} - Compliance {member.compliance}% - Risk {member.risk}
                 </Text>
                 {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
+                {member.assignment && <Text style={styles.memberAssignment}>Assigned: {member.assignment}</Text>}
               </View>
               <Text
                 style={[
@@ -319,6 +454,30 @@ const styles = StyleSheet.create({
   createButtonText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
   assignButton: { backgroundColor: colours.cyan, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 14 },
   assignButtonText: { color: '#07111E', fontWeight: '900' },
+  cloudSignOutButton: {
+    borderWidth: 1,
+    borderColor: `${colours.red}40`,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colours.redDim,
+  },
+  cloudSignOutText: { color: colours.red, fontSize: 12, fontWeight: '900' },
+  cloudBadge: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  cloudBadgeText: { fontSize: 11, fontWeight: '900' },
+  cloudCopy: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 10 },
+  aiCard: {
+    borderWidth: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  aiSummary: { color: colours.text, fontSize: 14, lineHeight: 20 },
+  aiAction: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 10 },
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   actionButton: {
     width: '47%',
@@ -365,6 +524,37 @@ const styles = StyleSheet.create({
   },
   addMemberButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
   inviteHelp: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  assignmentPanel: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 14,
+    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    marginBottom: 12,
+  },
+  assignmentLabel: { color: colours.muted, fontSize: 11, fontWeight: '900', marginBottom: 8 },
+  assignmentWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  assignmentPill: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  assignmentPillActive: {
+    borderColor: `${colours.cyan}70`,
+    backgroundColor: colours.cyanDim,
+  },
+  assignmentPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  assignmentPillTextActive: { color: colours.cyan },
+  applyAssignmentButton: {
+    alignItems: 'center',
+    borderRadius: 12,
+    backgroundColor: colours.cyan,
+    paddingVertical: 12,
+  },
+  applyAssignmentText: { color: colours.background, fontSize: 14, fontWeight: '900' },
   memberCard: {
     borderColor: colours.border,
     borderWidth: 1,
@@ -376,6 +566,7 @@ const styles = StyleSheet.create({
   memberCopy: { flex: 1 },
   memberName: { color: colours.text, fontWeight: '900' },
   memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
   groupCard: {
     borderColor: colours.border,
