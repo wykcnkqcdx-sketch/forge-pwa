@@ -1,0 +1,20 @@
+{
+  "name": "FORGE Tactical Fitness",
+  "short_name": "FORGE",
+  "description": "Tactical training, ruck tracking, readiness analytics, and instructor squad monitoring.",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#04080F",
+  "theme_color": "#04080F",
+  "categories": ["fitness", "health", "sports"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

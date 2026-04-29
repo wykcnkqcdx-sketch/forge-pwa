@@ -1,0 +1,22 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "allowJs": false,
+    "strict": true,
+    "types": ["react"]
+  },
+  "include": [
+    "App.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "data/**/*.ts",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "screens/**/*.ts",
+    "screens/**/*.tsx",
+    "theme.ts",
+    "types/**/*.ts",
+    "utils/**/*.ts"
+  ],
+  "exclude": ["_expo", "dist", "web-build", "node_modules", "public"]
+}
