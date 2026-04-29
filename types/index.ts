@@ -1,5 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
-
 export type TrackPoint = {
   latitude: number;
   longitude: number;
@@ -65,6 +63,7 @@ export type FuelProfile = {
 };
 
 export type ExerciseCategory = 'Strength' | 'Resistance' | 'Cardio' | 'Workout' | 'Mobility';
+export type TrainingModeIcon = 'barbell' | 'git-branch' | 'heart' | 'fitness' | 'skull';
 
 export type Exercise = {
   id: string;
@@ -80,7 +79,7 @@ export type TrainingMode = {
   type: TrainingSession['type'];
   label: string;
   title: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: TrainingModeIcon;
   tone: string;
   rpe: number;
   score: number;
@@ -88,4 +87,3 @@ export type TrainingMode = {
   defaultExerciseIds: string[];
   unlockLevel?: number;
 };
-

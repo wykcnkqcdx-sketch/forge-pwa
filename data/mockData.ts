@@ -1,4 +1,3 @@
-import { Ionicons } from '@expo/vector-icons';
 import { colours } from '../theme';
 
 export type TrackPoint = {
@@ -108,6 +107,7 @@ export const teamMessages: TeamMessage[] = [
 ];
 
 export type ExerciseCategory = 'Strength' | 'Resistance' | 'Cardio' | 'Workout' | 'Mobility';
+export type TrainingModeIcon = 'barbell' | 'git-branch' | 'heart' | 'fitness' | 'skull';
 
 export type Exercise = {
   id: string;
@@ -123,7 +123,7 @@ export type TrainingMode = {
   type: TrainingSession['type'];
   label: string;
   title: string;
-  icon: keyof typeof Ionicons.glyphMap;
+  icon: TrainingModeIcon;
   tone: string;
   rpe: number;
   score: number;
