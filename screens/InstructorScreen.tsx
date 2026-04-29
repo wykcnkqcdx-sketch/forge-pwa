@@ -57,6 +57,7 @@ export function InstructorScreen({
   const [assignmentMemberId, setAssignmentMemberId] = useState('');
   const [assignmentGroupId, setAssignmentGroupId] = useState(groups[0]?.id ?? 'alpha');
   const [assignmentLabel, setAssignmentLabel] = useState(assignmentTemplates[0]);
+  const [assignmentFeedback, setAssignmentFeedback] = useState('');
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -79,6 +80,8 @@ export function InstructorScreen({
   const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
   const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total: number, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
   const coachGuidance = useMemo(() => buildCoachGuidance(members, sessions), [members, sessions]);
+  const selectedAssignmentMember = members.find((member) => member.id === assignmentMemberId) ?? null;
+  const selectedAssignmentGroup = groups.find((group) => group.id === assignmentGroupId) ?? null;
   const cloudTone = cloudStatus === 'synced'
     ? colours.green
     : cloudStatus === 'syncing'
@@ -147,6 +150,9 @@ export function InstructorScreen({
       return;
     }
 
+    const inviteSubject = 'Join FORGE Tactical Fitness';
+    const inviteBody = `You have been added to the FORGE Tactical Fitness squad dashboard.\n\nOpen the app here:\n${appInviteUrl}\n\nFor now, the coach tracks your metrics locally. Shared login and live team sync will need a backend account system.`;
+
     onAddMember({
       id: `member-${Date.now()}`,
       groupId: selectedGroupId,
@@ -163,13 +169,23 @@ export function InstructorScreen({
     setNewMemberEmail('');
 
     if (trimmedEmail) {
-      const subject = encodeURIComponent('Join FORGE Tactical Fitness');
-      const body = encodeURIComponent(
-        `You have been added to the FORGE Tactical Fitness squad dashboard.\n\nOpen the app here:\n${appInviteUrl}\n\nFor now, the coach tracks your metrics locally. Shared login and live team sync will need a backend account system.`
-      );
-      Linking.openURL(`mailto:${trimmedEmail}?subject=${subject}&body=${body}`).catch(() => {
-        Alert.alert('Member invited', `${trimmedName} was added. Copy the app link and send it to ${trimmedEmail}.`);
-      });
+      const subject = encodeURIComponent(inviteSubject);
+      const body = encodeURIComponent(inviteBody);
+      const mailtoUrl = `mailto:${trimmedEmail}?subject=${subject}&body=${body}`;
+
+      if (Platform.OS === 'web') {
+        window.location.href = mailtoUrl;
+        window.alert(`${trimmedName} was added. Your email app should open with the invite draft. If it does not, send them this link: ${appInviteUrl}`);
+        return;
+      }
+
+      Linking.openURL(mailtoUrl)
+        .then(() => {
+          Alert.alert('Member invited', `${trimmedName} was added and an invite draft was opened.`);
+        })
+        .catch(() => {
+          Alert.alert('Member added', `${trimmedName} was added. Copy the app link and send it to ${trimmedEmail}.`);
+        });
     } else {
       Alert.alert('Member added', `${trimmedName} is now tracked manually in this squad.`);
     }
@@ -184,19 +200,49 @@ export function InstructorScreen({
     Alert.alert('Connection ready', `${name} can be connected once device permissions are granted.`);
   }
 
-  function applyAssignment() {
-    if (!assignmentMemberId) {
-      Alert.alert('Pick a member', 'Select a squad member before applying an assignment.');
+  function showMessage(title: string, message: string) {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
       return;
     }
 
-    const member = members.find((item) => item.id === assignmentMemberId);
-    const group = groups.find((item) => item.id === assignmentGroupId);
-    if (!member || !group) return;
+    Alert.alert(title, message);
+  }
+
+  function toggleAssignmentPanel() {
+    const nextOpen = !assignmentOpen;
+    if (nextOpen) {
+      if (!assignmentMemberId && members[0]) {
+        setAssignmentMemberId(members[0].id);
+      }
+      if (!groups.some((group) => group.id === assignmentGroupId) && groups[0]) {
+        setAssignmentGroupId(groups[0].id);
+      }
+      setAssignmentFeedback('');
+    }
+    setAssignmentOpen(nextOpen);
+  }
+
+  function applyAssignment() {
+    if (!members.length) {
+      showMessage('No members', 'Add a team member before applying an assignment.');
+      return;
+    }
+
+    const member = selectedAssignmentMember ?? members[0];
+    const group = selectedAssignmentGroup ?? groups[0];
+    if (!member || !group) {
+      showMessage('Pick a group', 'Create or select a group before applying an assignment.');
+      return;
+    }
 
     onUpdateMember(member.id, { groupId: group.id, assignment: assignmentLabel });
+    const message = `${member.name} is now assigned to ${assignmentLabel} in ${group.name}.`;
+    setAssignmentMemberId(member.id);
+    setAssignmentGroupId(group.id);
+    setAssignmentFeedback(message);
     setAssignmentOpen(false);
-    Alert.alert('Assignment saved', `${member.name} is now assigned to ${assignmentLabel} in ${group.name}.`);
+    showMessage('Assignment saved', message);
   }
 
   return (
@@ -384,16 +430,21 @@ export function InstructorScreen({
       <Card>
         <View style={styles.headerRow}>
           <Text style={styles.cardTitle}>Squad Readiness</Text>
-          <Pressable style={styles.assignButton} onPress={() => setAssignmentOpen((current) => !current)}>
+          <Pressable style={styles.assignButton} onPress={toggleAssignmentPanel}>
             <Text style={styles.assignButtonText}>{assignmentOpen ? 'Close' : 'Assign'}</Text>
           </Pressable>
         </View>
+        {assignmentFeedback ? (
+          <View style={styles.assignmentFeedback}>
+            <Text style={styles.assignmentFeedbackText}>{assignmentFeedback}</Text>
+          </View>
+        ) : null}
 
         {assignmentOpen ? (
           <View style={styles.assignmentPanel}>
             <Text style={styles.assignmentLabel}>Select member</Text>
             <View style={styles.assignmentWrap}>
-              {members.map((member) => {
+              {members.length ? members.map((member) => {
                 const active = member.id === assignmentMemberId;
                 return (
                   <Pressable
@@ -404,7 +455,7 @@ export function InstructorScreen({
                     <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{member.name}</Text>
                   </Pressable>
                 );
-              })}
+              }) : <Text style={styles.emptyAssignmentText}>Add a member first.</Text>}
             </View>
 
             <Text style={styles.assignmentLabel}>Assign to group</Text>
@@ -437,6 +488,12 @@ export function InstructorScreen({
                   </Pressable>
                 );
               })}
+            </View>
+
+            <View style={styles.assignmentSummary}>
+              <Text style={styles.assignmentSummaryText}>
+                {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} -> {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel}
+              </Text>
             </View>
 
             <Pressable style={styles.applyAssignmentButton} onPress={applyAssignment}>
