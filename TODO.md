@@ -1,22 +1,38 @@
-# FORGE Design/CSS Improvements TODO
+# FORGE PWA Enhancement Plan (Updated ✅)
 
-## Step 1: Create utils/styling.ts ✅
-- Helper functions for common patterns (cards, pills, buttons, glass effects).
+## Completed
+- ✅ Step 1: Design Polish - App.tsx/screens fully use theme/utils/Card/MetricCard/shadows (consistent military glass UX)
+- ✅ Step 3: GPS Ruck Tracking - RuckScreen fully implemented (foreground/background expo-location, map sim, AsyncStorage routes, session save)
 
-## Step 2: Enhance theme.ts ✅
-- Add typography, responsive utils, standardize shadows.
+## Environment Setup (REQUIRED)
+Status: [PENDING]
+- Install Node.js LTS (20.x): https://nodejs.org → Restart VSCode
+- `npm install` → `npx expo doctor` → `npx expo start --web`
+- GitHub CLI: `winget install GitHub.cli`
 
-## Step 3: Refactor Card.tsx & MetricCard.tsx ✅
-- Use new utils, replace magic numbers.
+## Remaining Priority Steps
+## Step 2: Enable Supabase Cloud
+Status: [PENDING - Needs URL/KEY]
+- Create .env → EXPO_PUBLIC_SUPABASE_URL & ANON_KEY
+- Test auth/sync
 
-## Step 4: Update HomeScreen.tsx (demo screen) ✅
-- Apply enhanced theme/utils.
+## Step 4: Enhance Analytics Charts
+Status: [READY - Polish]
+- Ruck dist/load pie charts
 
-## Step 5: Update App.tsx tabs/lock screen [PENDING]
-- Consistent buttons, shadows.
+## Step 5: Instructor Member CRUD
+Status: [PENDING]
 
-## Step 6: Test & Expand ✅
-- Run expo web/dev, lint, expand to other screens.
+## Step 6: PWA Production
+Status: [READY]
+- Offline/serviceWorker test
 
-## Step 7: Complete ✅
+## Step 7: GitHub PR
+Status: [BLOCKED - Node/gh needed]
+- `git checkout -b blackboxai/forge-polish`
+- `gh pr create`
+
+**Action:** Install Node.js → run `npm install && npx expo start --web` → reply output/confirm.
+
+
 
