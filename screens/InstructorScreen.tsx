@@ -492,7 +492,7 @@ export function InstructorScreen({
 
             <View style={styles.assignmentSummary}>
               <Text style={styles.assignmentSummaryText}>
-                {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} -> {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel}
+                {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} {'->'} {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel}
               </Text>
             </View>
 
@@ -671,6 +671,25 @@ const styles = StyleSheet.create({
   },
   assignmentPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
   assignmentPillTextActive: { color: colours.cyan },
+  assignmentFeedback: {
+    borderWidth: 1,
+    borderColor: `${colours.green}50`,
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: colours.greenDim,
+    marginBottom: 12,
+  },
+  assignmentFeedbackText: { color: colours.green, fontSize: 12, fontWeight: '900' },
+  assignmentSummary: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.16)',
+    marginBottom: 12,
+  },
+  assignmentSummaryText: { color: colours.textSoft, fontSize: 12, fontWeight: '900' },
+  emptyAssignmentText: { color: colours.muted, fontSize: 12, fontWeight: '800' },
   applyAssignmentButton: {
     alignItems: 'center',
     borderRadius: 12,
