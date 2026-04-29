@@ -1,5 +1,5 @@
 import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colours, spacing, radius, fontSize, shadows } from '../theme';
+import { colours, spacing, radius, fontSize, shadows as themeShadows } from '../theme';
 import { Dimensions } from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -48,7 +48,7 @@ export const buttonPrimary: ViewStyle = {
   backgroundColor: colours.cyan,
   borderRadius: radius.md,
   paddingVertical: 13,
-  ...shadows.cyan,
+  ...themeShadows.cyan,
 };
 
 export const buttonSecondary: ViewStyle = {
@@ -86,7 +86,7 @@ export const makeCardStyle = (accent?: string, hot?: boolean): ViewStyle => ({
   borderRadius: radius.lg,
   overflow: 'hidden',
   marginBottom: spacing.lg,
-  ...shadow.card,
+  ...themeShadows.card,
   ...(accent && {
     position: 'relative',
     '&::before': { /* Web accent bar */ content: '""', position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, backgroundColor: accent, borderTopLeftRadius: radius.lg, borderBottomLeftRadius: radius.lg, opacity: 0.85 },
@@ -106,9 +106,9 @@ export const typography = {
 
 // ── Shadow Presets ─────────────────────────────────────────
 export const shadows = {
-  card: shadows.card,
-  cyan: shadows.cyan,
-  subtle: shadows.subtle,
+  card: themeShadows.card,
+  cyan: themeShadows.cyan,
+  subtle: themeShadows.subtle,
   elevated: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
@@ -117,4 +117,3 @@ export const shadows = {
     elevation: 16,
   },
 };
-
