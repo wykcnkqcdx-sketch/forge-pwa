@@ -237,10 +237,11 @@ export default function App() {
     if (!isSupabaseConfigured || !cloudSession?.user || !isReady) return;
 
     let cancelled = false;
+    const userId = cloudSession.user.id;
     async function hydrateCloud() {
       try {
         setCloudStatus('syncing');
-        const snapshot = await fetchCloudSnapshot(cloudSession.user.id);
+        const snapshot = await fetchCloudSnapshot(userId);
         if (cancelled) return;
 
         if (snapshot.sessions.length > 0 || snapshot.members.length > 0) {
@@ -248,7 +249,7 @@ export default function App() {
           if (snapshot.sessions.length > 0) setSessions(snapshot.sessions);
           if (snapshot.members.length > 0) setMembers(snapshot.members);
         } else {
-          await pushCloudSnapshot(cloudSession.user.id, sessions, members);
+          await pushCloudSnapshot(userId, sessions, members);
         }
 
         if (!cancelled) {
@@ -272,6 +273,7 @@ export default function App() {
 
   useEffect(() => {
     if (!isSupabaseConfigured || !cloudSession?.user || !isReady || !cloudHydrated.current) return;
+    const userId = cloudSession.user.id;
 
     if (skipNextRemotePush.current) {
       skipNextRemotePush.current = false;
@@ -281,7 +283,7 @@ export default function App() {
     const timer = setTimeout(async () => {
       try {
         setCloudStatus('syncing');
-        await pushCloudSnapshot(cloudSession.user.id, sessions, members);
+        await pushCloudSnapshot(userId, sessions, members);
         setCloudStatus('synced');
       } catch (error) {
         console.error('Failed to sync cloud data', error);

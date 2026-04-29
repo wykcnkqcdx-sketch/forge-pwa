@@ -219,7 +219,7 @@ export function InstructorScreen({
         <MetricCard icon="podium" label="Team Score" value={`${averageTeamScore}`} sub={`${atRiskCount} need review`} tone={atRiskCount > 2 ? colours.amber : colours.green} />
       </View>
 
-      <Card style={[styles.aiCard, { borderColor: `${coachGuidance.tone}40` }]}>
+      <Card style={{ ...styles.aiCard, borderColor: `${coachGuidance.tone}40` }}>
         <Text style={[styles.cardTitle, { color: coachGuidance.tone }]}>AI Coach Guidance</Text>
         <Text style={styles.aiSummary}>{coachGuidance.summary}</Text>
         <Text style={styles.aiAction}>{coachGuidance.action}</Text>

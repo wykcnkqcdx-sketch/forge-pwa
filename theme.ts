@@ -141,6 +141,4 @@ export const shadows = {
     elevation: 16,
   },
 } as const;
-
-export { typography };
-
+export const shadow = shadows;
