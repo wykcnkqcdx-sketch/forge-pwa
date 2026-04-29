@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Linking, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
+import { Alert, Linking, Platform, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -114,9 +114,23 @@ export function InstructorScreen({
   }
 
   function confirmDeleteMember(member: SquadMember) {
+    const deleteMember = () => {
+      onDeleteMember(member.id);
+      if (assignmentMemberId === member.id) {
+        setAssignmentMemberId('');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Remove ${member.name} from the squad dashboard?`)) {
+        deleteMember();
+      }
+      return;
+    }
+
     Alert.alert('Delete member', `Remove ${member.name} from the squad dashboard?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => onDeleteMember(member.id) },
+      { text: 'Delete', style: 'destructive', onPress: deleteMember },
     ]);
   }
 
