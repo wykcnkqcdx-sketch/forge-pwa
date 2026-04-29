@@ -32,7 +32,9 @@ function clamp(value: number, min: number, max: number) {
 }
 
 function sessionDate(session: TrainingSession) {
-  const parsed = session.completedAt ? new Date(session.completedAt) : new Date(Number(session.id));
+  const numericId = Number(session.id);
+  const fallbackDate = Number.isFinite(numericId) && numericId > 946684800000 ? new Date(numericId) : new Date();
+  const parsed = session.completedAt ? new Date(session.completedAt) : fallbackDate;
   return Number.isNaN(parsed.getTime()) ? new Date(0) : parsed;
 }
 
