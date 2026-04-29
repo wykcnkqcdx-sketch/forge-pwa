@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Session } from '@supabase/supabase-js';
 import { HomeScreen } from './screens/HomeScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
@@ -14,8 +13,9 @@ import { AuthScreen } from './screens/AuthScreen';
 import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
 import type { ReadinessLog } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
+import { secureGetItem, secureMultiRemove, secureRemoveItem, secureSetItem } from './lib/secureStorage';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
-import { colours, shadow } from './theme';
+import { colours, shadow, touchTarget } from './theme';
 
 type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
 type PinSetupMode = 'set' | 'change' | null;
@@ -204,13 +204,16 @@ export default function App() {
   useEffect(() => {
     async function loadData() {
       try {
-        const storedSessions = await AsyncStorage.getItem('forge:sessions');
+        const storedSessions = await secureGetItem('forge:sessions');
         if (storedSessions) setSessions(JSON.parse(storedSessions));
 
-        const storedMembers = await AsyncStorage.getItem('forge:members');
+        const storedMembers = await secureGetItem('forge:members');
         if (storedMembers) setMembers(JSON.parse(storedMembers));
+
+        const storedReadiness = await secureGetItem('forge:readiness_logs');
+        if (storedReadiness) setReadinessLogs(JSON.parse(storedReadiness));
         
-        const storedPin = await AsyncStorage.getItem('forge:pin');
+        const storedPin = await secureGetItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
       } catch (error) {
         console.error('Failed to load local data', error);
@@ -222,21 +225,21 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (isReady) AsyncStorage.setItem('forge:sessions', JSON.stringify(sessions));
+    if (isReady) secureSetItem('forge:sessions', JSON.stringify(sessions));
   }, [sessions, isReady]);
 
   useEffect(() => {
-    if (isReady) AsyncStorage.setItem('forge:members', JSON.stringify(members));
+    if (isReady) secureSetItem('forge:members', JSON.stringify(members));
   }, [members, isReady]);
 
   useEffect(() => {
-    if (isReady) AsyncStorage.setItem('forge:readiness_logs', JSON.stringify(readinessLogs));
+    if (isReady) secureSetItem('forge:readiness_logs', JSON.stringify(readinessLogs));
   }, [readinessLogs, isReady]);
 
   useEffect(() => {
     if (isReady) {
-      if (savedPin === null) AsyncStorage.removeItem('forge:pin');
-      else AsyncStorage.setItem('forge:pin', savedPin);
+      if (savedPin === null) secureRemoveItem('forge:pin');
+      else secureSetItem('forge:pin', savedPin);
     }
   }, [savedPin, isReady]);
 
@@ -307,7 +310,7 @@ export default function App() {
     setSavedPin(null);
     setIsUnlocked(true);
     setPinInput('');
-    AsyncStorage.multiRemove(['forge:sessions', 'forge:members', 'forge:pin']);
+    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:readiness_logs', 'forge:pin']);
     Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
@@ -825,7 +828,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 48,
+    minHeight: touchTarget,
     borderRadius: 20,
   },
 

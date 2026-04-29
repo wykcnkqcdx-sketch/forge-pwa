@@ -5,8 +5,8 @@ import { StyleSheet } from 'react-native';
 export const colours = {
   // Backgrounds
   background:   '#121212',
-  surface:      '#191B16',
-  panel:        'rgba(24, 27, 22, 0.94)',
+  surface:      '#1B1F1A',
+  panel:        'rgba(27, 31, 26, 0.94)',
   glass:        'rgba(255, 255, 255, 0.055)',
   glassWarm:    'rgba(255, 255, 255, 0.035)',
 
@@ -41,7 +41,7 @@ export const colours = {
   borderGlass:  'rgba(255, 255, 255, 0.10)',
 
   // Legacy aliases kept so existing screens compile
-  panelSoft:    '#191B16',
+  panelSoft:    '#1B1F1A',
   panelHot:     'rgba(143, 166, 59, 0.08)',
 } as const;
 
@@ -63,8 +63,8 @@ export const typography = StyleSheet.create({
     fontWeight: '900' as const,
   },
   body: {
-    fontSize: 16,
-    lineHeight: 24,
+    fontSize: 18,
+    lineHeight: 27,
     color: colours.textSoft,
   },
   caption: {

@@ -7,9 +7,10 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
-import { colours } from '../theme';
+import { colours, touchTarget } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints, distanceBetween, bearingBetween } from '../utils/mapUtils';
+import { calculateEnhancedPandolf } from '../lib/h2f';
 
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
@@ -75,8 +76,10 @@ if (supportsBackgroundLocation) {
 
 export function RuckScreen({ addSession }: { addSession: (session: TrainingSession) => void }) {
   const [weight, setWeight] = useState(18);
+  const [bodyMassKg, setBodyMassKg] = useState(82);
   const [distance, setDistance] = useState(8);
   const [plannedAscentM, setPlannedAscentM] = useState(300);
+  const [terrainFactor, setTerrainFactor] = useState(1.2);
   const [isTracking, setIsTracking] = useState(false);
   const [isStarting, setIsStarting] = useState(false);
   const [currentDistance, setCurrentDistance] = useState(0);
@@ -308,7 +311,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     AsyncStorage.removeItem('forge:ruck_route');
   };
 
-  const pace = useMemo(() => (7.4 + weight / 25).toFixed(1), [weight]);
+  const speedKph = useMemo(() => Math.max(3.2, Math.min(7.2, 60 / (7.4 + weight / 25))), [weight]);
+  const gradePercent = useMemo(() => (distance > 0 ? (plannedAscentM / (distance * 1000)) * 100 : 0), [distance, plannedAscentM]);
+  const pandolf = useMemo(
+    () => calculateEnhancedPandolf({ bodyMassKg, loadKg: weight, speedKph, gradePercent, terrainFactor }),
+    [bodyMassKg, weight, speedKph, gradePercent, terrainFactor]
+  );
+  const pace = useMemo(() => (60 / speedKph).toFixed(1), [speedKph]);
   const naismithMinutes = useMemo(
     () => Math.round(distance * 12 + plannedAscentM / 10),
     [distance, plannedAscentM]
@@ -323,12 +332,20 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setWeight((current) => Math.min(35, Math.max(5, current + amount)));
   }
 
+  function changeBodyMass(amount: number) {
+    setBodyMassKg((current) => Math.min(140, Math.max(45, current + amount)));
+  }
+
   function changeDistance(amount: number) {
     setDistance((current) => Math.min(30, Math.max(2, current + amount)));
   }
 
   function changeAscent(amount: number) {
     setPlannedAscentM((current) => Math.min(2500, Math.max(0, current + amount)));
+  }
+
+  function changeTerrain(amount: number) {
+    setTerrainFactor((current) => Math.round(Math.min(2.2, Math.max(1, current + amount)) * 10) / 10);
   }
 
   function saveRuck() {
@@ -452,16 +469,29 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
       <View style={styles.grid}>
         <MetricCard icon="barbell" label="Pack" value={`${weight}kg`} sub="ruck load" />
-        <MetricCard icon="footsteps" label="Distance" value={`${distance}km`} sub={`${pace}/km est.`} tone={colours.amber} />
+        <MetricCard icon="footsteps" label="Loaded" value={`${Math.round(distance * weight)}`} sub={`kg-km | ${pace}/km`} tone={colours.amber} />
       </View>
 
       <View style={styles.grid}>
-        <MetricCard icon="trail-sign" label="Naismith" value={formatDuration(naismithMinutes)} sub={`${distance}km + ${plannedAscentM}m ascent`} tone={colours.green} />
+        <MetricCard icon="trail-sign" label="Pandolf" value={`${pandolf.wattsCorrected}W`} sub={`${pandolf.metabolicCostKcalHour} kcal/hr`} tone={colours.green} />
         <MetricCard icon="compass" label="Heading" value={activeHeading == null ? '--' : formatHeading(activeHeading)} sub={activeHeading == null ? 'compass standby' : cardinalDirection(activeHeading)} tone={colours.cyan} />
       </View>
 
       <Card>
         <Text style={styles.cardTitle}>Session Setup</Text>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Body Mass</Text>
+          <View style={styles.buttons}>
+            <Pressable style={styles.smallButton} onPress={() => changeBodyMass(-1)}>
+              <Text style={styles.smallButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.controlValue}>{bodyMassKg}kg</Text>
+            <Pressable style={styles.smallButton} onPress={() => changeBodyMass(1)}>
+              <Text style={styles.smallButtonText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
 
         <View style={styles.controlRow}>
           <Text style={styles.controlLabel}>Ruck Weight</Text>
@@ -501,6 +531,44 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             </Pressable>
           </View>
         </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Terrain Factor</Text>
+          <View style={styles.buttons}>
+            <Pressable style={styles.smallButton} onPress={() => changeTerrain(-0.1)}>
+              <Text style={styles.smallButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.controlValue}>{terrainFactor.toFixed(1)}x</Text>
+            <Pressable style={styles.smallButton} onPress={() => changeTerrain(0.1)}>
+              <Text style={styles.smallButtonText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Card>
+
+      <Card accent={colours.cyan}>
+        <Text style={styles.cardTitle}>Enhanced Pandolf Load Model</Text>
+        <View style={styles.navGrid}>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{pandolf.watts}W</Text>
+            <Text style={styles.navLabel}>raw cost</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{pandolf.wattsCorrected}W</Text>
+            <Text style={styles.navLabel}>+27% heavy-load correction</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{pandolf.loadRatio}</Text>
+            <Text style={styles.navLabel}>load/body ratio</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{Math.round(distance * weight)}</Text>
+            <Text style={styles.navLabel}>planned kg-km</Text>
+          </View>
+        </View>
+        <Text style={styles.navGuide}>
+          Model uses body mass, carried load, speed, grade, and terrain. The heavy-load correction applies when load reaches 27% of body mass.
+        </Text>
       </Card>
 
       <Card>
@@ -546,7 +614,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           </View>
         </View>
         <Text style={styles.navGuide}>
-          Naismith's Rule estimates 12 minutes per kilometre plus 10 minutes for every 100m of ascent. Add time for heavy load, rough ground, weather, stops, and navigation checks.
+          Naismith's Rule remains a navigation cross-check; Enhanced Pandolf drives metabolic load because it accounts for body mass, external load, grade, speed, and terrain.
         </Text>
         <Text style={styles.navGuide}>
           Compass basics: set the map, take a bearing, follow the direction of travel arrow, tick off distance in metres, and re-check at every handrail, attack point, and junction.
@@ -663,12 +731,12 @@ const styles = StyleSheet.create({
   liveLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1.3, marginTop: 2 },
   coordinateText: { color: colours.muted, fontSize: 11, textAlign: 'center', marginTop: 10 },
   trackingControls: { marginBottom: 16 },
-  trackButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colours.green, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
+  trackButton: { minHeight: touchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colours.green, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
   trackButtonDisabled: { opacity: 0.62 },
   trackButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   stopButton: { backgroundColor: colours.red },
   trackingActive: { flexDirection: 'row', gap: 12 },
-  saveButton: { backgroundColor: colours.cyan, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
+  saveButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
   saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   discardButton: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colours.border, borderWidth: 1 },
   grid: { flexDirection: 'row', gap: 12 },
@@ -676,7 +744,7 @@ const styles = StyleSheet.create({
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10, gap: 12 },
   controlLabel: { color: colours.text, fontWeight: '800' },
   buttons: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  smallButton: { width: 36, height: 36, borderRadius: 12, backgroundColor: colours.cyan, alignItems: 'center', justifyContent: 'center' },
+  smallButton: { width: touchTarget, height: touchTarget, borderRadius: 8, backgroundColor: colours.cyan, alignItems: 'center', justifyContent: 'center' },
   smallButtonText: { color: '#07111E', fontSize: 20, fontWeight: '900' },
   controlValue: { color: colours.text, fontWeight: '900', width: 55, textAlign: 'center' },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
@@ -702,6 +770,6 @@ const styles = StyleSheet.create({
   navLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', marginTop: 3 },
   navGuide: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 12 },
   score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
-  primaryButton: { backgroundColor: colours.cyan, borderRadius: 22, paddingVertical: 16, alignItems: 'center' },
+  primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
 });

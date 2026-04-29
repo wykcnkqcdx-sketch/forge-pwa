@@ -1,105 +1,94 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Dexie from 'dexie';
+import { applyEncryptionMiddleware, clearEncryptedTables, ENCRYPT_LIST } from 'dexie-encrypted';
 import { Platform } from 'react-native';
 
 const dbName = 'forge-secure-local';
-const storeName = 'encrypted-records';
 const secretKey = 'forge:local_crypto_secret';
 
 type SecureRecord = {
   id: string;
-  iv: number[];
-  payload: number[];
+  value: string;
 };
 
-function isWebCryptoAvailable() {
-  return Platform.OS === 'web'
-    && typeof indexedDB !== 'undefined'
-    && typeof crypto !== 'undefined'
-    && Boolean(crypto.subtle);
+type SecureDb = {
+  records: {
+    put: (record: SecureRecord) => Promise<string>;
+    get: (id: string) => Promise<SecureRecord | undefined>;
+    delete: (id: string) => Promise<void>;
+  };
+  open: () => Promise<unknown>;
+};
+
+let dbPromise: Promise<SecureDb> | null = null;
+
+function isIndexedDbAvailable() {
+  return Platform.OS === 'web' && typeof indexedDB !== 'undefined';
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(dbName, 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore(storeName, { keyPath: 'id' });
-    };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-  });
-}
-
-function transact<T>(mode: IDBTransactionMode, callback: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
-  return openDb().then((db) => new Promise<T>((resolve, reject) => {
-    const transaction = db.transaction(storeName, mode);
-    const request = callback(transaction.objectStore(storeName));
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error);
-    transaction.oncomplete = () => db.close();
-    transaction.onerror = () => {
-      db.close();
-      reject(transaction.error);
-    };
-  }));
-}
-
-async function getSecret() {
+async function getSecretBytes() {
   const existing = await AsyncStorage.getItem(secretKey);
-  if (existing) return existing;
+  if (existing) {
+    return Uint8Array.from(existing.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) ?? []);
+  }
+
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   const secret = Array.from(bytes).map((byte) => byte.toString(16).padStart(2, '0')).join('');
   await AsyncStorage.setItem(secretKey, secret);
-  return secret;
+  return bytes;
 }
 
-async function getCryptoKey() {
-  const secret = await getSecret();
-  const material = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), 'PBKDF2', false, ['deriveKey']);
-  return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: new TextEncoder().encode('forge-local-only-v1'), iterations: 210000, hash: 'SHA-256' },
-    material,
-    { name: 'AES-GCM', length: 256 },
-    false,
-    ['encrypt', 'decrypt']
-  );
+async function getDb() {
+  if (!dbPromise) {
+    dbPromise = (async () => {
+      const db = new Dexie(dbName) as unknown as SecureDb & { version: (version: number) => { stores: (schema: Record<string, string>) => void } };
+      applyEncryptionMiddleware(
+        db as never,
+        getSecretBytes(),
+        {
+          records: {
+            type: ENCRYPT_LIST,
+            fields: ['value'],
+          },
+        } as never,
+        clearEncryptedTables
+      );
+      db.version(2).stores({ records: 'id' });
+      await db.open();
+      return db;
+    })();
+  }
+
+  return dbPromise;
 }
 
 export async function secureSetItem(key: string, value: string) {
-  if (!isWebCryptoAvailable()) {
+  if (!isIndexedDbAvailable()) {
     await AsyncStorage.setItem(key, value);
     return;
   }
 
-  const cryptoKey = await getCryptoKey();
-  const iv = new Uint8Array(12);
-  crypto.getRandomValues(iv);
-  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, new TextEncoder().encode(value));
-  const record: SecureRecord = { id: key, iv: Array.from(iv), payload: Array.from(new Uint8Array(encrypted)) };
-  await transact('readwrite', (store) => store.put(record));
+  const db = await getDb();
+  await db.records.put({ id: key, value });
 }
 
 export async function secureGetItem(key: string) {
-  if (!isWebCryptoAvailable()) return AsyncStorage.getItem(key);
+  if (!isIndexedDbAvailable()) return AsyncStorage.getItem(key);
 
-  const record = await transact<SecureRecord | undefined>('readonly', (store) => store.get(key));
-  if (!record) return null;
-
-  const cryptoKey = await getCryptoKey();
-  const decrypted = await crypto.subtle.decrypt(
-    { name: 'AES-GCM', iv: new Uint8Array(record.iv) },
-    cryptoKey,
-    new Uint8Array(record.payload)
-  );
-  return new TextDecoder().decode(decrypted);
+  const db = await getDb();
+  const record = await db.records.get(key);
+  return record?.value ?? null;
 }
 
 export async function secureRemoveItem(key: string) {
-  if (!isWebCryptoAvailable()) {
+  if (!isIndexedDbAvailable()) {
     await AsyncStorage.removeItem(key);
     return;
   }
-  await transact('readwrite', (store) => store.delete(key));
+
+  const db = await getDb();
+  await db.records.delete(key);
 }
 
 export async function secureMultiRemove(keys: string[]) {

@@ -1,24 +1,26 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
-import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { buildAthleteGuidance } from '../lib/aiGuidance';
+import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
-import { colours, shadows, typography } from '../theme';
-import { statusColors, buttonPrimary, tagStyle, responsiveSpacing } from '../utils/styling';
+import { buildH2FDomains, buildPrescriptiveGuidance, calculateWHtR } from '../lib/h2f';
+import { colours, touchTarget } from '../theme';
+import { TrainingSession } from '../data/mockData';
 
-import { TrainingSession, TrackPoint } from '../data/mockData';
-import { getMapPoints } from '../utils/mapUtils';
+function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
+  if (status === 'GREEN') return colours.green;
+  if (status === 'AMBER') return colours.amber;
+  return colours.red;
+}
 
 export function HomeScreen({
   sessions,
   goToRuck,
   goToAnalytics,
-  deleteSession,
-  editSession,
 }: {
   sessions: TrainingSession[];
   goToRuck: () => void;
@@ -26,212 +28,208 @@ export function HomeScreen({
   deleteSession: (id: string) => void;
   editSession: (id: string, updates: Partial<TrainingSession>) => void;
 }) {
+  const [waistCm, setWaistCm] = useState('88');
+  const [heightCm, setHeightCm] = useState('180');
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
+  const [bodyMapView, setBodyMapView] = useState<BodyMapView>('anterior');
+  const [selectedPainLevel, setSelectedPainLevel] = useState(4);
+  const [painMap, setPainMap] = useState<PainMap>({
+    P09: 6,
+    P10: 6,
+    P15: 4,
+  });
   const performance = buildPerformanceProfile(sessions);
+  const domains = useMemo(() => buildH2FDomains(sessions), [sessions]);
+  const guidance = buildPrescriptiveGuidance(sessions, 6.25, performance.loadRisk === 'High' ? 'down' : 'flat');
+  const whtr = calculateWHtR(Number(waistCm), Number(heightCm));
+  const loadedKm = sessions
+    .filter((session) => session.type === 'Ruck')
+    .reduce((total, session) => total + (session.loadKg ?? 0) * (session.durationMinutes / 60) * 5.2, 0);
   const recentSessions = sortSessionsByDate(sessions).slice(0, 3);
-  const weeklyLoad = performance.weeklyLoad;
-  const averageRecentRpe = performance.averageRpe;
-  const recoveryLabel = performance.readinessBand === 'GREEN' ? 'Good' : performance.readinessBand === 'AMBER' ? 'Steady' : 'Caution';
-  const recoverySub = recentSessions.length ? `Avg RPE ${averageRecentRpe.toFixed(1)}` : 'No recent load';
-  const readiness = performance.readiness;
-  const statusColour = performance.readinessTone;
-  const statusLabel = `${performance.readinessBand} - ${performance.readinessLabel}`;
-  const aiGuidance = buildAthleteGuidance(sessions);
+  const hotspots = choirSegments
+    .map((segment) => ({ ...segment, level: painMap[segment.id] ?? 0 }))
+    .filter((segment) => segment.level > 0)
+    .sort((a, b) => b.level - a.level)
+    .slice(0, 3);
+  const lowerBackLoadFlag = sessions.some((session) => session.type === 'Ruck' && (session.loadKg ?? 0) >= 18)
+    && ((painMap.P09 ?? 0) >= 5 || (painMap.P10 ?? 0) >= 5);
 
-  const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
-  const [editScore, setEditScore] = useState('');
-  const [editDuration, setEditDuration] = useState('');
-
-  function confirmDelete(id: string) {
-    Alert.alert(
-      'Delete Session',
-      'Are you sure you want to permanently delete this logged session?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteSession(id) },
-      ]
+  function markInjury(segmentId: string) {
+    setSelectedSegment(segmentId);
+    setPainMap((current) => ({ ...current, [segmentId]: selectedPainLevel }));
+    Haptics.notificationAsync(
+      selectedPainLevel >= 7 ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success
     );
   }
 
-  function openEdit(session: TrainingSession) {
-    setEditingSession(session);
-    setEditScore(String(session.score));
-    setEditDuration(String(session.durationMinutes));
+  function setIntensity(level: number) {
+    setSelectedPainLevel(level);
+    if (selectedSegment) {
+      setPainMap((current) => ({ ...current, [selectedSegment]: level }));
+    }
+    Haptics.impactAsync(level >= 7 ? Haptics.ImpactFeedbackStyle.Heavy : Haptics.ImpactFeedbackStyle.Medium);
   }
 
-  function saveEdit() {
-    if (!editingSession) return;
-    const newScore = parseInt(editScore, 10);
-    const newDuration = parseInt(editDuration, 10);
-
-    if (isNaN(newScore) || isNaN(newDuration)) {
-      Alert.alert('Invalid Input', 'Score and duration must be numbers.');
-      return;
-    }
-
-    editSession(editingSession.id, { score: newScore, durationMinutes: newDuration });
-    setEditingSession(null);
+  function completeCriticalEvent(action: () => void) {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    action();
   }
 
   return (
     <Screen>
-      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.callsign}>// FORGE</Text>
-          <Text style={styles.pageTitle}>Today's Mission</Text>
+          <Text style={styles.kicker}>H2F 2026 LOCAL-ONLY</Text>
+          <Text style={styles.title}>Tactical Readiness</Text>
         </View>
-        <View style={[styles.statusBadge, { borderColor: `${statusColour}55`, backgroundColor: `${statusColour}12` }]}>
-          <View style={[styles.statusDot, { backgroundColor: statusColour }]} />
-          <Text style={[styles.statusText, { color: statusColour }]}>
-            {performance.readinessBand}
-          </Text>
+        <View style={styles.opsecBadge}>
+          <Ionicons name="shield-checkmark" size={18} color={colours.cyan} />
+          <Text style={styles.opsecText}>AES-256</Text>
         </View>
       </View>
 
-      {/* Readiness card */}
       <Card hot>
         <View style={styles.readinessRow}>
+          <View>
+            <Text style={styles.label}>PRESCRIPTIVE MODEL</Text>
+            <Text style={[styles.readinessValue, { color: performance.readinessTone }]}>{performance.readiness}</Text>
+          </View>
           <View style={styles.readinessCopy}>
-            <Text style={styles.metaLabel}>READINESS SCORE</Text>
-            <Text style={[styles.bigNumber, { color: statusColour }]}>{readiness}</Text>
-            <Text style={[styles.statusLine, { color: statusColour }]}>{statusLabel}</Text>
-          </View>
-          <View style={[styles.circle, { borderColor: `${statusColour}35`, backgroundColor: `${statusColour}10` }]}>
-            <Ionicons name="speedometer" size={40} color={statusColour} />
+            <Text style={[styles.status, { color: performance.readinessTone }]}>{performance.readinessBand}</Text>
+            <Text style={styles.body}>{guidance}</Text>
           </View>
         </View>
-        <ProgressBar value={readiness} colour={statusColour} />
+        <ProgressBar value={performance.readiness} colour={performance.readinessTone} />
       </Card>
 
-      {/* Today's workout card */}
-      <Card accent={colours.amber}>
-        <Text style={styles.eyebrow}>ASSIGNED</Text>
-        <Text style={styles.cardTitle}>Ruck Intervals</Text>
-        <Text style={styles.cardMeta}>45 min · 18 kg · Mixed terrain</Text>
-        <View style={styles.workoutTags}>
-          <View style={[styles.tag, { borderColor: `${colours.amber}40`, backgroundColor: colours.amberDim }]}>
-            <Text style={[styles.tagText, { color: colours.amber }]}>RUCK</Text>
-          </View>
-          <View style={[styles.tag, { borderColor: `${colours.cyan}40`, backgroundColor: colours.cyanDim }]}>
-            <Text style={[styles.tagText, { color: colours.cyan }]}>LOADED</Text>
-          </View>
-          <View style={[styles.tag, { borderColor: `${colours.red}40`, backgroundColor: colours.redDim }]}>
-            <Text style={[styles.tagText, { color: colours.red }]}>RPE 7</Text>
-          </View>
-        </View>
-        <Pressable style={({ pressed }) => [styles.primaryButton, pressed && { opacity: 0.80 }]} onPress={goToRuck}>
-          <Ionicons name="play-circle" size={18} color={colours.background} />
-          <Text style={styles.primaryButtonText}>Start Session</Text>
-        </Pressable>
-      </Card>
-
-      {/* AI Insights Card */}
-      <Card style={{ backgroundColor: `${aiGuidance.tone}10`, borderColor: `${aiGuidance.tone}30`, borderWidth: 1 }}>
-        <Text style={[styles.cardTitle, { color: aiGuidance.tone }]}>{aiGuidance.title}</Text>
-        <Text style={{ color: colours.text, fontSize: 14, lineHeight: 21 }}>
-          {aiGuidance.summary}
-        </Text>
-        <Text style={{ color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 10 }}>
-          {aiGuidance.action}
-        </Text>
-      </Card>
-
-      {/* Metrics grid */}
-      <View style={styles.grid}>
-        <MetricCard icon="pulse"  label="Weekly Load" value={`${weeklyLoad}`} sub={`ACWR ${performance.acuteChronicRatio}`} tone={colours.cyan} />
-        <MetricCard icon="flame"  label="Recovery"    value={recoveryLabel} sub={recoverySub} tone={performance.riskTone} />
-      </View>
-
-      {/* Recent sessions */}
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Recent Sessions</Text>
-        <Pressable onPress={goToAnalytics} style={styles.viewAllBtn}>
-          <Text style={styles.viewAllText}>View all</Text>
-          <Ionicons name="chevron-forward" size={13} color={colours.cyan} />
-        </Pressable>
-      </View>
-
-      {recentSessions.length > 0 ? (
-        recentSessions.map((session) => (
-          <View key={session.id} style={[styles.sessionCard, shadows.subtle]}>
-            <View style={styles.sessionRow}>
-              <View style={[styles.sessionIconWrap, { backgroundColor: colours.cyanDim, borderColor: colours.border }]}>
-                <Ionicons 
-                  name={session.type === 'Ruck' ? 'footsteps-outline' : 'barbell-outline'} 
-                  size={18} 
-                  color={colours.cyan} 
-                />
+      <View style={styles.domainGrid}>
+        {domains.map((domain) => {
+          const tone = domainTone(domain.status);
+          return (
+            <View key={domain.id} style={styles.domainCard}>
+              <View style={styles.domainHeader}>
+                <Text style={styles.domainLabel}>{domain.label}</Text>
+                <View style={[styles.dot, { backgroundColor: tone }]} />
               </View>
-              <View style={styles.sessionCopy}>
-                <Text style={[typography.body, styles.sessionTitle]}>{session.title}</Text>
-                <Text style={typography.caption}>
-                  {session.type} · {session.durationMinutes} min · RPE {session.rpe}
-                </Text>
-              </View>
-              <View style={styles.sessionRight}>
-                <Text style={styles.score}>{session.score}</Text>
-                <Text style={typography.label}>SCORE</Text>
-              </View>
-              <View style={styles.actions}>
-                <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
-                  <Ionicons name="pencil" size={18} color={colours.cyan} />
-                </Pressable>
-                <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
-                  <Ionicons name="trash-outline" size={18} color={colours.red} />
-                </Pressable>
-              </View>
+              <Text style={[styles.domainValue, { color: tone }]}>{domain.value}</Text>
+              <Text style={styles.domainDetail}>{domain.detail}</Text>
             </View>
-            
-            {session.routePoints && session.routePoints.length > 0 && (
-              <View style={styles.miniMapStage}>
-                {getMapPoints(session.routePoints).map((point: TrackPoint & { x: number; y: number }, index: number) => (
-                  <View
-                    key={index}
-                    style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}
-                  />
-                ))}
-              </View>
-            )}
-          </View>
-        ))
-      ) : (
-        <View style={[styles.emptyState, shadows.subtle]}>
-          <Ionicons name="document-text-outline" size={22} color={colours.cyan} />
-          <Text style={[typography.h4, styles.emptyTitle]}>No sessions yet</Text>
-          <Text style={typography.body}>Start a ruck or complete the strength block to populate your log.</Text>
-        </View>
-      )}
+          );
+        })}
+      </View>
 
-    {/* Edit Modal */}
-    <Modal visible={!!editingSession} transparent animationType="fade">
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalPanel, shadows.card]}>
-          <View style={styles.modalHeader}>
-            <Text style={typography.h3}>Edit Session</Text>
-            <Pressable onPress={() => setEditingSession(null)} style={styles.closeBtn}>
-              <Ionicons name="close" size={20} color={colours.text} />
-            </Pressable>
-          </View>
-          <Text style={typography.label}>SCORE</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={editScore}
-            onChangeText={setEditScore}
-          />
-          <Text style={typography.label}>DURATION (MINS)</Text>
-          <TextInput
-            style={styles.input}
-            keyboardType="number-pad"
-            value={editDuration}
-            onChangeText={setEditDuration}
-          />
-          <Pressable style={[buttonPrimary, { marginTop: responsiveSpacing('md') }]} onPress={saveEdit}>
-            <Text style={typography.body}>Save Changes</Text>
+      <Card accent={colours.cyan}>
+        <Text style={styles.sectionTitle}>Loaded Movement</Text>
+        <Text style={styles.body}>Track loaded miles, not just distance. Current estimate: {Math.round(loadedKm)} kg-km across ruck work.</Text>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.primaryButton} onPress={() => completeCriticalEvent(goToRuck)}>
+            <Ionicons name="footsteps" size={20} color={colours.background} />
+            <Text style={styles.primaryButtonText}>Ruck Calculator</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={() => completeCriticalEvent(goToAnalytics)}>
+            <Ionicons name="analytics" size={20} color={colours.cyan} />
+            <Text style={styles.secondaryButtonText}>Intel</Text>
           </Pressable>
         </View>
+      </Card>
+
+      <Card>
+        <Text style={styles.sectionTitle}>Body Composition</Text>
+        <Text style={styles.body}>2026 WHtR mandate target: under 0.55.</Text>
+        <View style={styles.inputRow}>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>WAIST CM</Text>
+            <TextInput value={waistCm} onChangeText={setWaistCm} keyboardType="numeric" style={styles.input} />
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>HEIGHT CM</Text>
+            <TextInput value={heightCm} onChangeText={setHeightCm} keyboardType="numeric" style={styles.input} />
+          </View>
+        </View>
+        <View style={styles.whtrResult}>
+          <Text style={[styles.whtrValue, { color: whtr.compliant ? colours.green : colours.red }]}>
+            {whtr.ratio.toFixed(3)}
+          </Text>
+          <Text style={styles.body}>
+            {whtr.compliant ? `Compliant with ${whtr.marginCm} cm margin.` : `${Math.abs(whtr.marginCm)} cm over threshold.`}
+          </Text>
+        </View>
+      </Card>
+
+      <Card>
+        <Text style={styles.sectionTitle}>Injury Report</Text>
+        <Text style={styles.body}>Tap a CHOIR segment, then paint pain intensity from muted green to tactical red.</Text>
+        <View style={styles.intensityRow}>
+          {[0, 2, 4, 6, 8, 10].map((level) => (
+            <Pressable
+              key={level}
+              style={[
+                styles.intensityButton,
+                {
+                  backgroundColor: level <= 0 ? colours.cyanDim : level <= 3 ? colours.cyan : level <= 6 ? colours.amber : colours.red,
+                  borderColor: selectedPainLevel === level ? colours.text : 'transparent',
+                },
+              ]}
+              onPress={() => setIntensity(level)}
+              accessibilityRole="button"
+              accessibilityLabel={`Set pain intensity ${level} out of 10`}
+            >
+              <Text style={[styles.intensityText, level > 0 && { color: colours.background }]}>{level}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <BodyMap
+          activeView={bodyMapView}
+          painMap={painMap}
+          selectedSegment={selectedSegment}
+          selectedPainLevel={selectedPainLevel}
+          onChangeView={setBodyMapView}
+          onSelect={markInjury}
+        />
+        <View style={styles.hotspotPanel}>
+          <Text style={styles.hotspotTitle}>HPT Hotspots</Text>
+          {hotspots.length ? hotspots.map((segment) => (
+            <View key={segment.id} style={styles.hotspotRow}>
+              <Text style={styles.hotspotName}>{segment.id} {segment.label}</Text>
+              <Text style={[styles.hotspotScore, { color: segment.level >= 7 ? colours.red : segment.level >= 4 ? colours.amber : colours.cyan }]}>
+                {segment.level}/10
+              </Text>
+            </View>
+          )) : (
+            <Text style={styles.body}>No musculoskeletal reports logged.</Text>
+          )}
+          {lowerBackLoadFlag && (
+            <Text style={styles.hotspotAlert}>
+              Lower-back hotspot rising after loaded ruck exposure. Flag for HPT trend review.
+            </Text>
+          )}
+        </View>
+      </Card>
+
+      <Card>
+        <Text style={styles.sectionTitle}>Integration Layer</Text>
+        <View style={styles.integrationRow}>
+          {['Health Connect', 'Apple Health bridge', 'Garmin/Oura/Whoop FHIR'].map((label) => (
+            <View key={label} style={styles.integrationPill}>
+              <Text style={styles.integrationText}>{label}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={styles.body}>
+          Default posture is local-only. Cloud, native health stores, and third-party APIs stay opt-in with normalized FHIR-shaped records.
+        </Text>
+      </Card>
+
+      <View style={styles.recentHeader}>
+        <Text style={styles.sectionTitle}>Recent Load</Text>
+        <Text style={styles.label}>LAST 3</Text>
       </View>
-    </Modal>
+      {recentSessions.map((session) => (
+        <View key={session.id} style={styles.sessionRow}>
+          <Text style={styles.sessionTitle}>{session.title}</Text>
+          <Text style={styles.sessionMeta}>{session.type} | {session.durationMinutes} min | RPE {session.rpe}</Text>
+        </View>
+      ))}
     </Screen>
   );
 }
@@ -241,316 +239,275 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    gap: 12,
   },
-  callsign: {
-    color: colours.muted,
+  kicker: {
+    color: colours.cyan,
     fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 2.5,
-    marginBottom: 3,
+    letterSpacing: 2,
   },
-  pageTitle: {
+  title: {
     color: colours.text,
     fontSize: 30,
     fontWeight: '900',
-    letterSpacing: -0.5,
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    borderWidth: 1,
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
     marginTop: 4,
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
+  opsecBadge: {
+    minHeight: touchTarget,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colours.cyanDim,
   },
-  statusText: {
+  opsecText: {
+    color: colours.cyan,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  readinessRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 18,
+  },
+  readinessValue: {
+    fontSize: 64,
+    lineHeight: 68,
+    fontWeight: '900',
+  },
+  readinessCopy: {
+    flex: 1,
+  },
+  status: {
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 4,
+  },
+  label: {
+    color: colours.muted,
     fontSize: 10,
     fontWeight: '900',
-    letterSpacing: 1.2,
+    letterSpacing: 1.4,
   },
-
-  /* Readiness */
-  readinessRow: {
+  body: {
+    color: colours.textSoft,
+    fontSize: 18,
+    lineHeight: 27,
+  },
+  domainGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  domainCard: {
+    width: '48%',
+    minHeight: 126,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: colours.panel,
+  },
+  domainHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    gap: 16,
   },
-  readinessCopy: { flex: 1 },
-  metaLabel: {
+  domainLabel: {
     color: colours.muted,
-    fontSize: 9,
+    fontSize: 11,
     fontWeight: '900',
-    letterSpacing: 1.5,
-    marginBottom: 4,
   },
-  bigNumber: {
-    fontSize: 64,
+  dot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+  },
+  domainValue: {
+    fontSize: 18,
     fontWeight: '900',
-    lineHeight: 68,
+    marginTop: 14,
   },
-  statusLine: {
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 0.4,
-    marginTop: 2,
+  domainDetail: {
+    color: colours.textSoft,
+    fontSize: 18,
+    lineHeight: 25,
+    marginTop: 6,
   },
-  circle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-
-  /* Today's workout */
-  eyebrow: {
-    color: colours.amber,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 2.5,
-    marginBottom: 5,
-  },
-  cardTitle: {
+  sectionTitle: {
     color: colours.text,
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: -0.3,
+    marginBottom: 8,
   },
-  cardMeta: {
-    color: colours.muted,
-    fontSize: 13,
-    marginTop: 3,
-    marginBottom: 10,
-  },
-  workoutTags: {
+  actionRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginBottom: 14,
-  },
-  tag: {
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
-  tagText: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+    gap: 10,
+    marginTop: 14,
   },
   primaryButton: {
-    flexDirection: 'row',
+    minHeight: touchTarget,
+    flex: 1,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
     alignItems: 'center',
     justifyContent: 'center',
+    flexDirection: 'row',
     gap: 8,
-    backgroundColor: colours.cyan,
-    borderRadius: 16,
-    paddingVertical: 13,
-    shadowColor: colours.cyan,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 14,
-    elevation: 8,
   },
   primaryButtonText: {
     color: colours.background,
     fontWeight: '900',
-    fontSize: 15,
-    letterSpacing: 0.3,
   },
-
-  /* Metrics */
-  grid: { flexDirection: 'row', gap: 12 },
-
-  /* Section header */
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  sectionTitle: {
-    color: colours.text,
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 0.2,
-  },
-  viewAllBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 2,
-  },
-  viewAllText: {
-    color: colours.cyan,
-    fontSize: 12,
-    fontWeight: '700',
-  },
-
-  /* Session Cards */
-  sessionCard: {
+  secondaryButton: {
+    minHeight: touchTarget,
+    flex: 1,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 16,
-    backgroundColor: 'rgba(10, 20, 35, 0.70)',
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  sessionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-  },
-  sessionIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
+    borderColor: colours.borderHot,
     alignItems: 'center',
     justifyContent: 'center',
-    flexShrink: 0,
+    flexDirection: 'row',
+    gap: 8,
   },
-  sessionCopy: { flex: 1 },
-  sessionTitle: {
-    color: colours.text,
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  sessionMeta: {
-    color: colours.muted,
-    fontSize: 11,
-    marginTop: 2,
-  },
-  sessionRight: { alignItems: 'flex-end' },
-  score: {
+  secondaryButtonText: {
     color: colours.cyan,
+    fontWeight: '900',
+  },
+  inputRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 12,
+  },
+  inputGroup: {
+    flex: 1,
+  },
+  input: {
+    minHeight: touchTarget,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    color: colours.text,
+    backgroundColor: 'rgba(0,0,0,0.22)',
+    paddingHorizontal: 12,
+    marginTop: 6,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  whtrResult: {
+    minHeight: touchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 12,
+  },
+  whtrValue: {
+    fontSize: 34,
+    fontWeight: '900',
+  },
+  integrationRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12,
+  },
+  integrationPill: {
+    minHeight: touchTarget,
+    justifyContent: 'center',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    paddingHorizontal: 12,
+    backgroundColor: colours.cyanDim,
+  },
+  integrationText: {
+    color: colours.cyan,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  intensityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginVertical: 14,
+  },
+  intensityButton: {
+    width: touchTarget,
+    height: touchTarget,
+    borderRadius: 8,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  intensityText: {
+    color: colours.text,
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  hotspotPanel: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#151816',
+    marginTop: 12,
+    gap: 8,
+  },
+  hotspotTitle: {
+    color: colours.text,
     fontSize: 20,
     fontWeight: '900',
   },
-  scoreLabel: {
-    color: colours.soft,
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    marginTop: 1,
-  },
-  actions: {
+  hotspotRow: {
+    minHeight: touchTarget,
     flexDirection: 'row',
-    marginLeft: 4,
-  },
-  actionBtn: {
-    marginLeft: 2,
-    padding: 6,
-    justifyContent: 'center',
-  },
-  emptyState: {
     alignItems: 'center',
-    gap: 6,
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+  },
+  hotspotName: {
+    flex: 1,
+    color: colours.textSoft,
+    fontSize: 18,
+    fontWeight: '800',
+  },
+  hotspotScore: {
+    fontSize: 18,
+    fontWeight: '900',
+  },
+  hotspotAlert: {
+    color: colours.red,
+    fontSize: 18,
+    fontWeight: '900',
+    lineHeight: 25,
+  },
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  sessionRow: {
+    minHeight: touchTarget,
     borderWidth: 1,
     borderColor: colours.borderSoft,
-    borderRadius: 16,
-    padding: 18,
-    backgroundColor: 'rgba(10, 20, 35, 0.70)',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: colours.panel,
   },
-  emptyTitle: {
+  sessionTitle: {
     color: colours.text,
     fontSize: 14,
     fontWeight: '900',
   },
-  emptyText: {
+  sessionMeta: {
     color: colours.muted,
-    fontSize: 12,
-    textAlign: 'center',
-    lineHeight: 17,
-  },
-  miniMapStage: {
-    height: 80,
-    backgroundColor: 'rgba(4,8,15,0.4)',
-    borderTopWidth: 1,
-    borderColor: colours.borderSoft,
-    position: 'relative',
-  },
-  trailDot: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginLeft: -2,
-    marginTop: -2,
-    backgroundColor: colours.cyan,
-    opacity: 0.8,
-  },
-  modalOverlay: {
-    flex: 1,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.62)',
-  },
-  modalPanel: {
-    borderWidth: 1,
-    borderColor: colours.border,
-    borderRadius: 20,
-    padding: 18,
-    backgroundColor: colours.surface,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    color: colours.text,
-    fontSize: 20,
-    fontWeight: '900',
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  inputLabel: {
-    color: colours.muted,
-    fontSize: 10,
-    fontWeight: '900',
-    marginBottom: 6,
-    letterSpacing: 1.2,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 14,
-    color: colours.text,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 16,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  saveBtn: {
-    alignItems: 'center',
-    backgroundColor: colours.cyan,
-    borderRadius: 16,
-    paddingVertical: 13,
-    marginTop: 4,
-  },
-  saveBtnText: {
-    color: colours.background,
-    fontSize: 15,
-    fontWeight: '900',
+    fontSize: 18,
+    marginTop: 3,
   },
 });
