@@ -417,6 +417,14 @@ export function InstructorScreen({
               </Text>
             </View>
             <ProgressBar value={member.readiness} />
+          <View style={styles.factorGrid}>
+            {['Sleep', 'Soreness', 'Pain', 'Hydration', 'Mood', 'Illness', 'Rest HR', 'HRV'].map(factor => (
+              <View key={factor} style={styles.factorItem}>
+                <Text style={styles.factorLabel}>{factor}</Text>
+                <Text style={styles.factorValue}>--</Text>
+              </View>
+            ))}
+          </View>
           </View>
         ))}
       </Card>
@@ -568,6 +576,10 @@ const styles = StyleSheet.create({
   memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
+  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  factorItem: { flex: 1, minWidth: '22%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 2 },
+  factorValue: { color: colours.text, fontSize: 12, fontWeight: '900' },
   groupCard: {
     borderColor: colours.border,
     borderWidth: 1,
