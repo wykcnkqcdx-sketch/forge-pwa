@@ -15,6 +15,7 @@ export type SquadMember = {
   load: number;
   inviteStatus?: 'Manual' | 'Invited' | 'Joined';
   assignment?: string;
+  pinnedExerciseIds?: string[];
   ghostMode?: boolean;
   streakDays?: number;
   weeklyVolume?: number;
@@ -100,12 +101,14 @@ export const teamMessages: TeamMessage[] = [
 ];
 
 export type ExerciseCategory = 'Strength' | 'Resistance' | 'Cardio' | 'Workout' | 'Mobility';
+export type MovementPattern = 'Push' | 'Pull' | 'Legs' | 'Carry' | 'Core' | 'Conditioning' | 'Mobility';
 export type TrainingModeIcon = 'barbell' | 'git-branch' | 'heart' | 'fitness' | 'skull';
 
 export type Exercise = {
   id: string;
   name: string;
   category: ExerciseCategory;
+  pattern: MovementPattern;
   dose: string;
   guidance: string;
   cues: string[];
@@ -122,6 +125,7 @@ export type TrainingMode = {
   score: number;
   coach: string;
   defaultExerciseIds: string[];
+  coachPinnedExerciseIds?: string[];
   unlockLevel?: number;
 };
 
