@@ -1,5 +1,5 @@
 import { StyleSheet, ViewStyle, TextStyle } from 'react-native';
-import { colours, spacing, radius, fontSize, shadow } from '../theme';
+import { colours, spacing, radius, fontSize, shadows } from '../theme';
 import { Dimensions } from 'react-native';
 
 const { width: screenWidth } = Dimensions.get('window');
@@ -48,7 +48,7 @@ export const buttonPrimary: ViewStyle = {
   backgroundColor: colours.cyan,
   borderRadius: radius.md,
   paddingVertical: 13,
-  ...shadow.cyan,
+  ...shadows.cyan,
 };
 
 export const buttonSecondary: ViewStyle = {
@@ -106,9 +106,9 @@ export const typography = {
 
 // ── Shadow Presets ─────────────────────────────────────────
 export const shadows = {
-  card: shadow.card,
-  cyan: shadow.cyan,
-  subtle: shadow.subtle,
+  card: shadows.card,
+  cyan: shadows.cyan,
+  subtle: shadows.subtle,
   elevated: {
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
