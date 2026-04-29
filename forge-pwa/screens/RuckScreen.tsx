@@ -8,7 +8,7 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { colours } from '../theme';
-import { TrainingSession, TrackPoint } from '../data/mockData';
+import { TrainingSession, TrackPoint } from '../data/domain';
 import { getMapPoints, distanceBetween, bearingBetween } from '../utils/mapUtils';
 
 function formatElapsed(seconds: number) {
@@ -84,6 +84,9 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [routePoints, setRoutePoints] = useState<TrackPoint[]>([]);
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
+  const [weather, setWeather] = useState<TrainingSession['weather']>('Mild');
+  const [terrain, setTerrain] = useState<TrainingSession['terrain']>('Mixed');
+  const [footCareChecked, setFootCareChecked] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -217,6 +220,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   };
 
   const startTracking = async () => {
+    if (!footCareChecked) {
+      Alert.alert('Pre-Flight Check', 'Acknowledge foot-care checklist before stepping off.');
+      return;
+    }
     if (isTracking || isStarting) return;
     setIsStarting(true);
 
@@ -304,6 +311,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setElapsedSeconds(0);
     setRoutePoints([]);
     setStartTime(null);
+    setFootCareChecked(false);
     AsyncStorage.removeItem('forge:ruck_route');
   };
 
@@ -499,6 +507,40 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             </Pressable>
           </View>
         </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Weather</Text>
+          <View style={styles.pills}>
+            {(['Hot', 'Mild', 'Cold', 'Wet'] as const).map(w => (
+              <Pressable key={w} style={[styles.pill, weather === w && styles.pillActive]} onPress={() => setWeather(w)}>
+                <Text style={[styles.pillText, weather === w && styles.pillTextActive]}>{w}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Terrain</Text>
+          <View style={styles.pills}>
+            {(['Flat', 'Hilly', 'Mixed', 'Urban'] as const).map(t => (
+              <Pressable key={t} style={[styles.pill, terrain === t && styles.pillActive]} onPress={() => setTerrain(t)}>
+                <Text style={[styles.pillText, terrain === t && styles.pillTextActive]}>{t}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+
+        {weight >= 20 && (
+          <View style={styles.warningBox}>
+            <Ionicons name="warning" size={16} color={colours.amber} />
+            <Text style={styles.warningText}>Heavy load. Ensure progressive overload and monitor recovery.</Text>
+          </View>
+        )}
+
+        <Pressable style={styles.checklist} onPress={() => setFootCareChecked(!footCareChecked)}>
+          <Ionicons name={footCareChecked ? 'checkbox' : 'square-outline'} size={22} color={footCareChecked ? colours.green : colours.muted} />
+          <Text style={[styles.checklistText, footCareChecked && { color: colours.text }]}>Pre-ruck foot care complete (tape, dry socks, boots checked)</Text>
+        </Pressable>
       </Card>
 
       <Card>
@@ -677,6 +719,15 @@ const styles = StyleSheet.create({
   smallButton: { width: 36, height: 36, borderRadius: 12, backgroundColor: colours.cyan, alignItems: 'center', justifyContent: 'center' },
   smallButtonText: { color: '#07111E', fontSize: 20, fontWeight: '900' },
   controlValue: { color: colours.text, fontWeight: '900', width: 55, textAlign: 'center' },
+  pills: { flexDirection: 'row', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end', flex: 1, marginLeft: 16 },
+  pill: { paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.04)' },
+  pillActive: { borderColor: colours.cyan, backgroundColor: colours.cyanDim },
+  pillText: { fontSize: 11, fontWeight: '800', color: colours.muted },
+  pillTextActive: { color: colours.cyan },
+  checklist: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 16, padding: 12, backgroundColor: 'rgba(0,0,0,0.15)', borderRadius: 12, borderWidth: 1, borderColor: colours.borderSoft },
+  checklistText: { color: colours.muted, fontSize: 12, fontWeight: '600', flex: 1, lineHeight: 18 },
+  warningBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12, padding: 12, backgroundColor: 'rgba(255,176,32,0.1)', borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,176,32,0.2)' },
+  warningText: { color: colours.amber, fontSize: 12, fontWeight: '600', flex: 1, lineHeight: 18 },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 },
   compassDial: {
     width: 58,
