@@ -7,6 +7,7 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { colours } from '../theme';
 import { TrainingSession, ExerciseCategory, Exercise, exerciseLibrary, trainingModes } from '../data/mockData';
+import { AssessmentView } from './AssessmentView';
 
 const categories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 
@@ -36,6 +37,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
   }, [currentLevel]);
 
   const [activeKey, setActiveKey] = useState(availableModes[0].key);
+  const [viewMode, setViewMode] = useState<'train' | 'assess'>('train');
   const [activeCategory, setActiveCategory] = useState<'All' | ExerciseCategory>('All');
   const [savedKeys, setSavedKeys] = useState<string[]>([]);
   const [selectedByMode, setSelectedByMode] = useState<Record<string, string[]>>(
@@ -97,10 +99,21 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
   return (
     <Screen>
-      <Text style={styles.muted}>Training block</Text>
-      <Text style={styles.title}>{activeMode.title}</Text>
+      <View style={styles.headerToggle}>
+        <Pressable style={[styles.toggleBtn, viewMode === 'train' && styles.toggleBtnActive]} onPress={() => setViewMode('train')}>
+          <Text style={[styles.toggleText, viewMode === 'train' && styles.toggleTextActive]}>PROGRAMMES</Text>
+        </Pressable>
+        <Pressable style={[styles.toggleBtn, viewMode === 'assess' && styles.toggleBtnActive]} onPress={() => setViewMode('assess')}>
+          <Text style={[styles.toggleText, viewMode === 'assess' && styles.toggleTextActive]}>ASSESSMENTS</Text>
+        </Pressable>
+      </View>
 
-      <View style={styles.modeTabs}>
+      {viewMode === 'train' ? (
+        <>
+          <Text style={styles.muted}>Training block</Text>
+          <Text style={styles.title}>{activeMode.title}</Text>
+
+          <View style={styles.modeTabs}>
         {availableModes.map((mode) => {
           const isActive = mode.key === activeMode.key;
           return (
@@ -236,11 +249,20 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
       >
         <Text style={styles.primaryButtonText}>{saved ? 'Session Saved' : `Complete ${activeMode.label}`}</Text>
       </Pressable>
+        </>
+      ) : (
+        <AssessmentView />
+      )}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  headerToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 12, padding: 4, marginBottom: 20 },
+  toggleBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 8 },
+  toggleBtnActive: { backgroundColor: colours.cyan },
+  toggleText: { color: colours.muted, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  toggleTextActive: { color: colours.background },
   muted: { color: colours.muted, fontSize: 13 },
   title: { color: colours.text, fontSize: 30, fontWeight: '900', marginBottom: 14 },
   modeTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
