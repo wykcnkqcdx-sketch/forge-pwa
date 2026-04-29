@@ -9,6 +9,7 @@ import { colours } from '../theme';
 import { TrainingSession, ExerciseCategory, Exercise, exerciseLibrary, trainingModes } from '../data/mockData';
 
 const categories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
+const timeTargets = [20, 30, 45, 60];
 
 export function TrainScreen({ addSession, sessions }: { addSession: (session: TrainingSession) => void; sessions: TrainingSession[] }) {
   const totalScore = useMemo(() => sessions.reduce((total, s) => total + s.score, 0), [sessions]);
@@ -37,6 +38,8 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
   const [activeKey, setActiveKey] = useState(availableModes[0].key);
   const [activeCategory, setActiveCategory] = useState<'All' | ExerciseCategory>('All');
+  const [targetMinutes, setTargetMinutes] = useState(45);
+  const [trainingFeedback, setTrainingFeedback] = useState('');
   const [savedKeys, setSavedKeys] = useState<string[]>([]);
   const [selectedByMode, setSelectedByMode] = useState<Record<string, string[]>>(
     Object.fromEntries(trainingModes.map((mode) => [mode.key, mode.defaultExerciseIds]))
@@ -55,7 +58,8 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
   const filteredExercises = activeCategory === 'All'
     ? exerciseLibrary
     : exerciseLibrary.filter((exercise) => exercise.category === activeCategory);
-  const estimatedMinutes = Math.max(20, selectedExercises.length * 8 + (activeMode.key === 'cardio' ? 8 : 0));
+  const estimatedMinutes = targetMinutes;
+  const recommendedExerciseCount = Math.max(3, Math.floor(targetMinutes / 8));
   const saved = savedKeys.includes(activeMode.key);
 
   function switchMode(key: string) {
@@ -73,8 +77,22 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
         ? currentIds.filter((id) => id !== exercise.id)
         : [...currentIds, exercise.id];
 
+      if (!exists && nextIds.length > recommendedExerciseCount) {
+        setTrainingFeedback(`${nextIds.length} exercises is above the ${recommendedExerciseCount} recommended for ${targetMinutes} min. Fine for longer sessions; trim if quality drops.`);
+      } else if (exists) {
+        setTrainingFeedback(`${exercise.name} removed from this ${activeMode.label} block.`);
+      } else {
+        setTrainingFeedback(`${exercise.name} added to this ${activeMode.label} block.`);
+      }
+
       return { ...current, [activeMode.key]: nextIds };
     });
+    setSavedKeys((current) => current.filter((key) => key !== activeMode.key));
+  }
+
+  function changeTargetMinutes(minutes: number) {
+    setTargetMinutes(minutes);
+    setTrainingFeedback(`Target set to ${minutes} min. Recommended range: ${Math.max(3, Math.floor(minutes / 8))} focused exercises.`);
     setSavedKeys((current) => current.filter((key) => key !== activeMode.key));
   }
 
@@ -134,14 +152,36 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
       </View>
 
       <View style={styles.grid}>
-        <MetricCard icon="time" label="Time" value={`${estimatedMinutes}`} sub="est. minutes" tone={activeMode.tone} />
-        <MetricCard icon="list" label="Selected" value={`${selectedExercises.length}`} sub="exercises" tone={colours.amber} />
+        <MetricCard icon="time" label="Target" value={`${estimatedMinutes}`} sub="minutes" tone={activeMode.tone} />
+        <MetricCard icon="list" label="Selected" value={`${selectedExercises.length}`} sub={`${recommendedExerciseCount} recommended`} tone={colours.amber} />
       </View>
 
       <Card>
         <View style={styles.headerRow}>
+          <Text style={styles.cardTitle}>Session Length</Text>
+          <Text style={[styles.badge, { color: activeMode.tone, backgroundColor: `${activeMode.tone}14` }]}>Tap a time</Text>
+        </View>
+        <View style={styles.timeGrid}>
+          {timeTargets.map((minutes) => {
+            const active = minutes === targetMinutes;
+            return (
+              <Pressable
+                key={minutes}
+                style={[styles.timeButton, active && { borderColor: activeMode.tone, backgroundColor: `${activeMode.tone}18` }]}
+                onPress={() => changeTargetMinutes(minutes)}
+              >
+                <Text style={[styles.timeButtonText, active && { color: activeMode.tone }]}>{minutes} min</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={styles.trainingHint}>Coach recommendation: choose fewer exercises for short sessions, then keep reps cleaner.</Text>
+      </Card>
+
+      <Card>
+        <View style={styles.headerRow}>
           <Text style={styles.cardTitle}>Selected Exercises</Text>
-          <Text style={[styles.badge, { color: activeMode.tone, backgroundColor: `${activeMode.tone}14` }]}>Tap to focus</Text>
+          <Text style={[styles.badge, { color: activeMode.tone, backgroundColor: `${activeMode.tone}14` }]}>Tap X to remove</Text>
         </View>
 
         {selectedExercises.length > 0 ? (
@@ -154,7 +194,15 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
                 <Text style={styles.exerciseName}>{exercise.name}</Text>
                 <Text style={styles.muted}>{exercise.dose}</Text>
               </View>
-              <Ionicons name={focusedExercise.id === exercise.id ? 'radio-button-on' : 'chevron-forward'} size={18} color={activeMode.tone} />
+              <Pressable
+                style={styles.removeExerciseButton}
+                onPress={(event) => {
+                  event.stopPropagation();
+                  toggleExercise(exercise);
+                }}
+              >
+                <Ionicons name="close" size={18} color={colours.red} />
+              </Pressable>
             </Pressable>
           ))
         ) : (
@@ -216,6 +264,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
                   <Ionicons name={isSelected ? 'checkmark-circle' : 'add-circle-outline'} size={18} color={isSelected ? activeMode.tone : colours.muted} />
                 </View>
                 <Text style={styles.libraryMeta}>{exercise.category} - {exercise.dose}</Text>
+                <Text style={[styles.libraryAction, isSelected && { color: activeMode.tone }]}>{isSelected ? 'Selected - tap to remove' : 'Tap to add'}</Text>
               </Pressable>
             );
           })}
@@ -224,6 +273,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
       <Card style={{ backgroundColor: `${activeMode.tone}10` }}>
         <Text style={styles.coach}>AI Coach: {activeMode.coach}</Text>
+        {trainingFeedback ? <Text style={styles.trainingFeedback}>{trainingFeedback}</Text> : null}
       </Card>
 
       <Pressable
@@ -263,6 +313,20 @@ const styles = StyleSheet.create({
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12 },
   cardTitle: { color: colours.text, fontSize: 18, fontWeight: '900' },
   badge: { fontSize: 11, fontWeight: '900', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999 },
+  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  timeButton: {
+    minHeight: 48,
+    flex: 1,
+    minWidth: '22%',
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  timeButtonText: { color: colours.muted, fontSize: 13, fontWeight: '900' },
+  trainingHint: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
   libraryCount: { color: colours.muted, fontSize: 12, fontWeight: '800' },
   exerciseRow: {
     flexDirection: 'row',
@@ -285,6 +349,16 @@ const styles = StyleSheet.create({
   exerciseNumberText: { fontWeight: '900' },
   exerciseCopy: { flex: 1 },
   exerciseName: { color: colours.text, fontWeight: '800' },
+  removeExerciseButton: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderColor: `${colours.red}40`,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.redDim,
+  },
   emptySelection: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
@@ -326,6 +400,8 @@ const styles = StyleSheet.create({
   libraryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
   libraryName: { color: colours.text, fontSize: 14, fontWeight: '900', flex: 1 },
   libraryMeta: { color: colours.muted, fontSize: 11, marginTop: 4 },
+  libraryAction: { color: colours.textSoft, fontSize: 11, fontWeight: '900', marginTop: 8 },
+  trainingFeedback: { color: colours.green, fontSize: 12, lineHeight: 18, fontWeight: '900', marginTop: 10 },
   primaryButton: {
     borderRadius: 16,
     paddingVertical: 15,
