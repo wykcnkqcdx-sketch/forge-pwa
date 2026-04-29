@@ -1,5 +1,7 @@
 // ── FORGE Military Design Tokens ────────────────────────────
 
+import { StyleSheet } from 'react-native';
+
 export const colours = {
   // Backgrounds
   background:   '#04080F',
@@ -43,6 +45,42 @@ export const colours = {
   panelHot:     'rgba(0, 229, 255, 0.06)',
 } as const;
 
+export const typography = StyleSheet.create({
+  h1: {
+    fontSize: 56,
+    fontWeight: '900' as const,
+  },
+  h2: {
+    fontSize: 46,
+    fontWeight: '900' as const,
+  },
+  h3: {
+    fontSize: 32,
+    fontWeight: '900' as const,
+  },
+  h4: {
+    fontSize: 24,
+    fontWeight: '900' as const,
+  },
+  body: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: colours.textSoft,
+  },
+  caption: {
+    fontSize: 12,
+    color: colours.muted,
+    fontWeight: '900' as const,
+    letterSpacing: 1.2,
+  },
+  label: {
+    fontSize: 10,
+    fontWeight: '900' as const,
+    letterSpacing: 1.5,
+    color: colours.muted,
+  },
+});
+
 export const spacing = {
   xs:   4,
   sm:   8,
@@ -73,7 +111,7 @@ export const fontSize = {
   '5xl': 56,
 } as const;
 
-export const shadow = {
+export const shadows = {
   cyan: {
     shadowColor: '#00E5FF',
     shadowOffset: { width: 0, height: 4 },
@@ -95,4 +133,14 @@ export const shadow = {
     shadowRadius: 8,
     elevation: 4,
   },
+  elevated: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.45,
+    shadowRadius: 24,
+    elevation: 16,
+  },
 } as const;
+
+export { typography };
+

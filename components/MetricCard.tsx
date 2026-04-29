@@ -1,7 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TextStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colours, shadow } from '../theme';
+import { colours, shadows, typography } from '../theme';
+import { statusColors, responsiveSpacing } from '../utils/styling';
 
 type Props = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -12,19 +13,18 @@ type Props = {
 };
 
 export function MetricCard({ icon, label, value, sub, tone = colours.cyan }: Props) {
-  const iconBg = `${tone}18`;
-  const iconBorder = `${tone}30`;
+  const iconStyles = statusColors(tone || colours.cyan);
 
   return (
-    <View style={[styles.card, shadow.subtle]}>
+    <View style={[styles.card, shadows.subtle]}>
       <View style={styles.topRow}>
-        <Text style={styles.label}>{label.toUpperCase()}</Text>
-        <View style={[styles.iconWrap, { backgroundColor: iconBg, borderColor: iconBorder }]}>
+        <Text style={typography.label}>{label.toUpperCase()}</Text>
+        <View style={[styles.iconWrap, { backgroundColor: iconStyles.bgMed, borderColor: iconStyles.borderMed }]}>
           <Ionicons name={icon} size={16} color={tone} />
         </View>
       </View>
-      <Text style={[styles.value, { color: tone }]}>{value}</Text>
-      <Text style={styles.sub}>{sub}</Text>
+      <Text style={[typography.h4, styles.value, { color: tone }]}>{value}</Text>
+      <Text style={[typography.caption, styles.sub]}>{sub}</Text>
       {/* Bottom accent line */}
       <View style={[styles.bottomLine, { backgroundColor: tone }]} />
     </View>
@@ -38,16 +38,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 12,
-    padding: 13,
-    marginBottom: 12,
+    padding: responsiveSpacing('md'),
     overflow: 'hidden',
-    gap: 2,
+    gap: responsiveSpacing('xs'),
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: responsiveSpacing('md'),
   },
   iconWrap: {
     width: 30,
@@ -57,22 +56,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  label: {
-    color: colours.muted,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.1,
-  },
   value: {
-    fontSize: 24,
-    fontWeight: '900',
     lineHeight: 28,
-  },
+  } as TextStyle,
   sub: {
-    color: colours.soft,
-    fontSize: 11,
-    marginTop: 2,
-  },
+    marginTop: responsiveSpacing('xs'),
+  } as TextStyle,
   bottomLine: {
     position: 'absolute',
     bottom: 0,
@@ -82,3 +71,4 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
 });
+

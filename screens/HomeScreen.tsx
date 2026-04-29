@@ -5,6 +5,8 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
+import { colours, shadows, typography } from '../theme';
+import { statusColors, buttonPrimary, tagStyle, responsiveSpacing } from '../utils/styling';
 
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints } from '../utils/mapUtils';
@@ -148,7 +150,7 @@ export function HomeScreen({
 
       {recentSessions.length > 0 ? (
         recentSessions.map((session) => (
-          <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
+          <View key={session.id} style={[styles.sessionCard, shadows.subtle]}>
             <View style={styles.sessionRow}>
               <View style={[styles.sessionIconWrap, { backgroundColor: colours.cyanDim, borderColor: colours.border }]}>
                 <Ionicons 
@@ -158,14 +160,14 @@ export function HomeScreen({
                 />
               </View>
               <View style={styles.sessionCopy}>
-                <Text style={styles.sessionTitle}>{session.title}</Text>
-                <Text style={styles.sessionMeta}>
+                <Text style={[typography.body, styles.sessionTitle]}>{session.title}</Text>
+                <Text style={typography.caption}>
                   {session.type} · {session.durationMinutes} min · RPE {session.rpe}
                 </Text>
               </View>
               <View style={styles.sessionRight}>
                 <Text style={styles.score}>{session.score}</Text>
-                <Text style={styles.scoreLabel}>SCORE</Text>
+                <Text style={typography.label}>SCORE</Text>
               </View>
               <View style={styles.actions}>
                 <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
@@ -190,39 +192,39 @@ export function HomeScreen({
           </View>
         ))
       ) : (
-        <View style={[styles.emptyState, shadow.subtle]}>
+        <View style={[styles.emptyState, shadows.subtle]}>
           <Ionicons name="document-text-outline" size={22} color={colours.cyan} />
-          <Text style={styles.emptyTitle}>No sessions yet</Text>
-          <Text style={styles.emptyText}>Start a ruck or complete the strength block to populate your log.</Text>
+          <Text style={[typography.h4, styles.emptyTitle]}>No sessions yet</Text>
+          <Text style={typography.body}>Start a ruck or complete the strength block to populate your log.</Text>
         </View>
-      )}
+      )
 
     {/* Edit Modal */}
     <Modal visible={!!editingSession} transparent animationType="fade">
       <View style={styles.modalOverlay}>
-        <View style={[styles.modalPanel, shadow.card]}>
+        <View style={[styles.modalPanel, shadows.card]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Edit Session</Text>
+            <Text style={typography.h3}>Edit Session</Text>
             <Pressable onPress={() => setEditingSession(null)} style={styles.closeBtn}>
               <Ionicons name="close" size={20} color={colours.text} />
             </Pressable>
           </View>
-          <Text style={styles.inputLabel}>SCORE</Text>
+          <Text style={typography.label}>SCORE</Text>
           <TextInput
             style={styles.input}
             keyboardType="number-pad"
             value={editScore}
             onChangeText={setEditScore}
           />
-          <Text style={styles.inputLabel}>DURATION (MINS)</Text>
+          <Text style={typography.label}>DURATION (MINS)</Text>
           <TextInput
             style={styles.input}
             keyboardType="number-pad"
             value={editDuration}
             onChangeText={setEditDuration}
           />
-          <Pressable style={styles.saveBtn} onPress={saveEdit}>
-            <Text style={styles.saveBtnText}>Save Changes</Text>
+          <Pressable style={[buttonPrimary, { marginTop: responsiveSpacing('md') }]} onPress={saveEdit}>
+            <Text style={typography.body}>Save Changes</Text>
           </Pressable>
         </View>
       </View>

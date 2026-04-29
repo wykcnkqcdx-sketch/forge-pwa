@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { colours, shadow } from '../theme';
+import { colours, shadows, typography } from '../theme';
+import { makeCardStyle, responsiveSpacing } from '../utils/styling';
 
 type Props = {
   children: React.ReactNode;
@@ -11,7 +12,7 @@ type Props = {
 
 export function Card({ children, style, accent, hot }: Props) {
   return (
-    <View style={[styles.card, hot && styles.cardHot, style, shadow.card]}>
+    <View style={[makeCardStyle(accent, hot), style, shadows.card]}>
       {/* Top glass highlight stripe */}
       <View style={styles.highlight} />
       {/* Left accent bar when accent colour provided */}
@@ -22,21 +23,6 @@ export function Card({ children, style, accent, hot }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: 'rgba(10, 20, 35, 0.80)',
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  cardHot: {
-    borderColor: colours.border,
-    borderLeftWidth: 2,
-    borderLeftColor: colours.cyan,
-    backgroundColor: 'rgba(0, 229, 255, 0.06)',
-  },
   highlight: {
     position: 'absolute',
     top: 0,
@@ -51,11 +37,12 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3,
-    borderTopLeftRadius: 12,
-    borderBottomLeftRadius: 12,
+    borderTopLeftRadius: 22,
+    borderBottomLeftRadius: 22,
     opacity: 0.85,
   },
   inner: {
-    padding: 16,
+    padding: responsiveSpacing('lg'),
   },
 });
+
