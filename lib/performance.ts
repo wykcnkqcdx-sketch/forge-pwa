@@ -1,4 +1,4 @@
-import { TrainingSession } from '../data/mockData';
+import { TrainingSession } from '../data/domain';
 import { colours } from '../theme';
 
 export type ReadinessBand = 'GREEN' | 'AMBER' | 'RED';

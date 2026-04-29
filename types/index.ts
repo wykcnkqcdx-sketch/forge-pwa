@@ -1,22 +1,6 @@
-export type TrackPoint = {
-  latitude: number;
-  longitude: number;
-  altitude: number | null;
-  accuracy: number | null;
-  timestamp: number;
-};
+import type { TrainingSession } from '../data/domain';
 
-export type TrainingSession = {
-  id: string;
-  type: 'Ruck' | 'Strength' | 'Resistance' | 'Cardio' | 'Workout' | 'Run' | 'Mobility';
-  title: string;
-  score: number;
-  durationMinutes: number;
-  rpe: number;
-  loadKg?: number;
-  routePoints?: TrackPoint[];
-  completedAt?: string; // ISO date string
-};
+export type { ReadinessLog, TrackPoint, TrainingSession } from '../data/domain';
 
 export type SquadMember = {
   id: string;

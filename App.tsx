@@ -12,6 +12,7 @@ import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
+import type { ReadinessLog } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { colours, shadow } from './theme';
