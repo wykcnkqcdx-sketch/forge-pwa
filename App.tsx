@@ -10,7 +10,7 @@ import { TrainScreen } from './screens/TrainScreen';
 import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
-import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
+import { initialSessions, squadMembers, trainingGroups, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
 import type { ReadinessLog } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
 import { secureGetItem, secureMultiRemove, secureRemoveItem, secureSetItem } from './lib/secureStorage';
@@ -25,6 +25,7 @@ type ForgeBackup = {
   exportedAt: string;
   sessions: TrainingSession[];
   members: SquadMember[];
+  groups?: TrainingGroup[];
   readinessLogs?: ReadinessLog[];
 };
 
@@ -41,6 +42,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
   const [members, setMembers] = useState<SquadMember[]>(squadMembers);
+  const [groups, setGroups] = useState<TrainingGroup[]>(trainingGroups);
   const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
   const [cloudSession, setCloudSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
@@ -210,6 +212,9 @@ export default function App() {
         const storedMembers = await secureGetItem('forge:members');
         if (storedMembers) setMembers(JSON.parse(storedMembers));
 
+        const storedGroups = await secureGetItem('forge:groups');
+        if (storedGroups) setGroups(JSON.parse(storedGroups));
+
         const storedReadiness = await secureGetItem('forge:readiness_logs');
         if (storedReadiness) setReadinessLogs(JSON.parse(storedReadiness));
         
@@ -231,6 +236,10 @@ export default function App() {
   useEffect(() => {
     if (isReady) secureSetItem('forge:members', JSON.stringify(members));
   }, [members, isReady]);
+
+  useEffect(() => {
+    if (isReady) secureSetItem('forge:groups', JSON.stringify(groups));
+  }, [groups, isReady]);
 
   useEffect(() => {
     if (isReady) secureSetItem('forge:readiness_logs', JSON.stringify(readinessLogs));
@@ -307,10 +316,11 @@ export default function App() {
   function executeDuressWipe() {
     setSessions([]);
     setMembers([]);
+    setGroups([]);
     setSavedPin(null);
     setIsUnlocked(true);
     setPinInput('');
-    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:readiness_logs', 'forge:pin']);
+    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:readiness_logs', 'forge:pin']);
     Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
@@ -394,8 +404,16 @@ export default function App() {
     setMembers((current) => [member, ...current]);
   }
 
+  function deleteMember(id: string) {
+    setMembers((current) => current.filter((member) => member.id !== id));
+  }
+
   function updateMember(id: string, updates: Partial<SquadMember>) {
     setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...updates } : member)));
+  }
+
+  function addGroup(group: TrainingGroup) {
+    setGroups((current) => [...current, group]);
   }
 
   function addReadinessLog(log: ReadinessLog) {
@@ -494,6 +512,7 @@ export default function App() {
       exportedAt: new Date().toISOString(),
       sessions,
       members,
+      groups,
       readinessLogs,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
@@ -536,6 +555,7 @@ export default function App() {
 
           setSessions(imported);
           if (importedMembers) setMembers(importedMembers);
+          if (!Array.isArray(parsed) && Array.isArray(parsed.groups)) setGroups(parsed.groups);
           if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
           Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
         } catch (error) {
@@ -599,12 +619,15 @@ export default function App() {
             pinEnabled={Boolean(savedPin)}
             sessions={sessions}
             members={members}
+            groups={groups}
             onSetPin={handleSetPin}
             onWipe={handleManualWipe}
             onExport={exportData}
             onImport={importData}
             onAddMember={addMember}
+            onDeleteMember={deleteMember}
             onUpdateMember={updateMember}
+            onAddGroup={addGroup}
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloudStatus}
             cloudEmail={cloudSession?.user.email ?? null}

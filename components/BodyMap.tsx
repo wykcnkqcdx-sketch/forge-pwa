@@ -86,50 +86,71 @@ export function BodyMap({
         })}
       </View>
 
-      <Svg width="100%" height={430} viewBox="0 0 240 430">
-        <Circle cx="120" cy="35" r="22" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.05)" />
-        <Rect x="88" y="66" width="64" height="96" rx="18" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
-        <Rect x="52" y="76" width="30" height="132" rx="14" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
-        <Rect x="158" y="76" width="30" height="132" rx="14" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
-        <Rect x="88" y="174" width="26" height="174" rx="12" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
-        <Rect x="126" y="174" width="26" height="174" rx="12" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
+      <View style={styles.mapFrame}>
+        <Svg width="100%" height="100%" viewBox="0 0 240 430" pointerEvents="none">
+          <Circle cx="120" cy="35" r="22" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.05)" />
+          <Rect x="88" y="66" width="64" height="96" rx="18" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
+          <Rect x="52" y="76" width="30" height="132" rx="14" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
+          <Rect x="158" y="76" width="30" height="132" rx="14" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
+          <Rect x="88" y="174" width="26" height="174" rx="12" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
+          <Rect x="126" y="174" width="26" height="174" rx="12" stroke={colours.muted} strokeWidth="2" fill="rgba(143,166,59,0.04)" />
 
-        {visibleSegments.map((segment) => {
-          const level = painMap[segment.id] ?? 0;
-          const active = selectedSegment === segment.id;
-          return (
-            <React.Fragment key={segment.id}>
-              <Rect
-                x={segment.x}
-                y={segment.y}
-                width={segment.width}
-                height={segment.height}
-                rx="7"
-                fill={painColour(level)}
-                stroke={active ? colours.text : level > 0 ? painColour(level) : colours.borderHot}
-                strokeWidth={active ? 3 : 1}
-                opacity={level > 0 || active ? 0.96 : 0.44}
-                onPress={() => onSelect(segment.id)}
-              />
-              <SvgText
-                x={segment.x + segment.width / 2}
-                y={segment.y + 24}
-                fill={active ? colours.background : colours.text}
-                fontSize="10"
-                fontWeight="900"
-                textAnchor="middle"
-                onPress={() => onSelect(segment.id)}
-              >
-                {segment.id}
-              </SvgText>
-            </React.Fragment>
-          );
-        })}
+          {visibleSegments.map((segment) => {
+            const level = painMap[segment.id] ?? 0;
+            const active = selectedSegment === segment.id;
+            return (
+              <React.Fragment key={segment.id}>
+                <Rect
+                  x={segment.x}
+                  y={segment.y}
+                  width={segment.width}
+                  height={segment.height}
+                  rx="7"
+                  fill={painColour(level)}
+                  stroke={active ? colours.text : level > 0 ? painColour(level) : colours.borderHot}
+                  strokeWidth={active ? 3 : 1}
+                  opacity={level > 0 || active ? 0.96 : 0.44}
+                />
+                <SvgText
+                  x={segment.x + segment.width / 2}
+                  y={segment.y + 24}
+                  fill={active ? colours.background : colours.text}
+                  fontSize="10"
+                  fontWeight="900"
+                  textAnchor="middle"
+                >
+                  {segment.id}
+                </SvgText>
+              </React.Fragment>
+            );
+          })}
 
-        <SvgText x="120" y="404" fill={colours.muted} fontSize="12" fontWeight="900" textAnchor="middle">
-          CHOIR CBM: {activeView === 'anterior' ? '36 anterior' : '38 posterior'} segments
-        </SvgText>
-      </Svg>
+          <SvgText x="120" y="404" fill={colours.muted} fontSize="12" fontWeight="900" textAnchor="middle">
+            CHOIR CBM: {activeView === 'anterior' ? '36 anterior' : '38 posterior'} segments
+          </SvgText>
+        </Svg>
+
+        <View style={styles.hitLayer} pointerEvents="box-none">
+          {visibleSegments.map((segment) => (
+            <Pressable
+              key={segment.id}
+              style={[
+                styles.segmentHitTarget,
+                {
+                  left: `${(segment.x / 240) * 100}%`,
+                  top: `${(segment.y / 430) * 100}%`,
+                  width: `${(segment.width / 240) * 100}%`,
+                  height: `${(segment.height / 430) * 100}%`,
+                },
+              ]}
+              onPress={() => onSelect(segment.id)}
+              accessibilityRole="button"
+              accessibilityLabel={`Select ${segment.label}`}
+              accessibilityState={{ selected: selectedSegment === segment.id }}
+            />
+          ))}
+        </View>
+      </View>
 
       <View style={styles.selection}>
         <View>
@@ -178,6 +199,20 @@ const styles = StyleSheet.create({
   },
   toggleTextActive: {
     color: colours.text,
+  },
+  mapFrame: {
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 280,
+    aspectRatio: 240 / 430,
+    position: 'relative',
+  },
+  hitLayer: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  segmentHitTarget: {
+    position: 'absolute',
+    borderRadius: 7,
   },
   selection: {
     minHeight: touchTarget,

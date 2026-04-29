@@ -6,18 +6,21 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
-import { SquadMember, trainingGroups, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
+import { SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
   sessions: TrainingSession[];
   members: SquadMember[];
+  groups: TrainingGroup[];
   onSetPin: () => void;
   onWipe: () => void;
   onExport: () => void;
   onImport: () => void;
   onAddMember: (member: SquadMember) => void;
+  onDeleteMember: (id: string) => void;
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
+  onAddGroup: (group: TrainingGroup) => void;
   cloudEnabled: boolean;
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
   cloudEmail: string | null;
@@ -31,24 +34,28 @@ export function InstructorScreen({
   pinEnabled,
   sessions,
   members,
+  groups,
   onSetPin,
   onWipe,
   onExport,
   onImport,
   onAddMember,
+  onDeleteMember,
   onUpdateMember,
+  onAddGroup,
   cloudEnabled,
   cloudStatus,
   cloudEmail,
   onCloudSignOut,
 }: InstructorScreenProps) {
-  const [groups, setGroups] = useState(trainingGroups);
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [selectedGroupId, setSelectedGroupId] = useState(trainingGroups[0]?.id ?? 'alpha');
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupFocus, setNewGroupFocus] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState(groups[0]?.id ?? 'alpha');
   const [assignmentOpen, setAssignmentOpen] = useState(false);
   const [assignmentMemberId, setAssignmentMemberId] = useState('');
-  const [assignmentGroupId, setAssignmentGroupId] = useState(trainingGroups[0]?.id ?? 'alpha');
+  const [assignmentGroupId, setAssignmentGroupId] = useState(groups[0]?.id ?? 'alpha');
   const [assignmentLabel, setAssignmentLabel] = useState(assignmentTemplates[0]);
 
   const groupScores = useMemo(() => {
@@ -81,18 +88,36 @@ export function InstructorScreen({
         : colours.amber;
 
   function createGroup() {
-    const nextNumber = groups.length + 1;
+    const trimmedName = newGroupName.trim();
+    const trimmedFocus = newGroupFocus.trim();
+    if (!trimmedName) {
+      Alert.alert('Team name required', 'Enter a team name before creating a new team.');
+      return;
+    }
+
+    if (groups.some((group) => group.name.toLowerCase() === trimmedName.toLowerCase())) {
+      Alert.alert('Team exists', 'A team with that name already exists.');
+      return;
+    }
+
     const nextId = `custom-${Date.now()}`;
-    setGroups((current) => [
-      ...current,
-      {
-        id: nextId,
-        name: `Group ${nextNumber}`,
-        focus: 'Custom programme',
-        targetScore: 78,
-      },
-    ]);
+    onAddGroup({
+      id: nextId,
+      name: trimmedName,
+      focus: trimmedFocus || 'Custom programme',
+      targetScore: 78,
+    });
     setSelectedGroupId(nextId);
+    setAssignmentGroupId(nextId);
+    setNewGroupName('');
+    setNewGroupFocus('');
+  }
+
+  function confirmDeleteMember(member: SquadMember) {
+    Alert.alert('Delete member', `Remove ${member.name} from the squad dashboard?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: () => onDeleteMember(member.id) },
+    ]);
   }
 
   function addMember() {
@@ -268,10 +293,24 @@ export function InstructorScreen({
       <Card>
         <View style={styles.cardHeader}>
           <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Groups</Text>
-          <Pressable style={styles.createButton} onPress={createGroup}>
-            <Text style={styles.createButtonText}>Create</Text>
-          </Pressable>
         </View>
+        <TextInput
+          style={styles.memberInput}
+          value={newGroupName}
+          onChangeText={setNewGroupName}
+          placeholder="New team name, e.g. Delta"
+          placeholderTextColor={colours.soft}
+        />
+        <TextInput
+          style={styles.memberInput}
+          value={newGroupFocus}
+          onChangeText={setNewGroupFocus}
+          placeholder="Focus, e.g. Ruck recovery"
+          placeholderTextColor={colours.soft}
+        />
+        <Pressable style={styles.addMemberButton} onPress={createGroup}>
+          <Text style={styles.addMemberButtonText}>Create Team</Text>
+        </Pressable>
         {groupScores.map((group) => {
           const scoreColour = group.teamScore >= group.targetScore ? colours.green : group.teamScore >= 65 ? colours.amber : colours.red;
           return (
@@ -403,18 +442,23 @@ export function InstructorScreen({
                 {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
                 {member.assignment && <Text style={styles.memberAssignment}>Assigned: {member.assignment}</Text>}
               </View>
-              <Text
-                style={[
-                  styles.memberScore,
-                  member.readiness < 50
-                    ? { color: colours.red }
-                    : member.readiness < 70
-                      ? { color: colours.amber }
-                      : { color: colours.cyan },
-                ]}
-              >
-                {member.readiness}
-              </Text>
+              <View style={styles.memberActions}>
+                <Text
+                  style={[
+                    styles.memberScore,
+                    member.readiness < 50
+                      ? { color: colours.red }
+                      : member.readiness < 70
+                        ? { color: colours.amber }
+                        : { color: colours.cyan },
+                  ]}
+                >
+                  {member.readiness}
+                </Text>
+                <Pressable style={styles.deleteMemberButton} onPress={() => confirmDeleteMember(member)}>
+                  <Text style={styles.deleteMemberText}>Delete</Text>
+                </Pressable>
+              </View>
             </View>
             <ProgressBar value={member.readiness} />
           <View style={styles.factorGrid}>
@@ -576,6 +620,21 @@ const styles = StyleSheet.create({
   memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
+  memberActions: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
+  deleteMemberButton: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: `${colours.red}50`,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.redDim,
+  },
+  deleteMemberText: { color: colours.red, fontSize: 12, fontWeight: '900' },
   factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
   factorItem: { flex: 1, minWidth: '22%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 2 },
