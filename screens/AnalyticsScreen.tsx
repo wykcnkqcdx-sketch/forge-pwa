@@ -9,7 +9,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints } from '../utils/mapUtils';
-import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } from '../lib/performance';
+import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 
 export function AnalyticsScreen({ 
   sessions,
@@ -30,13 +30,47 @@ export function AnalyticsScreen({
   const compliance = hasSessions ? Math.min(100, Math.round(55 + recentSessions.length * 6 + Math.max(0, 20 - performance.highIntensityCount * 4))) : 0;
   
   const screenWidth = Dimensions.get('window').width;
-  const weeklyChartData = useMemo(() => {
-    const data = buildWeeklyLoadSeries(sessions);
+  const [trendDays, setTrendDays] = useState<7 | 28 | 90>(7);
+
+  const trendChartData = useMemo(() => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const labels: string[] = [];
+    const data: number[] = [];
+
+    const dailyScores: Record<string, number[]> = {};
+    sessions.forEach(s => {
+      const d = s.completedAt ? new Date(s.completedAt) : new Date();
+      const dateStr = d.toISOString().split('T')[0];
+      if (!dailyScores[dateStr]) dailyScores[dateStr] = [];
+      dailyScores[dateStr].push(s.score);
+    });
+
+    for (let i = trendDays - 1; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dateStr = d.toISOString().split('T')[0];
+      const scores = dailyScores[dateStr];
+      const avgScore = scores ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+      
+      if (trendDays === 7) {
+        labels.push(['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()]);
+        data.push(avgScore);
+      } else if (trendDays === 28) {
+        if (i % 7 === 0) labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
+        else labels.push('');
+        data.push(avgScore);
+      } else {
+        if (i % 14 === 0) labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
+        else labels.push('');
+        data.push(avgScore);
+      }
+    }
+
     return {
-      labels: ['M', 'T', 'W', 'T', 'F', 'S', 'S'],
-      datasets: [{ data: data.some(d => d > 0) ? data : [0, 0, 0, 0, 0, 0, 0] }]
+      labels,
+      datasets: [{ data: data.some(d => d > 0) ? data : data.map(() => 0) }]
     };
-  }, [sessions]);
+  }, [sessions, trendDays]);
 
   const ruckSessions = sessions.filter((session) => session.type === 'Ruck');
   const strengthSessions = sessions.filter((session) => session.type === 'Strength');
@@ -131,9 +165,16 @@ export function AnalyticsScreen({
       </Card>
 
       <Card>
-        <Text style={styles.cardTitle}>Weekly Load</Text>
+        <View style={styles.chartHeader}>
+          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Score Trends</Text>
+          <View style={styles.trendToggle}>
+            <Pressable style={[styles.trendBtn, trendDays === 7 && styles.trendBtnActive]} onPress={() => setTrendDays(7)}><Text style={[styles.trendBtnText, trendDays === 7 && styles.trendBtnTextActive]}>7D</Text></Pressable>
+            <Pressable style={[styles.trendBtn, trendDays === 28 && styles.trendBtnActive]} onPress={() => setTrendDays(28)}><Text style={[styles.trendBtnText, trendDays === 28 && styles.trendBtnTextActive]}>28D</Text></Pressable>
+            <Pressable style={[styles.trendBtn, trendDays === 90 && styles.trendBtnActive]} onPress={() => setTrendDays(90)}><Text style={[styles.trendBtnText, trendDays === 90 && styles.trendBtnTextActive]}>90D</Text></Pressable>
+          </View>
+        </View>
         <LineChart
-          data={weeklyChartData}
+          data={trendChartData}
           width={screenWidth - 76}
           height={180}
           yAxisLabel=""
@@ -178,8 +219,19 @@ export function AnalyticsScreen({
         <Text style={styles.metricLabel}>Load monotony</Text>
         <ProgressBar value={Math.min(100, performance.monotony * 30)} colour={performance.riskTone} />
         <Text style={styles.loadIntel}>
-          ACWR {performance.acuteChronicRatio} - strain {performance.strain} - {performance.ruckKm}km ruck load this week
+          ACWR {performance.acuteChronicRatio} - Strain {performance.strain} - {performance.ruckKm}km ruck load this week
         </Text>
+
+        <Text style={styles.metricLabel}>Readiness Factors</Text>
+        <View style={styles.factorGrid}>
+          {['Sleep', 'Soreness', 'Pain', 'Hydration', 'Mood', 'Illness', 'Rest HR', 'HRV'].map(factor => (
+            <View key={factor} style={styles.factorItem}>
+              <Text style={styles.factorLabel}>{factor}</Text>
+              <Text style={styles.factorValue}>--</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={styles.medicalDisclaimer}>* Readiness is an estimate based on recent load and subjective feedback. Training guidance only, not medical advice.</Text>
       </Card>
 
       <View style={styles.sectionHeader}>
@@ -310,6 +362,17 @@ const styles = StyleSheet.create({
   levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
   levelBadgeText: { fontSize: 12, fontWeight: '900' },
   lineChart: { marginVertical: 8, marginLeft: -12 },
+  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  trendToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 },
+  trendBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+  trendBtnActive: { backgroundColor: colours.cyan },
+  trendBtnText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  trendBtnTextActive: { color: colours.background },
+  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+  factorItem: { width: '23%', flexGrow: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
+  factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 4 },
+  factorValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  medicalDisclaimer: { color: colours.amber, fontSize: 10, fontStyle: 'italic', marginTop: 16, lineHeight: 14 },
   warning: {
     borderColor: 'rgba(253,230,138,0.25)',
     borderWidth: 1,
