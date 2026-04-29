@@ -202,7 +202,7 @@ export function HomeScreen({
           <Text style={[typography.h4, styles.emptyTitle]}>No sessions yet</Text>
           <Text style={typography.body}>Start a ruck or complete the strength block to populate your log.</Text>
         </View>
-      )
+      )}
 
     {/* Edit Modal */}
     <Modal visible={!!editingSession} transparent animationType="fade">
