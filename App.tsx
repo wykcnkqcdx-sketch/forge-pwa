@@ -10,6 +10,7 @@ import { TrainScreen } from './screens/TrainScreen';
 import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
+import { MemberScreen } from './screens/MemberScreen';
 import { initialSessions, squadMembers, trainingGroups, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
 import type { ReadinessLog } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
@@ -61,6 +62,7 @@ export default function App() {
   const [pinSetupError, setPinSetupError] = useState('');
   const [isReady, setIsReady] = useState(false);
   const [typedText, setTypedText] = useState('');
+  const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const prevTabIndex = useRef(0);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -113,6 +115,10 @@ export default function App() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+    const memberId = url.searchParams.get('member');
+    if (memberId) setActiveMemberId(memberId);
 
     const manifestHref = new URL('manifest.webmanifest', window.location.href).toString();
     const existingManifest = document.querySelector('link[rel="manifest"]');
@@ -420,6 +426,15 @@ export default function App() {
     setReadinessLogs((current) => [log, ...current]);
   }
 
+  function openCoachView() {
+    setActiveMemberId(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('member');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }
+
   async function signInWithEmail(email: string, password: string) {
     if (!supabase) return;
     if (!email || !password) {
@@ -713,6 +728,21 @@ export default function App() {
           </View>
           <Text style={styles.pinErrorText}>{pinError ? 'Incorrect PIN' : ' '}</Text>
         </View>
+      </View>
+    );
+  }
+
+  if (activeMemberId) {
+    const activeMember = members.find((member) => member.id === activeMemberId) ?? null;
+
+    return (
+      <View style={styles.app}>
+        <MemberScreen
+          member={activeMember}
+          members={members}
+          groups={groups}
+          onCoachView={openCoachView}
+        />
       </View>
     );
   }

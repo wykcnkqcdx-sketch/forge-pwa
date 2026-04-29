@@ -150,11 +150,13 @@ export function InstructorScreen({
       return;
     }
 
+    const memberId = `member-${Date.now()}`;
+    const inviteUrl = `${appInviteUrl}?member=${encodeURIComponent(memberId)}`;
     const inviteSubject = 'Join FORGE Tactical Fitness';
-    const inviteBody = `You have been added to the FORGE Tactical Fitness squad dashboard.\n\nOpen the app here:\n${appInviteUrl}\n\nFor now, the coach tracks your metrics locally. Shared login and live team sync will need a backend account system.`;
+    const inviteBody = `You have been added to the FORGE Tactical Fitness squad dashboard.\n\nOpen your member portal here:\n${inviteUrl}\n\nYou will see your assigned training and team progress. Shared login and live team sync still need backend team storage.`;
 
     onAddMember({
-      id: `member-${Date.now()}`,
+      id: memberId,
       groupId: selectedGroupId,
       name: trimmedName,
       email: trimmedEmail || undefined,
@@ -175,7 +177,7 @@ export function InstructorScreen({
 
       if (Platform.OS === 'web') {
         window.location.href = mailtoUrl;
-        window.alert(`${trimmedName} was added. Your email app should open with the invite draft. If it does not, send them this link: ${appInviteUrl}`);
+        window.alert(`${trimmedName} was added. Your email app should open with the invite draft. If it does not, send them this link: ${inviteUrl}`);
         return;
       }
 
@@ -184,7 +186,7 @@ export function InstructorScreen({
           Alert.alert('Member invited', `${trimmedName} was added and an invite draft was opened.`);
         })
         .catch(() => {
-          Alert.alert('Member added', `${trimmedName} was added. Copy the app link and send it to ${trimmedEmail}.`);
+          Alert.alert('Member added', `${trimmedName} was added. Copy the invite link and send it to ${trimmedEmail}.`);
         });
     } else {
       Alert.alert('Member added', `${trimmedName} is now tracked manually in this squad.`);
