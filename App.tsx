@@ -319,15 +319,32 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [sessions, members, cloudSession?.user?.id, isReady]);
 
+  function showBlockingMessage(title: string, message: string) {
+    if (typeof window !== 'undefined') {
+      window.alert(`${title}\n\n${message}`);
+      return;
+    }
+
+    Alert.alert(title, message);
+  }
+
   function executeDuressWipe() {
     setSessions([]);
     setMembers([]);
     setGroups([]);
+    setReadinessLogs([]);
     setSavedPin(null);
     setIsUnlocked(true);
     setPinInput('');
-    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:readiness_logs', 'forge:pin']);
-    Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
+    setActiveMemberId(null);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.delete('member');
+      window.history.replaceState({}, '', url.toString());
+    }
+    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:readiness_logs', 'forge:pin'])
+      .catch((error) => console.error('Failed to clear local secure storage', error));
+    showBlockingMessage('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
   function openPinSetup() {
@@ -379,6 +396,13 @@ export default function App() {
   }
 
   function handleManualWipe() {
+    if (typeof window !== 'undefined') {
+      if (window.confirm('Permanently delete all local data? This cannot be undone.')) {
+        executeDuressWipe();
+      }
+      return;
+    }
+
     Alert.alert('OPSEC WIPE', 'Permanently delete all local data? This cannot be undone.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'WIPE', style: 'destructive', onPress: executeDuressWipe },
