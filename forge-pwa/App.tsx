@@ -15,6 +15,7 @@ import { initialSessions, squadMembers, SquadMember, TrainingSession } from './d
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { getSecureItem, setSecureItem, removeSecureItem } from './lib/storage';
+import { OnboardingScreen } from './screens/OnboardingScreen';
 import { colours, shadow } from './theme';
 
 type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
@@ -56,6 +57,7 @@ export default function App() {
   const [confirmPinInput, setConfirmPinInput] = useState('');
   const [pinSetupError, setPinSetupError] = useState('');
   const [isReady, setIsReady] = useState(false);
+  const [hasOnboarded, setHasOnboarded] = useState(false);
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [typedText, setTypedText] = useState('');
   const prevTabIndex = useRef(0);
@@ -217,6 +219,9 @@ export default function App() {
         
         const storedPin = await getSecureItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
+
+        const onboardedState = await AsyncStorage.getItem('forge:onboarded');
+        if (onboardedState === 'true') setHasOnboarded(true);
       } catch (error) {
         console.error('Failed to load local data', error);
       } finally {
@@ -567,6 +572,11 @@ export default function App() {
       [activeTab, resetInactivityTimer]
   );
 
+  function completeOnboarding() {
+    AsyncStorage.setItem('forge:onboarded', 'true');
+    setHasOnboarded(true);
+  }
+
   function renderScreen() {
     switch (activeTab) {
       case 'train':
@@ -682,6 +692,10 @@ export default function App() {
         </View>
       </View>
     );
+  }
+
+  if (!hasOnboarded) {
+    return <OnboardingScreen onComplete={completeOnboarding} />;
   }
   
   const renderUpdateBanner = () => {
