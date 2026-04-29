@@ -1,23 +1,5 @@
 import { colours } from '../theme';
-
-export type TrackPoint = {
-  latitude: number;
-  longitude: number;
-  altitude: number | null;
-  accuracy: number | null;
-  timestamp: number;
-};
-
-export type TrainingSession = {
-  id: string;
-  type: 'Ruck' | 'Strength' | 'Resistance' | 'Cardio' | 'Workout' | 'Run' | 'Mobility';
-  title: string;
-  score: number;
-  durationMinutes: number;
-  rpe: number;
-  loadKg?: number;
-  routePoints?: TrackPoint[];
-};
+import { TrackPoint, TrainingSession } from './domain';
 
 export type SquadMember = {
   id: string;
