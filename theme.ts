@@ -4,45 +4,45 @@ import { StyleSheet } from 'react-native';
 
 export const colours = {
   // Backgrounds
-  background:   '#04080F',
-  surface:      '#070D18',
-  panel:        'rgba(10, 18, 30, 0.88)',
+  background:   '#121212',
+  surface:      '#191B16',
+  panel:        'rgba(24, 27, 22, 0.94)',
   glass:        'rgba(255, 255, 255, 0.055)',
   glassWarm:    'rgba(255, 255, 255, 0.035)',
 
   // Accents
-  cyan:         '#00E5FF',
-  cyanGlow:     'rgba(0, 229, 255, 0.18)',
-  cyanDim:      'rgba(0, 229, 255, 0.10)',
-  green:        '#00FF87',
-  greenGlow:    'rgba(0, 255, 135, 0.16)',
-  greenDim:     'rgba(0, 255, 135, 0.08)',
-  amber:        '#FFB020',
+  cyan:         '#8FA63B',
+  cyanGlow:     'rgba(143, 166, 59, 0.20)',
+  cyanDim:      'rgba(143, 166, 59, 0.12)',
+  green:        '#A7C957',
+  greenGlow:    'rgba(167, 201, 87, 0.18)',
+  greenDim:     'rgba(167, 201, 87, 0.10)',
+  amber:        '#D7A84B',
   amberGlow:    'rgba(255, 176, 32, 0.16)',
   amberDim:     'rgba(255, 176, 32, 0.08)',
-  red:          '#FF3D3D',
+  red:          '#E05F4F',
   redGlow:      'rgba(255, 61, 61, 0.16)',
   redDim:       'rgba(255, 61, 61, 0.08)',
-  violet:       '#B48EFF',
-  violetDim:    'rgba(180, 142, 255, 0.10)',
-  sand:         '#C8A96A',
+  violet:       '#8E9F7A',
+  violetDim:    'rgba(142, 159, 122, 0.12)',
+  sand:         '#C2B280',
   sandDim:      'rgba(200, 169, 106, 0.10)',
 
   // Text
-  text:         '#E8F4FF',
-  textSoft:     'rgba(220, 238, 255, 0.85)',
-  muted:        'rgba(160, 200, 240, 0.60)',
-  soft:         'rgba(120, 160, 210, 0.40)',
+  text:         '#F0F2E8',
+  textSoft:     'rgba(240, 242, 232, 0.84)',
+  muted:        'rgba(213, 218, 196, 0.62)',
+  soft:         'rgba(213, 218, 196, 0.40)',
 
   // Borders
-  border:       'rgba(0, 229, 255, 0.10)',
-  borderSoft:   'rgba(255, 255, 255, 0.07)',
-  borderHot:    'rgba(0, 229, 255, 0.32)',
+  border:       'rgba(143, 166, 59, 0.16)',
+  borderSoft:   'rgba(240, 242, 232, 0.09)',
+  borderHot:    'rgba(143, 166, 59, 0.36)',
   borderGlass:  'rgba(255, 255, 255, 0.10)',
 
   // Legacy aliases kept so existing screens compile
-  panelSoft:    '#070D18',
-  panelHot:     'rgba(0, 229, 255, 0.06)',
+  panelSoft:    '#191B16',
+  panelHot:     'rgba(143, 166, 59, 0.08)',
 } as const;
 
 export const typography = StyleSheet.create({
@@ -91,6 +91,8 @@ export const spacing = {
   xxxl: 40,
 } as const;
 
+export const touchTarget = 52;
+
 export const radius = {
   sm:   10,
   md:   16,
@@ -113,7 +115,7 @@ export const fontSize = {
 
 export const shadows = {
   cyan: {
-    shadowColor: '#00E5FF',
+    shadowColor: '#8FA63B',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.28,
     shadowRadius: 12,
