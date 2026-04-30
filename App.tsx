@@ -603,6 +603,33 @@ export default function App() {
     setCloudStatus('auth');
   }
 
+  async function syncCloudNow() {
+    if (!isSupabaseConfigured || !supabase) {
+      setCloudStatus('local');
+      return;
+    }
+
+    if (!cloudSession?.user) {
+      setCloudStatus('auth');
+      return;
+    }
+
+    try {
+      setCloudStatus('syncing');
+      const userId = cloudSession.user.id;
+      await pushCloudSnapshot(userId, sessions, members, workoutCompletions);
+      const snapshot = await fetchCloudSnapshot(userId);
+      skipNextRemotePush.current = true;
+      setSessions(snapshot.sessions);
+      setMembers(snapshot.members);
+      setWorkoutCompletions(snapshot.workoutCompletions);
+      setCloudStatus('synced');
+    } catch (error) {
+      console.error('Manual cloud sync failed', error);
+      setCloudStatus('error');
+    }
+  }
+
   function validateImportedSessions(value: unknown): TrainingSession[] | null {
     if (!Array.isArray(value)) return null;
 
@@ -778,6 +805,7 @@ export default function App() {
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloudStatus}
             cloudEmail={cloudSession?.user.email ?? null}
+            onCloudSync={syncCloudNow}
             onCloudSignOut={signOutCloud}
           />
         );
@@ -822,6 +850,9 @@ export default function App() {
             groups={groups}
             onUpdateMember={updateMember}
             onCompleteWorkout={addWorkoutCompletion}
+            cloudEnabled={isSupabaseConfigured}
+            cloudStatus={cloudStatus}
+            onCloudSync={syncCloudNow}
           />
         );
     }

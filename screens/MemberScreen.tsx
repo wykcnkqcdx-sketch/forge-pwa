@@ -13,6 +13,9 @@ type Props = {
   groups: TrainingGroup[];
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
   onCompleteWorkout: (completion: WorkoutCompletion) => void;
+  cloudEnabled: boolean;
+  cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
+  onCloudSync: () => void;
 };
 
 const weeklyGoal = 10000;
@@ -30,7 +33,16 @@ function formatActivityTime(value?: string) {
   return date.toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function MemberScreen({ member, members, groups, onUpdateMember, onCompleteWorkout }: Props) {
+export function MemberScreen({
+  member,
+  members,
+  groups,
+  onUpdateMember,
+  onCompleteWorkout,
+  cloudEnabled,
+  cloudStatus,
+  onCloudSync,
+}: Props) {
   const [workoutNote, setWorkoutNote] = useState('');
   const [finishFeedback, setFinishFeedback] = useState('');
   const group = member ? groups.find((item) => item.id === member.groupId) ?? null : null;
@@ -46,6 +58,14 @@ export function MemberScreen({ member, members, groups, onUpdateMember, onComple
         .slice(0, 8)
     : [];
   const plannedVolume = Math.max(120, assignedExercises.length * 60 + (assignmentMode?.key === 'cardio' ? 180 : 0));
+  const cloudTone = cloudStatus === 'synced'
+    ? colours.green
+    : cloudStatus === 'syncing'
+      ? colours.cyan
+      : cloudStatus === 'error'
+        ? colours.red
+        : colours.amber;
+  const cloudLabel = cloudEnabled ? cloudStatus.toUpperCase() : 'LOCAL ONLY';
 
   const teamPulse = useMemo(() => {
     const source = teamMembers.length ? teamMembers : members;
@@ -151,6 +171,30 @@ export function MemberScreen({ member, members, groups, onUpdateMember, onComple
           </View>
         </View>
       </View>
+
+      <Card>
+        <View style={styles.syncRow}>
+          <View style={styles.syncCopy}>
+            <View style={[styles.syncBadge, { borderColor: `${cloudTone}40`, backgroundColor: `${cloudTone}12` }]}>
+              <Text style={[styles.syncBadgeText, { color: cloudTone }]}>{cloudLabel}</Text>
+            </View>
+            <Text style={styles.syncText}>
+              {cloudEnabled
+                ? 'Assignments and workout completions sync automatically when connected.'
+                : 'This device is running in local mode right now.'}
+            </Text>
+          </View>
+          {cloudEnabled ? (
+            <Pressable
+              style={[styles.syncButton, cloudStatus === 'syncing' && styles.syncButtonDisabled]}
+              onPress={onCloudSync}
+              disabled={cloudStatus === 'syncing'}
+            >
+              <Text style={styles.syncButtonText}>{cloudStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </Card>
 
       <Card hot>
         <View style={styles.profileTop}>
@@ -275,6 +319,50 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 8,
     marginTop: 10,
+  },
+  syncRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  syncCopy: {
+    flex: 1,
+    gap: 8,
+  },
+  syncBadge: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  syncBadgeText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  syncText: {
+    color: colours.textSoft,
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
+  syncButton: {
+    minHeight: touchTarget,
+    borderWidth: 1,
+    borderColor: `${colours.cyan}40`,
+    borderRadius: 10,
+    backgroundColor: colours.cyanDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+  },
+  syncButtonDisabled: {
+    opacity: 0.45,
+  },
+  syncButtonText: {
+    color: colours.cyan,
+    fontSize: 12,
+    fontWeight: '900',
   },
   statusBadge: {
     borderRadius: 8,

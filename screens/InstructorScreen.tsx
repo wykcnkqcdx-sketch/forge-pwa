@@ -26,6 +26,7 @@ interface InstructorScreenProps {
   cloudEnabled: boolean;
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
   cloudEmail: string | null;
+  onCloudSync: () => void;
   onCloudSignOut: () => void;
 }
 
@@ -49,6 +50,7 @@ export function InstructorScreen({
   cloudEnabled,
   cloudStatus,
   cloudEmail,
+  onCloudSync,
   onCloudSignOut,
 }: InstructorScreenProps) {
   const [newMemberName, setNewMemberName] = useState('');
@@ -305,11 +307,25 @@ export function InstructorScreen({
       <Card>
         <View style={styles.cardHeader}>
           <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Cloud Access</Text>
-          {cloudEnabled && cloudEmail ? (
-            <Pressable style={styles.cloudSignOutButton} onPress={onCloudSignOut}>
-              <Text style={styles.cloudSignOutText}>Sign Out</Text>
-            </Pressable>
-          ) : null}
+          <View style={styles.cloudActions}>
+            {cloudEnabled ? (
+              <Pressable
+                style={[
+                  styles.cloudSyncButton,
+                  (!cloudEmail || cloudStatus === 'syncing') && styles.cloudSyncButtonDisabled,
+                ]}
+                onPress={onCloudSync}
+                disabled={!cloudEmail || cloudStatus === 'syncing'}
+              >
+                <Text style={styles.cloudSyncText}>{cloudStatus === 'syncing' ? 'Syncing...' : 'Sync Now'}</Text>
+              </Pressable>
+            ) : null}
+            {cloudEnabled && cloudEmail ? (
+              <Pressable style={styles.cloudSignOutButton} onPress={onCloudSignOut}>
+                <Text style={styles.cloudSignOutText}>Sign Out</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
         <View style={[styles.cloudBadge, { borderColor: `${cloudTone}40`, backgroundColor: `${cloudTone}12` }]}>
           <Text style={[styles.cloudBadgeText, { color: cloudTone }]}>
@@ -319,7 +335,7 @@ export function InstructorScreen({
         <Text style={styles.cloudCopy}>
           {cloudEnabled
             ? cloudEmail
-              ? `${cloudEmail} is connected. Sessions and members sync to the backend when cloud status is healthy.`
+              ? `${cloudEmail} is connected. Sessions, members, and completions auto-sync when the connection is healthy. Use Sync Now anytime you want an immediate refresh.`
               : 'Backend keys are configured. Sign in to enable auth, database sync, and shared team storage.'
             : 'Add Supabase keys to enable login auth and cloud database sync. Until then, the app keeps working from local storage.'}
         </Text>
@@ -624,6 +640,11 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   cardTitleFlush: { marginBottom: 0 },
+  cloudActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   createButton: {
     borderWidth: 1,
     borderColor: `${colours.cyan}50`,
@@ -635,6 +656,18 @@ const styles = StyleSheet.create({
   createButtonText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
   assignButton: { backgroundColor: colours.cyan, borderRadius: 14, paddingVertical: 8, paddingHorizontal: 14 },
   assignButtonText: { color: '#07111E', fontWeight: '900' },
+  cloudSyncButton: {
+    borderWidth: 1,
+    borderColor: `${colours.cyan}40`,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: colours.cyanDim,
+  },
+  cloudSyncButtonDisabled: {
+    opacity: 0.45,
+  },
+  cloudSyncText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
   cloudSignOutButton: {
     borderWidth: 1,
     borderColor: `${colours.red}40`,
