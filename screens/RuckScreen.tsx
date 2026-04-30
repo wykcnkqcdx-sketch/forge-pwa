@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useEffect, useRef } from 'react';
+import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
 import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -51,12 +51,151 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 const LOCATION_TASK_NAME = 'background-location-task';
 const supportsBackgroundLocation = Platform.OS !== 'web';
 const MAX_MAP_RENDER_POINTS = 160;
+const MAX_MAP_SIMPLIFICATION_SOURCE_POINTS = 800;
+const MAP_SIMPLIFICATION_TOLERANCE_METERS = 10;
 
-function decimateRouteForMap(points: TrackPoint[], maxPoints = MAX_MAP_RENDER_POINTS) {
+type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
+
+type TrackingState = {
+  status: TrackingStatus;
+  currentDistance: number;
+  elapsedSeconds: number;
+  routePoints: TrackPoint[];
+  startTime: Date | null;
+};
+
+type TrackingAction =
+  | { type: 'start_requested' }
+  | { type: 'start_succeeded'; firstPoint: TrackPoint }
+  | { type: 'restore'; points: TrackPoint[]; currentDistance: number; elapsedSeconds: number; isTracking: boolean }
+  | { type: 'point_recorded'; point: TrackPoint }
+  | { type: 'tick'; elapsedSeconds: number }
+  | { type: 'stopped' }
+  | { type: 'reset' };
+
+const initialTrackingState: TrackingState = {
+  status: 'idle',
+  currentDistance: 0,
+  elapsedSeconds: 0,
+  routePoints: [],
+  startTime: null,
+};
+
+function trackingReducer(state: TrackingState, action: TrackingAction): TrackingState {
+  switch (action.type) {
+    case 'start_requested':
+      return { ...state, status: 'starting' };
+
+    case 'start_succeeded':
+      return {
+        status: 'tracking',
+        currentDistance: 0,
+        elapsedSeconds: 0,
+        routePoints: [action.firstPoint],
+        startTime: new Date(action.firstPoint.timestamp),
+      };
+
+    case 'restore': {
+      const startTime = action.points[0] ? new Date(action.points[0].timestamp) : null;
+      return {
+        status: action.isTracking ? 'tracking' : 'paused',
+        currentDistance: action.currentDistance,
+        elapsedSeconds: action.elapsedSeconds,
+        routePoints: action.points,
+        startTime,
+      };
+    }
+
+    case 'point_recorded': {
+      const previousPoint = state.routePoints[state.routePoints.length - 1];
+      if (previousPoint && previousPoint.timestamp === action.point.timestamp) return state;
+
+      return {
+        ...state,
+        currentDistance: previousPoint
+          ? state.currentDistance + distanceBetween(previousPoint, action.point)
+          : state.currentDistance,
+        routePoints: [...state.routePoints, action.point],
+      };
+    }
+
+    case 'tick':
+      return { ...state, elapsedSeconds: action.elapsedSeconds };
+
+    case 'stopped':
+      return { ...state, status: state.startTime ? 'paused' : 'idle' };
+
+    case 'reset':
+      return initialTrackingState;
+
+    default:
+      return state;
+  }
+}
+
+function limitRoutePoints(points: TrackPoint[], maxPoints: number) {
   if (points.length <= maxPoints) return points;
 
   const stride = (points.length - 1) / (maxPoints - 1);
   return Array.from({ length: maxPoints }, (_, index) => points[Math.round(index * stride)]);
+}
+
+function projectPoint(point: Pick<TrackPoint, 'latitude' | 'longitude'>, origin: Pick<TrackPoint, 'latitude' | 'longitude'>) {
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLon = metersPerDegreeLat * Math.cos(origin.latitude * (Math.PI / 180));
+
+  return {
+    x: (point.longitude - origin.longitude) * metersPerDegreeLon,
+    y: (point.latitude - origin.latitude) * metersPerDegreeLat,
+  };
+}
+
+function perpendicularDistanceMeters(point: TrackPoint, start: TrackPoint, end: TrackPoint) {
+  const projectedPoint = projectPoint(point, start);
+  const projectedEnd = projectPoint(end, start);
+  const segmentLengthSquared = projectedEnd.x ** 2 + projectedEnd.y ** 2;
+
+  if (segmentLengthSquared === 0) return distanceBetween(point, start) * 1000;
+
+  const t = Math.max(
+    0,
+    Math.min(1, (projectedPoint.x * projectedEnd.x + projectedPoint.y * projectedEnd.y) / segmentLengthSquared)
+  );
+  const closest = {
+    x: t * projectedEnd.x,
+    y: t * projectedEnd.y,
+  };
+
+  return Math.hypot(projectedPoint.x - closest.x, projectedPoint.y - closest.y);
+}
+
+function simplifyRoute(points: TrackPoint[], toleranceMeters: number): TrackPoint[] {
+  if (points.length <= 2) return points;
+
+  let maxDistance = 0;
+  let splitIndex = 0;
+  const start = points[0];
+  const end = points[points.length - 1];
+
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const distance = perpendicularDistanceMeters(points[i], start, end);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      splitIndex = i;
+    }
+  }
+
+  if (maxDistance <= toleranceMeters) return [start, end];
+
+  const beforeSplit = simplifyRoute(points.slice(0, splitIndex + 1), toleranceMeters);
+  const afterSplit = simplifyRoute(points.slice(splitIndex), toleranceMeters);
+  return [...beforeSplit.slice(0, -1), ...afterSplit];
+}
+
+function decimateRouteForMap(points: TrackPoint[]) {
+  const sourcePoints = limitRoutePoints(points, MAX_MAP_SIMPLIFICATION_SOURCE_POINTS);
+  const simplifiedPoints = simplifyRoute(sourcePoints, MAP_SIMPLIFICATION_TOLERANCE_METERS);
+  return limitRoutePoints(simplifiedPoints, MAX_MAP_RENDER_POINTS);
 }
 
 if (supportsBackgroundLocation) {
@@ -89,17 +228,15 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [distance, setDistance] = useState(8);
   const [plannedAscentM, setPlannedAscentM] = useState(300);
   const [terrainFactor, setTerrainFactor] = useState(1.2);
-  const [isTracking, setIsTracking] = useState(false);
-  const [isStarting, setIsStarting] = useState(false);
-  const [currentDistance, setCurrentDistance] = useState(0);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [routePoints, setRoutePoints] = useState<TrackPoint[]>([]);
+  const [trackingState, dispatchTracking] = useReducer(trackingReducer, initialTrackingState);
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
-  const [startTime, setStartTime] = useState<Date | null>(null);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const prevHeading = useRef(0);
+  const { currentDistance, elapsedSeconds, routePoints, startTime, status } = trackingState;
+  const isTracking = status === 'tracking';
+  const isStarting = status === 'starting';
 
   const currentPoint = routePoints[routePoints.length - 1];
   const previousPoint = routePoints[routePoints.length - 2];
@@ -113,15 +250,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
   const recordLocation = useCallback((location: Location.LocationObject) => {
     const nextPoint = toTrackPoint(location);
-
-    setRoutePoints((points) => {
-      const previousPoint = points[points.length - 1];
-      if (previousPoint && previousPoint.timestamp === nextPoint.timestamp) return points;
-      if (previousPoint) {
-        setCurrentDistance((current) => current + distanceBetween(previousPoint, nextPoint));
-      }
-      return [...points, nextPoint];
-    });
+    dispatchTracking({ type: 'point_recorded', point: nextPoint });
   }, []);
 
   useEffect(() => {
@@ -147,22 +276,27 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         if (stored) {
           const points: TrackPoint[] = JSON.parse(stored);
           if (points.length > 0) {
-            setRoutePoints(points);
-            
             let dist = 0;
             for (let i = 1; i < points.length; i++) {
               dist += distanceBetween(points[i - 1], points[i]);
             }
-            setCurrentDistance(dist);
 
             const start = new Date(points[0].timestamp);
-            setStartTime(start);
-            setElapsedSeconds(Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000)));
+            const restoredElapsedSeconds = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+            let restoredIsTracking = false;
 
             if (supportsBackgroundLocation) {
               const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-              if (hasStarted) setIsTracking(true);
+              restoredIsTracking = hasStarted;
             }
+
+            dispatchTracking({
+              type: 'restore',
+              points,
+              currentDistance: dist,
+              elapsedSeconds: restoredElapsedSeconds,
+              isTracking: restoredIsTracking,
+            });
           }
         }
       } catch (e) {
@@ -199,7 +333,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     if (!isTracking || !startTime) return undefined;
 
     const timer = setInterval(() => {
-      setElapsedSeconds(Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000)));
+      dispatchTracking({
+        type: 'tick',
+        elapsedSeconds: Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000)),
+      });
     }, 1000);
 
     return () => clearInterval(timer);
@@ -216,7 +353,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   }, [isTracking, recordLocation]);
 
   const stopTracking = async () => {
-    setIsTracking(false);
+    dispatchTracking({ type: 'stopped' });
     foregroundLocationSubscription.current?.remove();
     foregroundLocationSubscription.current = null;
 
@@ -233,23 +370,26 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
   const startTracking = async () => {
     if (isTracking || isStarting) return;
-    setIsStarting(true);
+    dispatchTracking({ type: 'start_requested' });
 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission denied', 'Location permission is required for GPS tracking.');
+        dispatchTracking({ type: 'stopped' });
         return;
       }
 
       const firstPosition = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+      const firstPoint = toTrackPoint(firstPosition);
 
-      await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([toTrackPoint(firstPosition)]));
+      await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([firstPoint]));
 
       if (supportsBackgroundLocation) {
         const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
         if (bgStatus !== 'granted') {
           Alert.alert('Permission denied', 'Background location permission is required for locked-screen tracking.');
+          dispatchTracking({ type: 'stopped' });
           return;
         }
 
@@ -275,17 +415,11 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         );
       }
 
-      setIsTracking(true);
-      setCurrentDistance(0);
-      setElapsedSeconds(0);
-      setRoutePoints([toTrackPoint(firstPosition)]);
-      setStartTime(new Date(firstPosition.timestamp));
+      dispatchTracking({ type: 'start_succeeded', firstPoint });
     } catch (error) {
       console.error('Failed to start GPS tracking', error);
       stopTracking();
       Alert.alert('GPS unavailable', 'Unable to start GPS tracking on this device.');
-    } finally {
-      setIsStarting(false);
     }
   };
 
@@ -307,19 +441,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     };
     addSession(session);
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
-    setCurrentDistance(0);
-    setElapsedSeconds(0);
-    setRoutePoints([]);
-    setStartTime(null);
+    dispatchTracking({ type: 'reset' });
     AsyncStorage.removeItem('forge:ruck_route');
   };
 
   const discardTrackedRuck = () => {
     stopTracking();
-    setCurrentDistance(0);
-    setElapsedSeconds(0);
-    setRoutePoints([]);
-    setStartTime(null);
+    dispatchTracking({ type: 'reset' });
     AsyncStorage.removeItem('forge:ruck_route');
   };
 

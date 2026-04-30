@@ -18,6 +18,7 @@ type SecureDb = {
     delete: (id: string) => Promise<void>;
   };
   open: () => Promise<unknown>;
+  close?: () => void;
 };
 
 let dbPromise: Promise<SecureDb> | null = null;
@@ -93,4 +94,19 @@ export async function secureRemoveItem(key: string) {
 
 export async function secureMultiRemove(keys: string[]) {
   await Promise.all(keys.map(secureRemoveItem));
+}
+
+export async function secureDestroyLocalData(keys: string[]) {
+  await secureMultiRemove(keys);
+
+  if (isIndexedDbAvailable()) {
+    if (dbPromise) {
+      const db = await dbPromise;
+      db.close?.();
+      dbPromise = null;
+    }
+    await Dexie.delete(dbName);
+  }
+
+  await AsyncStorage.removeItem(secretKey);
 }

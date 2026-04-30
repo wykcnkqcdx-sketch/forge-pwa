@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import type { Session } from '@supabase/supabase-js';
@@ -15,7 +16,7 @@ import { initialSessions, programmeTemplates as initialProgrammeTemplates, squad
 import type { ReadinessLog, WorkoutCompletion } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
 import { buildGoogleSheetsPayload, exportToGoogleSheets } from './lib/googleSheets';
-import { secureGetItem, secureMultiRemove, secureRemoveItem, secureSetItem } from './lib/secureStorage';
+import { secureDestroyLocalData, secureGetItem, secureRemoveItem, secureSetItem } from './lib/secureStorage';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { colours, shadow, touchTarget } from './theme';
 
@@ -556,7 +557,18 @@ export default function App() {
     Alert.alert(title, message);
   }
 
-  function executeDuressWipe() {
+  async function clearCloudAuthSession() {
+    if (!supabase) return;
+
+    const { error } = await supabase.auth.signOut({ scope: 'global' });
+    if (error) {
+      console.error('Global Supabase sign-out failed during wipe', error);
+      const { error: localError } = await supabase.auth.signOut({ scope: 'local' });
+      if (localError) console.error('Local Supabase sign-out failed during wipe', localError);
+    }
+  }
+
+  async function executeDuressWipe() {
     setSessions([]);
     setMembers([]);
     setGroups([]);
@@ -573,8 +585,13 @@ export default function App() {
     }
     setWorkoutCompletions([]);
     setGoogleSheetsEndpoint('');
-    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin'])
-      .catch((error) => console.error('Failed to clear local secure storage', error));
+    setCloudSession(null);
+    setCloudStatus(isSupabaseConfigured ? 'auth' : 'local');
+    await Promise.all([
+      clearCloudAuthSession(),
+      secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin']),
+      AsyncStorage.removeItem('forge:ruck_route'),
+    ]).catch((error) => console.error('Failed to clear local app data', error));
     showBlockingMessage('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
