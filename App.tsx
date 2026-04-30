@@ -170,7 +170,7 @@ export default function App() {
   }, [applyCloudSnapshot]);
 
   const flushOfflineMutations = useCallback(async (userId: string) => {
-    const replayed = await replayOfflineQueue((mutation) => pushCloudMutation(userId, mutation));
+    const replayed = await replayOfflineQueue((mutation, createdAt) => pushCloudMutation(userId, mutation, createdAt));
     await refreshPendingSyncCount();
     if (replayed > 0 && offlineSyncPending.current) {
       offlineSyncPending.current = false;
@@ -498,8 +498,8 @@ export default function App() {
     const timer = setTimeout(async () => {
       try {
         setCloudStatus('syncing');
-        await flushOfflineMutations(userId);
-        await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
+        const replayed = await flushOfflineMutations(userId);
+        if (replayed > 0) await refreshCloudSnapshot(userId);
         setCloudStatus('synced');
       } catch (error) {
         console.error('Failed to sync cloud data', error);
@@ -509,7 +509,17 @@ export default function App() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, isReady, flushOfflineMutations, isBrowserOffline]);
+  }, [
+    sessions,
+    members,
+    workoutCompletions,
+    readinessLogs,
+    cloudSession?.user?.id,
+    isReady,
+    flushOfflineMutations,
+    isBrowserOffline,
+    refreshCloudSnapshot,
+  ]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !cloudSession?.user || !isReady) return;
@@ -542,7 +552,6 @@ export default function App() {
           try {
             setCloudStatus('syncing');
             await flushOfflineMutations(userId);
-            await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
             await refreshCloudSnapshot(userId);
           } catch (error) {
             console.error('Failed to sync after reconnect', error);
@@ -698,8 +707,9 @@ export default function App() {
   }
 
   function addSession(session: TrainingSession) {
-    setSessions((current) => [session, ...current]);
-    enqueueCloudMutation({ type: 'upsert_session', payload: session });
+    const updatedSession = { ...session, updatedAt: new Date().toISOString() };
+    setSessions((current) => [updatedSession, ...current]);
+    enqueueCloudMutation({ type: 'upsert_session', payload: updatedSession });
   }
 
   function deleteSession(id: string) {
@@ -708,15 +718,17 @@ export default function App() {
   }
 
   function editSession(id: string, updates: Partial<TrainingSession>) {
+    const stampedUpdates = { ...updates, updatedAt: new Date().toISOString() };
     setSessions((current) =>
-      current.map((s) => (s.id === id ? { ...s, ...updates } : s))
+      current.map((s) => (s.id === id ? { ...s, ...stampedUpdates } : s))
     );
-    enqueueCloudMutation({ type: 'update_session', payload: { id, updates } });
+    enqueueCloudMutation({ type: 'update_session', payload: { id, updates: stampedUpdates } });
   }
 
   function addMember(member: SquadMember) {
-    setMembers((current) => [member, ...current]);
-    enqueueCloudMutation({ type: 'upsert_member', payload: member });
+    const updatedMember = { ...member, updatedAt: new Date().toISOString() };
+    setMembers((current) => [updatedMember, ...current]);
+    enqueueCloudMutation({ type: 'upsert_member', payload: updatedMember });
   }
 
   function deleteMember(id: string) {
@@ -725,8 +737,9 @@ export default function App() {
   }
 
   function updateMember(id: string, updates: Partial<SquadMember>) {
-    setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...updates } : member)));
-    enqueueCloudMutation({ type: 'update_member', payload: { id, updates } });
+    const stampedUpdates = { ...updates, updatedAt: new Date().toISOString() };
+    setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...stampedUpdates } : member)));
+    enqueueCloudMutation({ type: 'update_member', payload: { id, updates: stampedUpdates } });
   }
 
   function addGroup(group: TrainingGroup) {
@@ -742,13 +755,15 @@ export default function App() {
   }
 
   function addReadinessLog(log: ReadinessLog) {
-    setReadinessLogs((current) => [log, ...current]);
-    enqueueCloudMutation({ type: 'upsert_readiness_log', payload: log });
+    const updatedLog = { ...log, updatedAt: new Date().toISOString() };
+    setReadinessLogs((current) => [updatedLog, ...current]);
+    enqueueCloudMutation({ type: 'upsert_readiness_log', payload: updatedLog });
   }
 
   function addWorkoutCompletion(completion: WorkoutCompletion) {
-    setWorkoutCompletions((current) => [completion, ...current]);
-    enqueueCloudMutation({ type: 'upsert_workout_completion', payload: completion });
+    const updatedCompletion = { ...completion, updatedAt: new Date().toISOString() };
+    setWorkoutCompletions((current) => [updatedCompletion, ...current]);
+    enqueueCloudMutation({ type: 'upsert_workout_completion', payload: updatedCompletion });
   }
 
   function openCoachView() {
@@ -816,7 +831,6 @@ export default function App() {
       setCloudStatus('syncing');
       const userId = cloudSession.user.id;
       await flushOfflineMutations(userId);
-      await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
       await refreshCloudSnapshot(userId);
     } catch (error) {
       console.error('Manual cloud sync failed', error);

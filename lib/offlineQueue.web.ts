@@ -55,7 +55,7 @@ export async function getPendingOfflineMutationCount() {
   return db.queue.count();
 }
 
-export async function replayOfflineQueue(applyMutation: (mutation: CloudMutation) => Promise<void>) {
+export async function replayOfflineQueue(applyMutation: (mutation: CloudMutation, createdAt: string) => Promise<void>) {
   const db = await getDb();
   let replayed = 0;
 
@@ -68,7 +68,7 @@ export async function replayOfflineQueue(applyMutation: (mutation: CloudMutation
         await applyMutation({
           type: row.type,
           payload: JSON.parse(row.payload),
-        } as CloudMutation);
+        } as CloudMutation, row.created_at);
         await db.queue.delete(row.id);
         replayed += 1;
       } catch (error) {

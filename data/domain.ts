@@ -16,6 +16,7 @@ export type TrainingSession = {
   loadKg?: number;
   routePoints?: TrackPoint[];
   completedAt?: string;
+  updatedAt?: string;
 };
 
 export type ReadinessLog = {
@@ -36,6 +37,7 @@ export type ReadinessLog = {
   limitsTraining?: boolean;
   restingHR?: number;
   hrv?: number;
+  updatedAt?: string;
 };
 
 export type WorkoutCompletionType = 'assigned' | 'quick_log' | 'ad_hoc';
@@ -61,4 +63,5 @@ export type WorkoutCompletion = {
   volume: number;
   exercises?: LoggedExercise[];
   completedAt: string;
+  updatedAt?: string;
 };

@@ -31,6 +31,7 @@ export type SquadMember = {
   importedRestingHR?: number;
   importedHrv?: number;
   assignmentSession?: MemberAssignment;
+  updatedAt?: string;
 };
 
 export type TrainingGroup = {

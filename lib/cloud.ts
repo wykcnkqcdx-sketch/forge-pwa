@@ -19,6 +19,7 @@ type RemoteTrainingSessionRow = {
   load_kg: number | null;
   route_points: TrainingSession['routePoints'] | null;
   completed_at: string | null;
+  updated_at: string | null;
 };
 
 type RemoteSquadMemberRow = {
@@ -50,6 +51,7 @@ type RemoteSquadMemberRow = {
   imported_resting_hr: number | null;
   imported_hrv: number | null;
   assignment_session: SquadMember['assignmentSession'] | null;
+  updated_at: string | null;
 };
 
 type RemoteWorkoutCompletionRow = {
@@ -67,6 +69,7 @@ type RemoteWorkoutCompletionRow = {
   volume: number;
   exercises: WorkoutCompletion['exercises'] | null;
   completed_at: string;
+  updated_at: string | null;
 };
 
 type RemoteReadinessLogRow = {
@@ -88,6 +91,7 @@ type RemoteReadinessLogRow = {
   limits_training: boolean | null;
   resting_hr: number | null;
   hrv: number | null;
+  updated_at: string | null;
 };
 
 type CloudSnapshot = {
@@ -114,6 +118,14 @@ function ensureSupabase() {
 
 function toInFilter(ids: string[]) {
   return `(${ids.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(',')})`;
+}
+
+function resolveUpdatedAt(value: string | undefined, fallback?: string) {
+  return value ?? fallback ?? new Date().toISOString();
+}
+
+function isRemoteNewer(remoteUpdatedAt: string | null | undefined, localUpdatedAt: string) {
+  return Boolean(remoteUpdatedAt && new Date(remoteUpdatedAt).getTime() > new Date(localUpdatedAt).getTime());
 }
 
 function distanceMeters(a: Pick<TrackPoint, 'latitude' | 'longitude'>, b: Pick<TrackPoint, 'latitude' | 'longitude'>) {
@@ -229,6 +241,7 @@ function toRemoteSession(userId: string, session: TrainingSession): RemoteTraini
     load_kg: session.loadKg ?? null,
     route_points: compressRoutePointsForSync(session.routePoints),
     completed_at: session.completedAt ?? null,
+    updated_at: resolveUpdatedAt(session.updatedAt, session.completedAt),
   };
 }
 
@@ -242,6 +255,7 @@ function toRemoteSessionUpdates(updates: Partial<TrainingSession>) {
   if (updates.loadKg !== undefined) row.load_kg = updates.loadKg ?? null;
   if (updates.routePoints !== undefined) row.route_points = compressRoutePointsForSync(updates.routePoints);
   if (updates.completedAt !== undefined) row.completed_at = updates.completedAt ?? null;
+  if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt ?? null;
   return row;
 }
 
@@ -275,6 +289,7 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     imported_resting_hr: member.importedRestingHR ?? null,
     imported_hrv: member.importedHrv ?? null,
     assignment_session: member.assignmentSession ?? null,
+    updated_at: resolveUpdatedAt(member.updatedAt),
   };
 }
 
@@ -306,6 +321,7 @@ function toRemoteMemberUpdates(updates: Partial<SquadMember>) {
   if (updates.importedRestingHR !== undefined) row.imported_resting_hr = updates.importedRestingHR ?? null;
   if (updates.importedHrv !== undefined) row.imported_hrv = updates.importedHrv ?? null;
   if (updates.assignmentSession !== undefined) row.assignment_session = updates.assignmentSession ?? null;
+  if (updates.updatedAt !== undefined) row.updated_at = updates.updatedAt ?? null;
   return row;
 }
 
@@ -325,6 +341,7 @@ function toRemoteCompletion(userId: string, completion: WorkoutCompletion): Remo
     volume: completion.volume,
     exercises: completion.exercises ?? null,
     completed_at: completion.completedAt,
+    updated_at: resolveUpdatedAt(completion.updatedAt, completion.completedAt),
   };
 }
 
@@ -348,6 +365,7 @@ function toRemoteReadiness(userId: string, log: ReadinessLog): RemoteReadinessLo
     limits_training: log.limitsTraining ?? null,
     resting_hr: log.restingHR ?? null,
     hrv: log.hrv ?? null,
+    updated_at: resolveUpdatedAt(log.updatedAt, log.date),
   };
 }
 
@@ -362,6 +380,7 @@ function fromRemoteSession(row: RemoteTrainingSessionRow): TrainingSession {
     loadKg: row.load_kg ?? undefined,
     routePoints: row.route_points ?? undefined,
     completedAt: row.completed_at ?? undefined,
+    updatedAt: row.updated_at ?? undefined,
   };
 }
 
@@ -394,6 +413,7 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
     importedRestingHR: row.imported_resting_hr ?? undefined,
     importedHrv: row.imported_hrv ?? undefined,
     assignmentSession: row.assignment_session ?? undefined,
+    updatedAt: row.updated_at ?? undefined,
   };
 }
 
@@ -412,6 +432,7 @@ function fromRemoteCompletion(row: RemoteWorkoutCompletionRow): WorkoutCompletio
     volume: row.volume,
     exercises: row.exercises ?? undefined,
     completedAt: row.completed_at,
+    updatedAt: row.updated_at ?? undefined,
   };
 }
 
@@ -434,6 +455,7 @@ function fromRemoteReadiness(row: RemoteReadinessLogRow): ReadinessLog {
     limitsTraining: row.limits_training ?? undefined,
     restingHR: row.resting_hr ?? undefined,
     hrv: row.hrv ?? undefined,
+    updatedAt: row.updated_at ?? undefined,
   };
 }
 
@@ -459,20 +481,47 @@ export async function fetchCloudSnapshot(userId: string): Promise<CloudSnapshot>
   };
 }
 
-export async function pushCloudMutation(userId: string, mutation: CloudMutation) {
+async function getRemoteUpdatedAt(
+  client: ReturnType<typeof ensureSupabase>,
+  table: 'training_sessions' | 'squad_members' | 'workout_completions' | 'readiness_logs',
+  userId: string,
+  id: string
+) {
+  const { data, error } = await client
+    .from(table)
+    .select('updated_at')
+    .eq('user_id', userId)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data as { updated_at?: string | null } | null)?.updated_at ?? null;
+}
+
+export async function pushCloudMutation(userId: string, mutation: CloudMutation, mutationCreatedAt = new Date().toISOString()) {
   const client = ensureSupabase();
 
   switch (mutation.type) {
     case 'upsert_session': {
-      const { error } = await client.from('training_sessions').upsert(toRemoteSession(userId, mutation.payload), { onConflict: 'user_id,id' });
+      const updatedAt = resolveUpdatedAt(mutation.payload.updatedAt, mutationCreatedAt);
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'training_sessions', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, updatedAt)) return;
+
+      const { error } = await client
+        .from('training_sessions')
+        .upsert(toRemoteSession(userId, { ...mutation.payload, updatedAt }), { onConflict: 'user_id,id' });
       if (error) throw error;
       return;
     }
 
     case 'update_session': {
+      const updatedAt = resolveUpdatedAt(mutation.payload.updates.updatedAt, mutationCreatedAt);
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'training_sessions', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, updatedAt)) return;
+
       const { error } = await client
         .from('training_sessions')
-        .update(toRemoteSessionUpdates(mutation.payload.updates))
+        .update(toRemoteSessionUpdates({ ...mutation.payload.updates, updatedAt }))
         .eq('user_id', userId)
         .eq('id', mutation.payload.id);
       if (error) throw error;
@@ -480,21 +529,34 @@ export async function pushCloudMutation(userId: string, mutation: CloudMutation)
     }
 
     case 'delete_session': {
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'training_sessions', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, mutationCreatedAt)) return;
+
       const { error } = await client.from('training_sessions').delete().eq('user_id', userId).eq('id', mutation.payload.id);
       if (error) throw error;
       return;
     }
 
     case 'upsert_member': {
-      const { error } = await client.from('squad_members').upsert(toRemoteMember(userId, mutation.payload), { onConflict: 'user_id,id' });
+      const updatedAt = resolveUpdatedAt(mutation.payload.updatedAt, mutationCreatedAt);
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'squad_members', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, updatedAt)) return;
+
+      const { error } = await client
+        .from('squad_members')
+        .upsert(toRemoteMember(userId, { ...mutation.payload, updatedAt }), { onConflict: 'user_id,id' });
       if (error) throw error;
       return;
     }
 
     case 'update_member': {
+      const updatedAt = resolveUpdatedAt(mutation.payload.updates.updatedAt, mutationCreatedAt);
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'squad_members', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, updatedAt)) return;
+
       const { error } = await client
         .from('squad_members')
-        .update(toRemoteMemberUpdates(mutation.payload.updates))
+        .update(toRemoteMemberUpdates({ ...mutation.payload.updates, updatedAt }))
         .eq('user_id', userId)
         .eq('id', mutation.payload.id);
       if (error) throw error;
@@ -502,19 +564,34 @@ export async function pushCloudMutation(userId: string, mutation: CloudMutation)
     }
 
     case 'delete_member': {
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'squad_members', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, mutationCreatedAt)) return;
+
       const { error } = await client.from('squad_members').delete().eq('user_id', userId).eq('id', mutation.payload.id);
       if (error) throw error;
       return;
     }
 
     case 'upsert_readiness_log': {
-      const { error } = await client.from('readiness_logs').upsert(toRemoteReadiness(userId, mutation.payload), { onConflict: 'user_id,id' });
+      const updatedAt = resolveUpdatedAt(mutation.payload.updatedAt, mutationCreatedAt);
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'readiness_logs', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, updatedAt)) return;
+
+      const { error } = await client
+        .from('readiness_logs')
+        .upsert(toRemoteReadiness(userId, { ...mutation.payload, updatedAt }), { onConflict: 'user_id,id' });
       if (error) throw error;
       return;
     }
 
     case 'upsert_workout_completion': {
-      const { error } = await client.from('workout_completions').upsert(toRemoteCompletion(userId, mutation.payload), { onConflict: 'user_id,id' });
+      const updatedAt = resolveUpdatedAt(mutation.payload.updatedAt, mutationCreatedAt);
+      const remoteUpdatedAt = await getRemoteUpdatedAt(client, 'workout_completions', userId, mutation.payload.id);
+      if (isRemoteNewer(remoteUpdatedAt, updatedAt)) return;
+
+      const { error } = await client
+        .from('workout_completions')
+        .upsert(toRemoteCompletion(userId, { ...mutation.payload, updatedAt }), { onConflict: 'user_id,id' });
       if (error) throw error;
       return;
     }

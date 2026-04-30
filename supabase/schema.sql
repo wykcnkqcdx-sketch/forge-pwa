@@ -10,11 +10,13 @@ create table if not exists public.training_sessions (
   route_points jsonb,
   completed_at timestamptz,
   inserted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
 
 alter table public.training_sessions
-add column if not exists completed_at timestamptz;
+add column if not exists completed_at timestamptz,
+add column if not exists updated_at timestamptz not null default now();
 
 create table if not exists public.squad_members (
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -29,6 +31,7 @@ create table if not exists public.squad_members (
   invite_status text,
   assignment text,
   inserted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
 
@@ -48,6 +51,7 @@ create table if not exists public.workout_completions (
   exercises jsonb,
   completed_at timestamptz not null,
   inserted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
 
@@ -71,6 +75,7 @@ create table if not exists public.readiness_logs (
   resting_hr integer,
   hrv integer,
   inserted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   primary key (user_id, id)
 );
 
@@ -96,13 +101,15 @@ add column if not exists device_last_sync_at timestamptz,
 add column if not exists imported_sleep_hours integer,
 add column if not exists imported_resting_hr integer,
 add column if not exists imported_hrv integer,
-add column if not exists assignment_session jsonb;
+add column if not exists assignment_session jsonb,
+add column if not exists updated_at timestamptz not null default now();
 
 alter table public.workout_completions
 add column if not exists completion_type text default 'assigned',
 add column if not exists session_kind text default 'Workout',
 add column if not exists duration_minutes integer default 0,
-add column if not exists exercises jsonb;
+add column if not exists exercises jsonb,
+add column if not exists updated_at timestamptz not null default now();
 
 alter table public.readiness_logs
 add column if not exists member_id text,
@@ -116,7 +123,8 @@ add column if not exists illness integer,
 add column if not exists pain_area text,
 add column if not exists limits_training boolean,
 add column if not exists resting_hr integer,
-add column if not exists hrv integer;
+add column if not exists hrv integer,
+add column if not exists updated_at timestamptz not null default now();
 
 create policy "training sessions are private to owner"
 on public.training_sessions
