@@ -81,14 +81,23 @@ function doGet() {
 }
 
 function getForgeSpreadsheet_() {
-  if (FORGE_CONFIG.spreadsheetId) {
-    return SpreadsheetApp.openById(FORGE_CONFIG.spreadsheetId);
+  const rawValue = (FORGE_CONFIG.spreadsheetId || '').trim();
+
+  if (rawValue) {
+    return SpreadsheetApp.openById(extractSpreadsheetId_(rawValue));
   }
+
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   if (!spreadsheet) {
     throw new Error('No active spreadsheet found. Bind this script to a Google Sheet or set FORGE_CONFIG.spreadsheetId.');
   }
   return spreadsheet;
+}
+
+function extractSpreadsheetId_(value) {
+  const match = value.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match) return match[1];
+  return value;
 }
 
 function validateForgePayload_(payload) {
