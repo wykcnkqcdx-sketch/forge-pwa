@@ -83,6 +83,28 @@ function parseDose(dose: string) {
   return {};
 }
 
+function buildAssignedExerciseBlock(
+  exercise: (typeof exerciseLibrary)[number],
+  coachPinned: boolean
+): AssignedExerciseBlock {
+  const parsedDose = parseDose(exercise.dose);
+  return {
+    exerciseId: exercise.id,
+    name: exercise.name,
+    dose: exercise.dose,
+    coachPinned,
+    prescribed: {
+      sets: parsedDose.sets,
+      reps: parsedDose.reps,
+      load: undefined,
+      loadUnit: 'kg',
+      durationMinutes: parsedDose.durationMinutes,
+      restSeconds: undefined,
+    },
+    status: 'assigned',
+  };
+}
+
 export function InstructorScreen({
   pinEnabled,
   sessions,
@@ -173,21 +195,7 @@ export function InstructorScreen({
     return selectedAssignmentMode.defaultExerciseIds
       .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
       .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
-      .map((exercise) => ({
-        exerciseId: exercise.id,
-        name: exercise.name,
-        dose: exercise.dose,
-        coachPinned: selectedAssignmentMode.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
-        prescribed: {
-          sets: parseDose(exercise.dose).sets,
-          reps: parseDose(exercise.dose).reps,
-          load: undefined,
-          loadUnit: 'kg' as const,
-          durationMinutes: parseDose(exercise.dose).durationMinutes,
-          restSeconds: undefined,
-        },
-        status: 'assigned' as const,
-      }));
+      .map((exercise) => buildAssignedExerciseBlock(exercise, selectedAssignmentMode.coachPinnedExerciseIds?.includes(exercise.id) ?? false));
   }, [selectedAssignmentMode]);
   const activeAssignmentExercises = stagedAssignmentExercises.length ? stagedAssignmentExercises : suggestedAssignmentExercises;
   const activeAssignmentExerciseIds = activeAssignmentExercises.map((exercise) => exercise.exerciseId);
@@ -354,21 +362,7 @@ export function InstructorScreen({
       setStagedAssignmentExercises(member?.assignmentSession?.exercises ?? mode.defaultExerciseIds
         .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
         .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
-        .map((exercise) => ({
-          exerciseId: exercise.id,
-          name: exercise.name,
-          dose: exercise.dose,
-          coachPinned: mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
-          prescribed: {
-            sets: parseDose(exercise.dose).sets,
-            reps: parseDose(exercise.dose).reps,
-            load: undefined,
-            loadUnit: 'kg' as const,
-            durationMinutes: parseDose(exercise.dose).durationMinutes,
-            restSeconds: undefined,
-          },
-          status: 'assigned' as const,
-        })));
+        .map((exercise) => buildAssignedExerciseBlock(exercise, mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false)));
       setAssignmentNote(member?.assignmentSession?.coachNote ?? '');
       setAssignmentFeedback('');
     }
@@ -381,21 +375,7 @@ export function InstructorScreen({
     setStagedAssignmentExercises(mode?.defaultExerciseIds
       .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
       .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
-      .map((exercise) => ({
-        exerciseId: exercise.id,
-        name: exercise.name,
-        dose: exercise.dose,
-        coachPinned: mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
-        prescribed: {
-          sets: parseDose(exercise.dose).sets,
-          reps: parseDose(exercise.dose).reps,
-          load: undefined,
-          loadUnit: 'kg' as const,
-          durationMinutes: parseDose(exercise.dose).durationMinutes,
-          restSeconds: undefined,
-        },
-        status: 'assigned' as const,
-      })) ?? []);
+      .map((exercise) => buildAssignedExerciseBlock(exercise, mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false)) ?? []);
   }
 
   function toggleAssignmentExercise(exerciseId: string) {
@@ -408,21 +388,7 @@ export function InstructorScreen({
 
       return [
         ...current,
-        {
-          exerciseId: exercise.id,
-          name: exercise.name,
-          dose: exercise.dose,
-          coachPinned: selectedAssignmentMode?.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
-          prescribed: {
-            sets: parseDose(exercise.dose).sets,
-            reps: parseDose(exercise.dose).reps,
-            load: undefined,
-            loadUnit: 'kg' as const,
-            durationMinutes: parseDose(exercise.dose).durationMinutes,
-            restSeconds: undefined,
-          },
-          status: 'assigned',
-        },
+        buildAssignedExerciseBlock(exercise, selectedAssignmentMode?.coachPinnedExerciseIds?.includes(exercise.id) ?? false),
       ];
     });
   }
