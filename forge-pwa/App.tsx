@@ -325,7 +325,13 @@ export default function App() {
     setIsUnlocked(true);
     setPinInput('');
     removeSecureItem('forge:pin');
-    AsyncStorage.multiRemove(['forge:sessions', 'forge:members']);
+    AsyncStorage.multiRemove([
+      'forge:sessions', 
+      'forge:members',
+      'forge:readiness_logs',
+      'forge:profile',
+      'forge:onboarded'
+    ]);
     Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
@@ -562,31 +568,46 @@ export default function App() {
     input.click();
   }
 
+  const activeTabRef = useRef(activeTab);
+  const resetTimerRef = useRef(resetInactivityTimer);
+
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  useEffect(() => {
+    resetTimerRef.current = resetInactivityTimer;
+  }, [resetInactivityTimer]);
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
           onStartShouldSetPanResponderCapture: () => {
-            resetInactivityTimer();
+            resetTimerRef.current();
             return false; // Return false so we don't block child touch events
           },
         onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-            resetInactivityTimer();
+            resetTimerRef.current();
           // Capture the touch if it's a clear horizontal swipe
           return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2 && Math.abs(gestureState.dx) > 30;
         },
         onPanResponderRelease: (_, gestureState) => {
           const { dx } = gestureState;
           if (Math.abs(dx) > 60) {
-            const currentIndex = tabs.findIndex((t) => t.id === activeTab);
+            const currentIndex = tabs.findIndex((t) => t.id === activeTabRef.current);
             if (dx < 0 && currentIndex < tabs.length - 1) {
-              switchTab(tabs[currentIndex + 1].id); // Swipe Left -> Next Tab
+              const nextId = tabs[currentIndex + 1].id;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab(nextId);
             } else if (dx > 0 && currentIndex > 0) {
-              switchTab(tabs[currentIndex - 1].id); // Swipe Right -> Previous Tab
+              const prevId = tabs[currentIndex - 1].id;
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              setActiveTab(prevId);
             }
           }
         },
       }),
-      [activeTab, resetInactivityTimer]
+      []
   );
 
   function completeOnboarding() {

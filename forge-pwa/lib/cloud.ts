@@ -37,10 +37,6 @@ function ensureSupabase() {
   return supabase;
 }
 
-function toInFilter(ids: string[]) {
-  return `(${ids.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(',')})`;
-}
-
 function toRemoteSession(userId: string, session: TrainingSession): RemoteTrainingSessionRow {
   return {
     id: session.id,
@@ -115,28 +111,30 @@ export async function fetchCloudSnapshot(userId: string): Promise<CloudSnapshot>
   };
 }
 
-export async function pushCloudSnapshot(userId: string, sessions: TrainingSession[], members: SquadMember[]) {
+export async function pushSession(userId: string, session: TrainingSession) {
   const client = ensureSupabase();
-  const remoteSessions = sessions.map((session) => toRemoteSession(userId, session));
-  const remoteMembers = members.map((member) => toRemoteMember(userId, member));
+  const remoteSession = toRemoteSession(userId, session);
+  
+  const { error } = await client.from('training_sessions').upsert(remoteSession, { onConflict: 'user_id,id' });
+  if (error) throw error;
+}
 
-  if (remoteSessions.length > 0) {
-    const { error } = await client.from('training_sessions').upsert(remoteSessions, { onConflict: 'user_id,id' });
-    if (error) throw error;
-  }
+export async function removeSession(userId: string, sessionId: string) {
+  const client = ensureSupabase();
+  const { error } = await client.from('training_sessions').delete().eq('user_id', userId).eq('id', sessionId);
+  if (error) throw error;
+}
 
-  if (remoteMembers.length > 0) {
-    const { error } = await client.from('squad_members').upsert(remoteMembers, { onConflict: 'user_id,id' });
-    if (error) throw error;
-  }
+export async function pushMember(userId: string, member: SquadMember) {
+  const client = ensureSupabase();
+  const remoteMember = toRemoteMember(userId, member);
 
-  let sessionDelete = client.from('training_sessions').delete().eq('user_id', userId);
-  if (sessions.length > 0) sessionDelete = sessionDelete.not('id', 'in', toInFilter(sessions.map((session) => session.id)));
-  const { error: sessionDeleteError } = await sessionDelete;
-  if (sessionDeleteError) throw sessionDeleteError;
+  const { error } = await client.from('squad_members').upsert(remoteMember, { onConflict: 'user_id,id' });
+  if (error) throw error;
+}
 
-  let memberDelete = client.from('squad_members').delete().eq('user_id', userId);
-  if (members.length > 0) memberDelete = memberDelete.not('id', 'in', toInFilter(members.map((member) => member.id)));
-  const { error: memberDeleteError } = await memberDelete;
-  if (memberDeleteError) throw memberDeleteError;
+export async function removeMember(userId: string, memberId: string) {
+  const client = ensureSupabase();
+  const { error } = await client.from('squad_members').delete().eq('user_id', userId).eq('id', memberId);
+  if (error) throw error;
 }
