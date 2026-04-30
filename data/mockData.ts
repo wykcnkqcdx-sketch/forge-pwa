@@ -127,11 +127,21 @@ export type AssignedExerciseBlock = {
   name: string;
   dose: string;
   coachPinned?: boolean;
-  sets?: number;
-  reps?: number;
-  loadKg?: number;
-  durationMinutes?: number;
-  restSeconds?: number;
+  prescribed?: {
+    sets?: number;
+    reps?: number;
+    load?: number;
+    loadUnit?: 'kg' | 'lbs';
+    durationMinutes?: number;
+    restSeconds?: number;
+  };
+  actual?: {
+    sets?: number;
+    reps?: number;
+    load?: number;
+    durationMinutes?: number;
+  };
+  status?: 'assigned' | 'hit' | 'modified' | 'skipped';
 };
 
 export type MemberAssignment = {
