@@ -28,3 +28,15 @@ export type ReadinessLog = {
   restingHR?: number;
   hrv?: number;
 };
+
+export type WorkoutCompletion = {
+  id: string;
+  memberId: string;
+  memberName: string;
+  groupId: string;
+  assignment: string;
+  effort: 'Too Easy' | 'About Right' | 'Too Hard';
+  note?: string;
+  volume: number;
+  completedAt: string;
+};

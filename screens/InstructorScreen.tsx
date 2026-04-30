@@ -7,12 +7,14 @@ import { ProgressBar } from '../components/ProgressBar';
 import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
 import { SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
+import type { WorkoutCompletion } from '../data/domain';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
   sessions: TrainingSession[];
   members: SquadMember[];
   groups: TrainingGroup[];
+  workoutCompletions: WorkoutCompletion[];
   onSetPin: () => void;
   onWipe: () => void;
   onExport: () => void;
@@ -35,6 +37,7 @@ export function InstructorScreen({
   sessions,
   members,
   groups,
+  workoutCompletions,
   onSetPin,
   onWipe,
   onExport,
@@ -331,6 +334,29 @@ export function InstructorScreen({
         <Text style={[styles.cardTitle, { color: coachGuidance.tone }]}>AI Coach Guidance</Text>
         <Text style={styles.aiSummary}>{coachGuidance.summary}</Text>
         <Text style={styles.aiAction}>{coachGuidance.action}</Text>
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Member Completions</Text>
+          <Text style={styles.muted}>latest {Math.min(5, workoutCompletions.length)}</Text>
+        </View>
+        {workoutCompletions.length ? workoutCompletions.slice(0, 5).map((completion) => (
+          <View key={completion.id} style={styles.completionRow}>
+            <View style={styles.memberCopy}>
+              <Text style={styles.memberName}>{completion.memberName}</Text>
+              <Text style={styles.muted}>
+                {completion.assignment} - {completion.effort} - +{completion.volume}
+              </Text>
+              {completion.note && <Text style={styles.memberNote}>Note: {completion.note}</Text>}
+            </View>
+            <Text style={styles.completionTime}>
+              {new Date(completion.completedAt).toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        )) : (
+          <Text style={styles.inviteHelp}>No member workout completions yet.</Text>
+        )}
       </Card>
 
       <Card>
@@ -795,6 +821,17 @@ const styles = StyleSheet.create({
   },
   connectionText: { fontSize: 10, fontWeight: '900' },
   connectionNote: { color: colours.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
+  completionRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    paddingVertical: 10,
+  },
+  completionTime: { color: colours.cyan, fontSize: 11, fontWeight: '900', textAlign: 'right' },
   programmeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   programmeCard: {
     width: '47%',

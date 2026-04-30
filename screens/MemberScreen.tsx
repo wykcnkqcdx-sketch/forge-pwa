@@ -1,18 +1,18 @@
 import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { Screen } from '../components/Screen';
 import { colours, touchTarget } from '../theme';
 import { exerciseLibrary, SquadMember, TrainingGroup, trainingModes } from '../data/mockData';
+import type { WorkoutCompletion } from '../data/domain';
 
 type Props = {
   member: SquadMember | null;
   members: SquadMember[];
   groups: TrainingGroup[];
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
-  onCoachView: () => void;
+  onCompleteWorkout: (completion: WorkoutCompletion) => void;
 };
 
 const weeklyGoal = 10000;
@@ -30,7 +30,7 @@ function formatActivityTime(value?: string) {
   return date.toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-export function MemberScreen({ member, members, groups, onUpdateMember, onCoachView }: Props) {
+export function MemberScreen({ member, members, groups, onUpdateMember, onCompleteWorkout }: Props) {
   const [workoutNote, setWorkoutNote] = useState('');
   const [finishFeedback, setFinishFeedback] = useState('');
   const group = member ? groups.find((item) => item.id === member.groupId) ?? null : null;
@@ -88,6 +88,17 @@ export function MemberScreen({ member, members, groups, onUpdateMember, onCoachV
       lastWorkoutAt: now,
       lastWorkoutNote: workoutNote.trim() || undefined,
     });
+    onCompleteWorkout({
+      id: `completion-${member.id}-${Date.now()}`,
+      memberId: member.id,
+      memberName: member.gymName || member.name,
+      groupId: member.groupId,
+      assignment: member.assignment ?? 'Assigned Workout',
+      effort,
+      note: workoutNote.trim() || undefined,
+      volume: plannedVolume,
+      completedAt: now,
+    });
     setWorkoutNote('');
     setFinishFeedback(message);
   }
@@ -109,10 +120,6 @@ export function MemberScreen({ member, members, groups, onUpdateMember, onCoachV
             <Text style={styles.kicker}>MEMBER PORTAL</Text>
             <Text style={styles.title}>Invite Not Found</Text>
           </View>
-          <Pressable style={styles.coachButton} onPress={onCoachView}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={colours.cyan} />
-            <Text style={styles.coachButtonText}>Coach</Text>
-          </Pressable>
         </View>
         <Card>
           <Text style={styles.cardTitle}>No matching team member</Text>
@@ -143,10 +150,6 @@ export function MemberScreen({ member, members, groups, onUpdateMember, onCoachV
             </View>
           </View>
         </View>
-        <Pressable style={styles.coachButton} onPress={onCoachView}>
-          <Ionicons name="shield-checkmark-outline" size={18} color={colours.cyan} />
-          <Text style={styles.coachButtonText}>Coach</Text>
-        </Pressable>
       </View>
 
       <Card hot>
@@ -293,22 +296,6 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   statusBadgeMutedText: {
-    color: colours.cyan,
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  coachButton: {
-    minHeight: 44,
-    borderWidth: 1,
-    borderColor: colours.borderHot,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colours.cyanDim,
-  },
-  coachButtonText: {
     color: colours.cyan,
     fontSize: 11,
     fontWeight: '900',

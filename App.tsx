@@ -12,7 +12,7 @@ import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { MemberScreen } from './screens/MemberScreen';
 import { initialSessions, squadMembers, trainingGroups, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
-import type { ReadinessLog } from './data/domain';
+import type { ReadinessLog, WorkoutCompletion } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
 import { secureGetItem, secureMultiRemove, secureRemoveItem, secureSetItem } from './lib/secureStorage';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
@@ -35,6 +35,7 @@ type ForgeBackup = {
   members: SquadMember[];
   groups?: TrainingGroup[];
   readinessLogs?: ReadinessLog[];
+  workoutCompletions?: WorkoutCompletion[];
 };
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -46,12 +47,22 @@ const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap
   { id: 'instructor', label: 'Coach',   icon: 'people-outline',    iconActive: 'people' },
 ];
 
+type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
+const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
+  { id: 'portal', label: 'Today', icon: 'flash-outline', iconActive: 'flash' },
+  { id: 'train', label: 'Train', icon: 'barbell-outline', iconActive: 'barbell' },
+  { id: 'ruck', label: 'Ruck', icon: 'footsteps-outline', iconActive: 'footsteps' },
+  { id: 'fuel', label: 'Fuel', icon: 'restaurant-outline', iconActive: 'restaurant' },
+  { id: 'readiness', label: 'Ready', icon: 'body-outline', iconActive: 'body' },
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
   const [members, setMembers] = useState<SquadMember[]>(squadMembers);
   const [groups, setGroups] = useState<TrainingGroup[]>(trainingGroups);
   const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
+  const [workoutCompletions, setWorkoutCompletions] = useState<WorkoutCompletion[]>([]);
   const [cloudSession, setCloudSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authLoading, setAuthLoading] = useState(false);
@@ -70,6 +81,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [typedText, setTypedText] = useState('');
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
+  const [activeMemberTab, setActiveMemberTab] = useState<MemberTab>('portal');
   const [pendingMemberInvite, setPendingMemberInvite] = useState<PendingMemberInvite | null>(null);
   const prevTabIndex = useRef(0);
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -246,6 +258,9 @@ export default function App() {
 
         const storedReadiness = await secureGetItem('forge:readiness_logs');
         if (storedReadiness) setReadinessLogs(JSON.parse(storedReadiness));
+
+        const storedCompletions = await secureGetItem('forge:workout_completions');
+        if (storedCompletions) setWorkoutCompletions(JSON.parse(storedCompletions));
         
         const storedPin = await secureGetItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
@@ -302,6 +317,10 @@ export default function App() {
   }, [readinessLogs, isReady]);
 
   useEffect(() => {
+    if (isReady) secureSetItem('forge:workout_completions', JSON.stringify(workoutCompletions));
+  }, [workoutCompletions, isReady]);
+
+  useEffect(() => {
     if (isReady) {
       if (savedPin === null) secureRemoveItem('forge:pin');
       else secureSetItem('forge:pin', savedPin);
@@ -319,12 +338,13 @@ export default function App() {
         const snapshot = await fetchCloudSnapshot(userId);
         if (cancelled) return;
 
-        if (snapshot.sessions.length > 0 || snapshot.members.length > 0) {
+        if (snapshot.sessions.length > 0 || snapshot.members.length > 0 || snapshot.workoutCompletions.length > 0) {
           skipNextRemotePush.current = true;
           if (snapshot.sessions.length > 0) setSessions(snapshot.sessions);
           if (snapshot.members.length > 0) setMembers(snapshot.members);
+          if (snapshot.workoutCompletions.length > 0) setWorkoutCompletions(snapshot.workoutCompletions);
         } else {
-          await pushCloudSnapshot(userId, sessions, members);
+          await pushCloudSnapshot(userId, sessions, members, workoutCompletions);
         }
 
         if (!cancelled) {
@@ -358,7 +378,7 @@ export default function App() {
     const timer = setTimeout(async () => {
       try {
         setCloudStatus('syncing');
-        await pushCloudSnapshot(userId, sessions, members);
+        await pushCloudSnapshot(userId, sessions, members, workoutCompletions);
         setCloudStatus('synced');
       } catch (error) {
         console.error('Failed to sync cloud data', error);
@@ -367,7 +387,36 @@ export default function App() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [sessions, members, cloudSession?.user?.id, isReady]);
+  }, [sessions, members, workoutCompletions, cloudSession?.user?.id, isReady]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !cloudSession?.user || !isReady) return;
+    const client = supabase;
+    const userId = cloudSession.user.id;
+
+    const refreshSnapshot = async () => {
+      try {
+        const snapshot = await fetchCloudSnapshot(userId);
+        setSessions(snapshot.sessions);
+        setMembers(snapshot.members);
+        setWorkoutCompletions(snapshot.workoutCompletions);
+        setCloudStatus('synced');
+      } catch (error) {
+        console.error('Failed to refresh realtime snapshot', error);
+        setCloudStatus('error');
+      }
+    };
+
+    const channel = client
+      .channel(`forge-squad-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'squad_members', filter: `user_id=eq.${userId}` }, refreshSnapshot)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_completions', filter: `user_id=eq.${userId}` }, refreshSnapshot)
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, [cloudSession?.user?.id, isReady]);
 
   function showBlockingMessage(title: string, message: string) {
     if (typeof window !== 'undefined') {
@@ -392,7 +441,8 @@ export default function App() {
       url.searchParams.delete('member');
       window.history.replaceState({}, '', url.toString());
     }
-    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:readiness_logs', 'forge:pin'])
+    setWorkoutCompletions([]);
+    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:readiness_logs', 'forge:workout_completions', 'forge:pin'])
       .catch((error) => console.error('Failed to clear local secure storage', error));
     showBlockingMessage('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
@@ -500,8 +550,13 @@ export default function App() {
     setReadinessLogs((current) => [log, ...current]);
   }
 
+  function addWorkoutCompletion(completion: WorkoutCompletion) {
+    setWorkoutCompletions((current) => [completion, ...current]);
+  }
+
   function openCoachView() {
     setActiveMemberId(null);
+    setActiveMemberTab('portal');
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.delete('member');
@@ -603,6 +658,7 @@ export default function App() {
       members,
       groups,
       readinessLogs,
+      workoutCompletions,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -646,6 +702,7 @@ export default function App() {
           if (importedMembers) setMembers(importedMembers);
           if (!Array.isArray(parsed) && Array.isArray(parsed.groups)) setGroups(parsed.groups);
           if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
+          if (parsed.workoutCompletions) setWorkoutCompletions(parsed.workoutCompletions);
           Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
         } catch (error) {
           console.error('Failed to import backup', error);
@@ -709,6 +766,7 @@ export default function App() {
             sessions={sessions}
             members={members}
             groups={groups}
+            workoutCompletions={workoutCompletions}
             onSetPin={handleSetPin}
             onWipe={handleManualWipe}
             onExport={exportData}
@@ -731,6 +789,39 @@ export default function App() {
             goToAnalytics={() => switchTab('analytics')}
             deleteSession={deleteSession}
             editSession={editSession}
+          />
+        );
+    }
+  }
+
+  function renderMemberScreen(activeMember: SquadMember | null) {
+    const memberSessions = sessions.filter((session) => !activeMember || !session.id.startsWith('member-') || session.id.includes(activeMember.id));
+
+    switch (activeMemberTab) {
+      case 'train':
+        return <TrainScreen addSession={addSession} sessions={memberSessions.length ? memberSessions : sessions} />;
+      case 'ruck':
+        return <RuckScreen addSession={addSession} />;
+      case 'fuel':
+        return <FuelScreen sessions={memberSessions.length ? memberSessions : sessions} />;
+      case 'readiness':
+        return (
+          <HomeScreen
+            sessions={memberSessions.length ? memberSessions : sessions}
+            goToRuck={() => setActiveMemberTab('ruck')}
+            goToAnalytics={() => setActiveMemberTab('portal')}
+            deleteSession={deleteSession}
+            editSession={editSession}
+          />
+        );
+      default:
+        return (
+          <MemberScreen
+            member={activeMember}
+            members={members}
+            groups={groups}
+            onUpdateMember={updateMember}
+            onCompleteWorkout={addWorkoutCompletion}
           />
         );
     }
@@ -811,13 +902,38 @@ export default function App() {
 
     return (
       <View style={styles.app}>
-        <MemberScreen
-          member={activeMember}
-          members={members}
-          groups={groups}
-          onUpdateMember={updateMember}
-          onCoachView={openCoachView}
-        />
+        <View style={styles.screenContainer}>
+          {renderMemberScreen(activeMember)}
+        </View>
+
+        <View style={[styles.tabBar, shadow.card]}>
+          <View style={styles.tabBarHighlight} />
+          {memberTabs.map((tab) => {
+            const isActive = tab.id === activeMemberTab;
+            return (
+              <Pressable
+                key={tab.id}
+                style={({ pressed }) => [styles.tabItem, pressed && styles.tabItemPressed]}
+                onPress={() => setActiveMemberTab(tab.id)}
+                accessibilityRole="button"
+                accessibilityLabel={tab.label}
+                accessibilityState={{ selected: isActive }}
+              >
+                {isActive ? (
+                  <View style={styles.activePill}>
+                    <Ionicons name={tab.iconActive} size={18} color={colours.background} />
+                    <Text style={styles.activePillLabel}>{tab.label}</Text>
+                  </View>
+                ) : (
+                  <View style={styles.inactiveItem}>
+                    <Ionicons name={tab.icon} size={20} color={colours.muted} />
+                    <Text style={styles.inactiveLabel}>{tab.label}</Text>
+                  </View>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
       </View>
     );
   }

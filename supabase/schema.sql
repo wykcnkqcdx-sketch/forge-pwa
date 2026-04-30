@@ -32,8 +32,24 @@ create table if not exists public.squad_members (
   primary key (user_id, id)
 );
 
+create table if not exists public.workout_completions (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  id text not null,
+  member_id text not null,
+  member_name text not null,
+  group_id text not null,
+  assignment text not null,
+  effort text not null,
+  note text,
+  volume integer not null,
+  completed_at timestamptz not null,
+  inserted_at timestamptz not null default now(),
+  primary key (user_id, id)
+);
+
 alter table public.training_sessions enable row level security;
 alter table public.squad_members enable row level security;
+alter table public.workout_completions enable row level security;
 
 alter table public.squad_members
 add column if not exists gym_name text,
@@ -54,6 +70,12 @@ with check (auth.uid() = user_id);
 
 create policy "squad members are private to owner"
 on public.squad_members
+for all
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+create policy "workout completions are private to owner"
+on public.workout_completions
 for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
