@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { Alert, View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Screen } from '../components/Screen';
@@ -8,6 +8,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 import { buildH2FDomains, buildPrescriptiveGuidance, calculateWHtR } from '../lib/h2f';
+import { getAppleHealthCapability, getAppleHealthPreview } from '../lib/appleHealth';
 import { colours, touchTarget } from '../theme';
 import { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog } from '../data/domain';
@@ -136,6 +137,7 @@ export function HomeScreen({
   const latestMemberReadiness = member
     ? readinessLogs.find((log) => log.memberId === member.id)
     : readinessLogs[0];
+  const appleHealthPreview = member ? getAppleHealthPreview(member) : null;
 
   function markInjury(segmentId: string) {
     setSelectedSegment(segmentId);
@@ -203,6 +205,41 @@ export function HomeScreen({
 
     setReadinessFeedback('System check submitted. Sending you to Train.');
     setTimeout(() => onCompleteCheckIn?.(), 450);
+  }
+
+  function connectAppleHealth() {
+    if (!member || !onUpdateMember) return;
+    const capability = getAppleHealthCapability();
+    const now = new Date().toISOString();
+
+    onUpdateMember(member.id, {
+      deviceSyncProvider: 'Apple Health',
+      deviceSyncStatus: capability.status === 'module_pending' ? 'Ready' : 'Unsupported',
+      deviceConnectedAt: now,
+    });
+
+    Alert.alert('Apple Health', capability.message);
+  }
+
+  function syncAppleHealth() {
+    if (!member || !onUpdateMember) return;
+    const capability = getAppleHealthCapability();
+
+    if (capability.status !== 'module_pending') {
+      Alert.alert('Apple Health Sync', capability.message);
+      return;
+    }
+
+    Alert.alert(
+      'Apple Health Sync',
+      'The app shell is ready, but the native HealthKit adapter is still the next build step. Once installed, sleep, resting HR, HRV, and workouts can sync here.'
+    );
+
+    onUpdateMember(member.id, {
+      deviceSyncProvider: 'Apple Health',
+      deviceSyncStatus: 'Ready',
+      deviceLastSyncAt: new Date().toISOString(),
+    });
   }
 
   return (
@@ -335,6 +372,55 @@ export function HomeScreen({
             <Ionicons name="send" size={20} color={colours.background} />
             <Text style={styles.primaryButtonText}>Submit Report</Text>
           </Pressable>
+        </Card>
+      ) : null}
+
+      {member ? (
+        <Card>
+          <Text style={styles.sectionTitle}>Apple Health</Text>
+          <Text style={styles.body}>
+            Prepare member sync for Apple Watch and iPhone Health data. This shell is ready for HealthKit wiring in a native iPhone build.
+          </Text>
+          <View style={styles.integrationRow}>
+            <View style={styles.integrationPill}>
+              <Text style={styles.integrationText}>{member.deviceSyncStatus ?? 'Disconnected'}</Text>
+            </View>
+            <View style={styles.integrationPill}>
+              <Text style={styles.integrationText}>{member.deviceSyncProvider ?? 'No Provider'}</Text>
+            </View>
+          </View>
+          <View style={styles.actionRow}>
+            <Pressable style={styles.primaryButton} onPress={connectAppleHealth}>
+              <Ionicons name="watch" size={20} color={colours.background} />
+              <Text style={styles.primaryButtonText}>Connect Apple Health</Text>
+            </Pressable>
+            <Pressable style={styles.secondaryButton} onPress={syncAppleHealth}>
+              <Ionicons name="sync" size={20} color={colours.cyan} />
+              <Text style={styles.secondaryButtonText}>Sync Now</Text>
+            </Pressable>
+          </View>
+          <View style={styles.factorGrid}>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Sleep</Text>
+              <Text style={styles.factorValue}>{appleHealthPreview?.sleepHours ? `${appleHealthPreview.sleepHours}h` : '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Rest HR</Text>
+              <Text style={styles.factorValue}>{appleHealthPreview?.restingHR ? `${appleHealthPreview.restingHR}` : '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>HRV</Text>
+              <Text style={styles.factorValue}>{appleHealthPreview?.hrv ? `${appleHealthPreview.hrv}` : '--'}</Text>
+            </View>
+            <View style={styles.factorItem}>
+              <Text style={styles.factorLabel}>Last Sync</Text>
+              <Text style={styles.factorValue}>
+                {appleHealthPreview?.lastSyncAt
+                  ? new Date(appleHealthPreview.lastSyncAt).toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })
+                  : '--'}
+              </Text>
+            </View>
+          </View>
         </Card>
       ) : null}
 
@@ -701,6 +787,31 @@ const styles = StyleSheet.create({
   },
   factorScaleTextActive: {
     color: colours.amber,
+  },
+  factorGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  factorItem: {
+    width: '23%',
+    flexGrow: 1,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  factorLabel: {
+    color: colours.muted,
+    fontSize: 9,
+    fontWeight: '800',
+    marginBottom: 4,
+  },
+  factorValue: {
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '900',
   },
   painTagPanel: {
     marginTop: 14,

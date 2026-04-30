@@ -36,6 +36,13 @@ type RemoteSquadMemberRow = {
   last_workout_at: string | null;
   last_workout_note: string | null;
   hype_count: number | null;
+  device_sync_provider: SquadMember['deviceSyncProvider'] | null;
+  device_sync_status: SquadMember['deviceSyncStatus'] | null;
+  device_connected_at: string | null;
+  device_last_sync_at: string | null;
+  imported_sleep_hours: number | null;
+  imported_resting_hr: number | null;
+  imported_hrv: number | null;
 };
 
 type RemoteWorkoutCompletionRow = {
@@ -129,6 +136,13 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     last_workout_at: member.lastWorkoutAt ?? null,
     last_workout_note: member.lastWorkoutNote ?? null,
     hype_count: member.hypeCount ?? 0,
+    device_sync_provider: member.deviceSyncProvider ?? null,
+    device_sync_status: member.deviceSyncStatus ?? null,
+    device_connected_at: member.deviceConnectedAt ?? null,
+    device_last_sync_at: member.deviceLastSyncAt ?? null,
+    imported_sleep_hours: member.importedSleepHours ?? null,
+    imported_resting_hr: member.importedRestingHR ?? null,
+    imported_hrv: member.importedHrv ?? null,
   };
 }
 
@@ -209,6 +223,13 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
     lastWorkoutAt: row.last_workout_at ?? undefined,
     lastWorkoutNote: row.last_workout_note ?? undefined,
     hypeCount: row.hype_count ?? undefined,
+    deviceSyncProvider: row.device_sync_provider ?? undefined,
+    deviceSyncStatus: row.device_sync_status ?? undefined,
+    deviceConnectedAt: row.device_connected_at ?? undefined,
+    deviceLastSyncAt: row.device_last_sync_at ?? undefined,
+    importedSleepHours: row.imported_sleep_hours ?? undefined,
+    importedRestingHR: row.imported_resting_hr ?? undefined,
+    importedHrv: row.imported_hrv ?? undefined,
   };
 }
 

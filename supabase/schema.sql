@@ -88,7 +88,14 @@ add column if not exists weekly_volume integer default 0,
 add column if not exists last_workout_title text,
 add column if not exists last_workout_at timestamptz,
 add column if not exists last_workout_note text,
-add column if not exists hype_count integer default 0;
+add column if not exists hype_count integer default 0,
+add column if not exists device_sync_provider text,
+add column if not exists device_sync_status text,
+add column if not exists device_connected_at timestamptz,
+add column if not exists device_last_sync_at timestamptz,
+add column if not exists imported_sleep_hours integer,
+add column if not exists imported_resting_hr integer,
+add column if not exists imported_hrv integer;
 
 alter table public.workout_completions
 add column if not exists completion_type text default 'assigned',

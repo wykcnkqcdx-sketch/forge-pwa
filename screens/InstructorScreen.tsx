@@ -690,6 +690,7 @@ export function InstructorScreen({
                 </Text>
                 {member.gymName && <Text style={styles.memberPortalName}>Portal: {member.gymName}{member.ghostMode ? ' - Ghost Mode' : ''}</Text>}
                 {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
+                {member.deviceSyncProvider && <Text style={styles.memberDeviceSync}>{member.deviceSyncProvider} - {member.deviceSyncStatus ?? 'Disconnected'}</Text>}
                 {member.assignment && <Text style={styles.memberAssignment}>Assigned: {member.assignment}</Text>}
                 {latestCompletion ? (
                   <Text style={styles.memberCompletionMeta}>
@@ -914,6 +915,7 @@ const styles = StyleSheet.create({
   memberName: { color: colours.text, fontWeight: '900' },
   memberPortalName: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  memberDeviceSync: { color: colours.violet, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberPainArea: { color: colours.red, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberNote: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },

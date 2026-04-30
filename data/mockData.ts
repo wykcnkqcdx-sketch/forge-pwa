@@ -23,6 +23,13 @@ export type SquadMember = {
   lastWorkoutAt?: string;
   lastWorkoutNote?: string;
   hypeCount?: number;
+  deviceSyncProvider?: 'Apple Health';
+  deviceSyncStatus?: 'Disconnected' | 'Ready' | 'Connected' | 'Unsupported';
+  deviceConnectedAt?: string;
+  deviceLastSyncAt?: string;
+  importedSleepHours?: number;
+  importedRestingHR?: number;
+  importedHrv?: number;
 };
 
 export type TrainingGroup = {
