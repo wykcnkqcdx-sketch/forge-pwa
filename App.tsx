@@ -1078,6 +1078,8 @@ export default function App() {
             sessions={sessions}
             goToRuck={() => switchTab('ruck')}
             goToAnalytics={() => switchTab('analytics')}
+            goToFuel={() => switchTab('fuel')}
+            readinessLogs={readinessLogs}
           />
         );
     }

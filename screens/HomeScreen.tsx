@@ -9,6 +9,7 @@ import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance'
 import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession } from '../data/mockData';
+import type { ReadinessLog } from '../data/domain';
 
 function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
   if (status === 'GREEN') return colours.green;
@@ -53,13 +54,21 @@ export function HomeScreen({
   sessions,
   goToRuck,
   goToAnalytics,
+  goToFuel,
+  readinessLogs = [],
 }: {
   sessions: TrainingSession[];
   goToRuck: () => void;
   goToAnalytics: () => void;
+  goToFuel?: () => void;
+  readinessLogs?: ReadinessLog[];
 }) {
   const performance = buildPerformanceProfile(sessions);
-  const domains = useMemo(() => buildH2FDomains(sessions), [sessions]);
+  const latestReadiness = readinessLogs[0];
+  const domains = useMemo(
+    () => buildH2FDomains(sessions, latestReadiness),
+    [sessions, latestReadiness],
+  );
   const guidance = buildPrescriptiveGuidance(sessions, 6.25, performance.loadRisk === 'High' ? 'down' : 'flat');
   const nextAction = nextActionForReadiness(performance);
 
@@ -80,6 +89,13 @@ export function HomeScreen({
     const now = new Date();
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
+
+  function domainPressHandler(domainId: string) {
+    if (domainId === 'nutrition') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      goToFuel?.();
+    }
+  }
 
   return (
     <Screen>
@@ -170,15 +186,38 @@ export function HomeScreen({
       <View style={styles.domainGrid}>
         {domains.map((domain) => {
           const tone = domainTone(domain.status);
+          const tappable = domain.id === 'nutrition' && !!goToFuel;
           return (
-            <View key={domain.id} style={styles.domainCard}>
+            <Pressable
+              key={domain.id}
+              style={({ pressed }) => [styles.domainCard, pressed && tappable && { opacity: 0.75 }]}
+              onPress={() => domainPressHandler(domain.id)}
+              disabled={!tappable}
+            >
+              {/* Card header: icon left, status dot right */}
               <View style={styles.domainHeader}>
-                <Text style={styles.domainLabel}>{domain.label}</Text>
+                <View style={[styles.domainIconWrap, { backgroundColor: `${tone}18`, borderColor: `${tone}28` }]}>
+                  <Ionicons
+                    name={domain.icon as keyof typeof Ionicons.glyphMap}
+                    size={13}
+                    color={tone}
+                  />
+                </View>
                 <View style={[styles.dot, { backgroundColor: tone }]} />
               </View>
-              <Text style={[styles.domainValue, { color: tone }]}>{domain.value}</Text>
+
+              {/* Label + value */}
+              <Text style={styles.domainLabel}>{domain.label}</Text>
+              <Text style={[styles.domainValue, { color: domain.hasData ? tone : colours.muted }]}>
+                {domain.value}
+              </Text>
               <Text style={styles.domainDetail}>{domain.detail}</Text>
-            </View>
+
+              {/* Action affordance for empty or navigable states */}
+              {domain.actionLabel ? (
+                <Text style={styles.domainAction}>{domain.actionLabel}</Text>
+              ) : null}
+            </Pressable>
           );
         })}
       </View>
@@ -423,35 +462,53 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     borderWidth: 1,
     borderColor: colours.borderSoft,
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 12,
     backgroundColor: colours.panel,
+    gap: 3,
   },
   domainHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 6,
+  },
+  domainIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
   domainLabel: {
     color: colours.muted,
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
-  },
-  dot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+    letterSpacing: 0.8,
   },
   domainValue: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '900',
-    marginTop: 12,
+    marginTop: 2,
   },
   domainDetail: {
     color: colours.textSoft,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4,
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 3,
+  },
+  domainAction: {
+    color: colours.cyan,
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: 6,
+    letterSpacing: 0.3,
   },
   sectionTitle: {
     color: colours.text,

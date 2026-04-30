@@ -1,13 +1,16 @@
-import { TrainingSession } from '../data/domain';
+import { TrainingSession, ReadinessLog } from '../data/domain';
 import { buildPerformanceProfile } from './performance';
 
 export type H2FDomain = {
   id: 'physical' | 'sleep' | 'nutrition' | 'mental';
   label: string;
+  icon: string;
   value: string;
   score: number;
   status: 'GREEN' | 'AMBER' | 'RED';
   detail: string;
+  hasData: boolean;
+  actionLabel?: string;
 };
 
 export type RuckInputs = {
@@ -30,45 +33,91 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
 }
 
-export function buildH2FDomains(sessions: TrainingSession[]): H2FDomain[] {
+export function buildH2FDomains(sessions: TrainingSession[], latestReadiness?: ReadinessLog): H2FDomain[] {
   const profile = buildPerformanceProfile(sessions);
-  const physicalScore = clamp(Math.round((profile.readiness + Math.min(100, profile.weeklyLoad / 12)) / 2), 35, 96);
-  const sleepScore = profile.highIntensityCount >= 3 ? 58 : profile.averageRpe >= 7 ? 72 : 84;
-  const nutritionScore = profile.weeklyLoad > 1800 ? 68 : profile.weeklyLoad > 800 ? 78 : 86;
-  const mentalScore = profile.readinessBand === 'RED' ? 61 : profile.readinessBand === 'AMBER' ? 74 : 88;
+
+  // Physical — derived from real training data
+  const physicalScore = clamp(
+    Math.round((profile.readiness + Math.min(100, profile.weeklyLoad / 12)) / 2),
+    35, 96,
+  );
+
+  // Sleep — real data from daily check-in; falls back to honest empty state
+  const hasSleepData = latestReadiness?.sleepHours !== undefined;
+  const sleepHours = latestReadiness?.sleepHours ?? 0;
+  const sleepQuality = latestReadiness?.sleepQuality ?? 3;
+  const sleepScore = hasSleepData
+    ? clamp(Math.round(sleepHours * 8.5 + (sleepQuality - 1) * 4), 35, 96)
+    : 0;
+  const sleepStatus: 'GREEN' | 'AMBER' | 'RED' = !hasSleepData ? 'AMBER'
+    : sleepHours >= 7 && sleepQuality >= 4 ? 'GREEN'
+    : sleepHours >= 6 || sleepQuality >= 3 ? 'AMBER'
+    : 'RED';
+  const sleepDetail = hasSleepData
+    ? latestReadiness?.hydration === 'Poor' ? 'Hydration flagged — address before training'
+      : (latestReadiness?.soreness ?? 0) >= 4 ? 'High soreness — monitor recovery'
+      : 'Sleep on target'
+    : 'Submit daily check-in to track';
+
+  // Mental — real mood/stress from check-in
+  const hasMoodData = latestReadiness?.mood !== undefined;
+  const mood = latestReadiness?.mood ?? 3;
+  const stress = latestReadiness?.stress ?? 3;
+  const mentalStatus: 'GREEN' | 'AMBER' | 'RED' = !hasMoodData ? 'AMBER'
+    : mood >= 4 && stress <= 2 ? 'GREEN'
+    : mood >= 3 ? 'AMBER'
+    : 'RED';
+  const mentalDetail = hasMoodData
+    ? stress >= 4 ? 'High stress — use downshift block before hard work'
+      : mood >= 4 ? 'Positive state — execute as planned'
+      : 'Monitor mood — cap intensity if flagging'
+    : 'Submit daily check-in to track';
 
   return [
     {
       id: 'physical',
       label: 'Physical',
-      value: `AFT/CFT ${physicalScore}`,
+      icon: 'barbell-outline',
+      value: `Readiness ${physicalScore}`,
       score: physicalScore,
       status: physicalScore >= 80 ? 'GREEN' : physicalScore >= 62 ? 'AMBER' : 'RED',
-      detail: `ACWR ${profile.acuteChronicRatio} | ${profile.weeklyLoad} AU load`,
+      detail: `ACWR ${profile.acuteChronicRatio} · ${profile.weeklyLoad} AU`,
+      hasData: true,
     },
     {
       id: 'sleep',
       label: 'Sleep',
-      value: `PIRS-20 ${sleepScore}`,
+      icon: 'moon-outline',
+      value: hasSleepData ? `${sleepHours}h · Q${sleepQuality}/5` : 'Not logged',
       score: sleepScore,
-      status: sleepScore >= 80 ? 'GREEN' : sleepScore >= 62 ? 'AMBER' : 'RED',
-      detail: profile.highIntensityCount >= 3 ? 'Reduce intensity after high RPE stack' : 'Sleep pressure stable',
+      status: sleepStatus,
+      detail: sleepDetail,
+      hasData: hasSleepData,
+      actionLabel: hasSleepData ? undefined : 'Log check-in →',
     },
     {
       id: 'nutrition',
-      label: 'Nutrition',
-      value: `${nutritionScore}% macros`,
-      score: nutritionScore,
-      status: nutritionScore >= 80 ? 'GREEN' : nutritionScore >= 62 ? 'AMBER' : 'RED',
-      detail: profile.weeklyLoad > 1200 ? 'Add carbs/electrolytes around loaded work' : 'Macro target on plan',
+      label: 'Fuel',
+      icon: 'restaurant-outline',
+      value: 'Not tracked',
+      score: 0,
+      status: 'AMBER',
+      detail: profile.weeklyLoad > 1200
+        ? 'High load — prioritise carbs + electrolytes'
+        : 'Open Fuel tab to set targets',
+      hasData: false,
+      actionLabel: 'Open Fuel →',
     },
     {
       id: 'mental',
       label: 'Mental',
-      value: `${mentalScore} mindful min`,
-      score: mentalScore,
-      status: mentalScore >= 80 ? 'GREEN' : mentalScore >= 62 ? 'AMBER' : 'RED',
-      detail: profile.readinessBand === 'GREEN' ? 'Maintain routine' : 'Use downshift block before hard work',
+      icon: 'happy-outline',
+      value: hasMoodData ? `Mood ${mood}/5` : 'Not logged',
+      score: hasMoodData ? clamp(Math.round(mood * 14 + (5 - stress) * 10), 35, 96) : 0,
+      status: mentalStatus,
+      detail: mentalDetail,
+      hasData: hasMoodData,
+      actionLabel: hasMoodData ? undefined : 'Log check-in →',
     },
   ];
 }
