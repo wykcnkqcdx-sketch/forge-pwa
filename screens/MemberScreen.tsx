@@ -58,6 +58,7 @@ export function MemberScreen({
   onCloudSync,
 }: Props) {
   const [workoutNote, setWorkoutNote] = useState('');
+  const [completedDuration, setCompletedDuration] = useState('45');
   const [finishFeedback, setFinishFeedback] = useState('');
   const [quickLogKind, setQuickLogKind] = useState<TrainingSession['type']>('Run');
   const [quickLogDuration, setQuickLogDuration] = useState('30');
@@ -78,6 +79,7 @@ export function MemberScreen({
         .slice(0, 8)
     : [];
   const plannedVolume = Math.max(120, assignedExercises.length * 60 + (assignmentMode?.key === 'cardio' ? 180 : 0));
+  const defaultAssignedDuration = assignmentMode?.type === 'Cardio' ? 30 : assignmentMode?.type === 'Mobility' ? 20 : 45;
   const cloudTone = cloudStatus === 'synced'
     ? colours.green
     : cloudStatus === 'syncing'
@@ -109,6 +111,12 @@ export function MemberScreen({
   function finishWorkout(effort: 'About Right' | 'Too Easy' | 'Too Hard') {
     if (!member) return;
 
+    const parsedDuration = Number.parseInt(completedDuration, 10);
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      setFinishFeedback('Enter a valid completed time in minutes.');
+      return;
+    }
+
     const now = new Date().toISOString();
     const currentVolume = member.weeklyVolume ?? 0;
     const currentCompliance = member.compliance ?? 0;
@@ -137,14 +145,15 @@ export function MemberScreen({
       sessionKind: assignmentMode?.type ?? 'Workout',
       assignment: member.assignment ?? 'Assigned Workout',
       effort,
-      durationMinutes: assignmentMode?.type === 'Cardio' ? 30 : assignmentMode?.type === 'Mobility' ? 20 : 45,
+      durationMinutes: parsedDuration,
       note: workoutNote.trim() || undefined,
       volume: plannedVolume,
       exercises: assignedExercises.map((exercise) => ({ name: exercise.name })),
       completedAt: now,
     });
     setWorkoutNote('');
-    setFinishFeedback(message);
+    setCompletedDuration(String(defaultAssignedDuration));
+    setFinishFeedback(`${message} Logged ${parsedDuration} min.`);
   }
 
   function submitQuickLog() {
@@ -322,6 +331,17 @@ export function MemberScreen({
         ) : (
           <Text style={styles.body}>Your coach has not attached a detailed block yet.</Text>
         )}
+        <View style={styles.quickLogField}>
+          <Text style={styles.fieldLabel}>Time completed</Text>
+          <TextInput
+            style={styles.quickLogInput}
+            value={completedDuration}
+            onChangeText={setCompletedDuration}
+            keyboardType="number-pad"
+            placeholder={`${defaultAssignedDuration}`}
+            placeholderTextColor={colours.soft}
+          />
+        </View>
         <TextInput
           style={styles.noteInput}
           value={workoutNote}
