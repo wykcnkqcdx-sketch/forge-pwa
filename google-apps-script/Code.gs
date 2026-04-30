@@ -220,6 +220,10 @@ function writeDashboardSheet_(spreadsheet) {
     ['Assignments', '=MAX(COUNTA(Assignments!A:A)-1,0)'],
     ['Completions', '=MAX(COUNTA(Completions!A:A)-1,0)'],
     ['Readiness Logs', '=MAX(COUNTA(Readiness!A:A)-1,0)'],
+    ['Last 7d Completions', '=COUNTIF(ARRAYFORMULA(IFERROR(Completions!M2:M>=TODAY()-7,FALSE)),TRUE)'],
+    ['Last 30d Completions', '=COUNTIF(ARRAYFORMULA(IFERROR(Completions!M2:M>=TODAY()-30,FALSE)),TRUE)'],
+    ['Last 7d Volume', '=IFERROR(SUM(FILTER(Completions!J2:J,Completions!M2:M>=TODAY()-7)),0)'],
+    ['Last 30d Volume', '=IFERROR(SUM(FILTER(Completions!J2:J,Completions!M2:M>=TODAY()-30)),0)'],
   ];
 
   sheet.getRange(4, 1, metrics.length, 2).setValues(metrics);
@@ -229,10 +233,21 @@ function writeDashboardSheet_(spreadsheet) {
   sheet.getRange('N2').setFormula("=QUERY(Members!A:H,\"select H,count(H) where H is not null group by H label H 'Risk', count(H) 'Members'\",1)");
   sheet.getRange('N10').setFormula("=QUERY(Completions!A:C,\"select C,count(C) where C is not null group by C label C 'Member', count(C) 'Completions'\",1)");
   sheet.getRange('N18').setFormula("=QUERY(Completions!A:J,\"select D,sum(J) where D is not null group by D label D 'Group', sum(J) 'Volume'\",1)");
+  sheet.getRange('A16').setValue('Last 7 Days');
+  sheet.getRange('A16').setFontWeight('bold');
+  sheet.getRange('A17').setFormula("=QUERY(Completions!A:M,\"select D,count(A),sum(J),sum(I) where M >= date '\"&TEXT(TODAY()-7,\"yyyy-MM-dd\")&\"' group by D label D 'Group', count(A) 'Completions', sum(J) 'Volume', sum(I) 'Minutes'\",1)");
+  sheet.getRange('G16').setValue('Last 30 Days');
+  sheet.getRange('G16').setFontWeight('bold');
+  sheet.getRange('G17').setFormula("=QUERY(Completions!A:M,\"select D,count(A),sum(J),sum(I) where M >= date '\"&TEXT(TODAY()-30,\"yyyy-MM-dd\")&\"' group by D label D 'Group', count(A) 'Completions', sum(J) 'Volume', sum(I) 'Minutes'\",1)");
+  sheet.getRange('A25').setValue('Red Flags');
+  sheet.getRange('A25').setFontWeight('bold');
+  sheet.getRange('A26').setFormula("=QUERY({Members!B2:B,Members!E2:E,Members!H2:H,IFNA(VLOOKUP(Members!B2:B,QUERY(Readiness!A:Q,\"select D,max(B) where D is not null group by D label max(B) ''\",0),1,false),\"\"),IFNA(VLOOKUP(Members!B2:B,QUERY(Readiness!A:Q,\"select D,avg(F) where D is not null and B >= date '\"&TEXT(TODAY()-7,\"yyyy-MM-dd\")&\"' group by D label avg(F) ''\",0),2,false),),IFNA(VLOOKUP(Members!B2:B,QUERY(Readiness!A:Q,\"select D,avg(H) where D is not null and B >= date '\"&TEXT(TODAY()-7,\"yyyy-MM-dd\")&\"' group by D label avg(H) ''\",0),2,false),),IFNA(VLOOKUP(Members!B2:B,QUERY(Readiness!A:Q,\"select D,avg(J) where D is not null and B >= date '\"&TEXT(TODAY()-7,\"yyyy-MM-dd\")&\"' group by D label avg(J) ''\",0),2,false),),IFNA(VLOOKUP(Members!B2:B,QUERY(Completions!A:M,\"select C,max(M) where C is not null group by C label max(M) ''\",0),2,false),)},\"select Col1,Col2,Col3,Col5,Col6,Col7,Col8 where Col1 is not null and (Col3 = 'High' or Col5 < 6 or Col6 >= 4 or Col7 >= 3 or Col8 < date '\"&TEXT(TODAY()-7,\"yyyy-MM-dd\")&\"') label Col1 'Member', Col2 'Group', Col3 'Risk', Col5 'Avg Sleep 7d', Col6 'Avg Soreness 7d', Col7 'Avg Pain 7d', Col8 'Last Completion'\",1)");
 
   addChart_(sheet, sheet.getRange('N2:O6'), Charts.ChartType.PIE, 1, 4, 'Risk Distribution');
   addChart_(sheet, sheet.getRange('N10:O20'), Charts.ChartType.BAR, 10, 4, 'Completions by Member');
   addChart_(sheet, sheet.getRange('N18:O24'), Charts.ChartType.COLUMN, 19, 4, 'Volume by Group');
+  addChart_(sheet, sheet.getRange('A17:D22'), Charts.ChartType.COLUMN, 15, 12, 'Last 7 Day Group Load');
+  addChart_(sheet, sheet.getRange('G17:J22'), Charts.ChartType.COLUMN, 29, 12, 'Last 30 Day Group Load');
 
   sheet.autoResizeColumns(1, 20);
 }

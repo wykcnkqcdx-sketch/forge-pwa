@@ -74,6 +74,8 @@ After each export, the script also rebuilds:
 - `Dashboard`
   - export meta
   - member / assignment / completion / readiness counts
+  - last 7 / 30 day summary blocks
+  - red flag list
   - risk distribution chart
   - completions by member chart
   - volume by group chart
