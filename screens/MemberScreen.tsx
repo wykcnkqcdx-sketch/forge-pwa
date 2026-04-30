@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
@@ -70,14 +70,22 @@ export function MemberScreen({
   const groupMembers = group ? members.filter((item) => item.groupId === group.id) : [];
   const teamMembers = groupMembers.length ? groupMembers : members;
   const displayName = member?.gymName || member?.name || 'Athlete';
+  const assignmentSession = member?.assignmentSession;
   const assignmentMode = trainingModes.find((mode) => mode.title === member?.assignment);
-  const pinnedExerciseIds = member?.pinnedExerciseIds ?? assignmentMode?.coachPinnedExerciseIds ?? [];
-  const assignedExercises = assignmentMode
-    ? [...new Set([...pinnedExerciseIds, ...assignmentMode.defaultExerciseIds])]
+  const pinnedExerciseIds = assignmentSession?.exercises.filter((exercise) => exercise.coachPinned).map((exercise) => exercise.exerciseId)
+    ?? member?.pinnedExerciseIds
+    ?? assignmentMode?.coachPinnedExerciseIds
+    ?? [];
+  const assignedExercises = assignmentSession
+    ? assignmentSession.exercises
+        .map((item) => exerciseLibrary.find((exercise) => exercise.id === item.exerciseId))
+        .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+    : assignmentMode
+      ? [...new Set([...pinnedExerciseIds, ...assignmentMode.defaultExerciseIds])]
         .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
         .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
         .slice(0, 8)
-    : [];
+      : [];
   const plannedVolume = Math.max(120, assignedExercises.length * 60 + (assignmentMode?.key === 'cardio' ? 180 : 0));
   const defaultAssignedDuration = assignmentMode?.type === 'Cardio' ? 30 : assignmentMode?.type === 'Mobility' ? 20 : 45;
   const cloudTone = cloudStatus === 'synced'
@@ -108,6 +116,17 @@ export function MemberScreen({
     return { weeklyVolume, readiness, compliance, atRisk, recent, count: source.length };
   }, [member?.id, members, teamMembers]);
 
+  useEffect(() => {
+    if (!member?.assignmentSession) return;
+    if (member.assignmentSession.status !== 'assigned') return;
+    onUpdateMember(member.id, {
+      assignmentSession: {
+        ...member.assignmentSession,
+        status: 'viewed',
+      },
+    });
+  }, [member?.assignmentSession, member?.id, onUpdateMember]);
+
   function finishWorkout(effort: 'About Right' | 'Too Easy' | 'Too Hard') {
     if (!member) return;
 
@@ -132,9 +151,12 @@ export function MemberScreen({
       load: Math.min(100, currentLoad + loadDelta),
       readiness: Math.max(1, Math.min(100, member.readiness + readinessDelta)),
       streakDays: (member.streakDays ?? 0) + 1,
-      lastWorkoutTitle: member.assignment ?? 'Assigned Workout',
+      lastWorkoutTitle: assignmentSession?.title ?? member.assignment ?? 'Assigned Workout',
       lastWorkoutAt: now,
       lastWorkoutNote: workoutNote.trim() || undefined,
+      assignmentSession: assignmentSession
+        ? { ...assignmentSession, status: 'completed' }
+        : undefined,
     });
     onCompleteWorkout({
       id: `completion-${member.id}-${Date.now()}`,
@@ -143,7 +165,7 @@ export function MemberScreen({
       groupId: member.groupId,
       completionType: 'assigned',
       sessionKind: assignmentMode?.type ?? 'Workout',
-      assignment: member.assignment ?? 'Assigned Workout',
+      assignment: assignmentSession?.title ?? member.assignment ?? 'Assigned Workout',
       effort,
       durationMinutes: parsedDuration,
       note: workoutNote.trim() || undefined,
@@ -315,7 +337,9 @@ export function MemberScreen({
 
       <Card>
         <Text style={styles.cardTitle}>Current Workout</Text>
-        <Text style={styles.assignmentTitle}>{member.assignment ?? 'No active assignment'}</Text>
+        <Text style={styles.assignmentTitle}>{assignmentSession?.title ?? member.assignment ?? 'No active assignment'}</Text>
+        {assignmentSession?.status ? <Text style={styles.assignmentStatus}>Status: {assignmentSession.status}</Text> : null}
+        {assignmentSession?.coachNote ? <Text style={styles.assignmentNote}>Coach note: {assignmentSession.coachNote}</Text> : null}
         {assignedExercises.length ? (
           <View style={styles.exerciseList}>
             {assignedExercises.map((exercise) => (
@@ -324,7 +348,9 @@ export function MemberScreen({
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
                   {pinnedExerciseIds.includes(exercise.id) && <Text style={styles.coachPick}>Coach's Pick</Text>}
                 </View>
-                <Text style={styles.exerciseDose}>{exercise.dose}</Text>
+                <Text style={styles.exerciseDose}>
+                  {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.dose ?? exercise.dose}
+                </Text>
               </View>
             ))}
           </View>
@@ -628,6 +654,18 @@ const styles = StyleSheet.create({
     color: colours.cyan,
     fontSize: 22,
     fontWeight: '900',
+  },
+  assignmentStatus: {
+    color: colours.amber,
+    fontSize: 12,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  assignmentNote: {
+    color: colours.textSoft,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 8,
   },
   exerciseList: {
     gap: 8,

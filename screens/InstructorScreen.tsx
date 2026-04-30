@@ -6,7 +6,7 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
-import { SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
+import { exerciseLibrary, ExerciseCategory, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
 interface InstructorScreenProps {
@@ -33,6 +33,7 @@ interface InstructorScreenProps {
 
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
 const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
+const assignmentCategories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 
 function completionTone(type: WorkoutCompletion['completionType']) {
   if (type === 'quick_log') return colours.amber;
@@ -95,6 +96,9 @@ export function InstructorScreen({
   const [assignmentGroupId, setAssignmentGroupId] = useState(groups[0]?.id ?? 'alpha');
   const [assignmentLabel, setAssignmentLabel] = useState(assignmentTemplates[0]);
   const [assignmentFeedback, setAssignmentFeedback] = useState('');
+  const [assignmentNote, setAssignmentNote] = useState('');
+  const [assignmentExerciseIds, setAssignmentExerciseIds] = useState<string[]>([]);
+  const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -144,6 +148,13 @@ export function InstructorScreen({
   }, [readinessLogs]);
   const selectedAssignmentMember = members.find((member) => member.id === assignmentMemberId) ?? null;
   const selectedAssignmentGroup = groups.find((group) => group.id === assignmentGroupId) ?? null;
+  const selectedAssignmentMode = trainingModes.find((mode) => mode.title === assignmentLabel) ?? null;
+  const suggestedAssignmentExercises = selectedAssignmentMode?.defaultExerciseIds ?? [];
+  const activeAssignmentExerciseIds = assignmentExerciseIds.length ? assignmentExerciseIds : suggestedAssignmentExercises;
+  const assignmentLibrary = (assignmentCategory === 'All'
+    ? exerciseLibrary
+    : exerciseLibrary.filter((exercise) => exercise.category === assignmentCategory))
+    .filter((exercise) => !selectedAssignmentMode || selectedAssignmentMode.type === 'Run' ? exercise.category === 'Cardio' : true);
   const cloudTone = cloudStatus === 'synced'
     ? colours.green
     : cloudStatus === 'syncing'
@@ -297,9 +308,26 @@ export function InstructorScreen({
       if (!groups.some((group) => group.id === assignmentGroupId) && groups[0]) {
         setAssignmentGroupId(groups[0].id);
       }
+      const member = members.find((item) => item.id === assignmentMemberId) ?? members[0];
+      const mode = trainingModes.find((item) => item.title === (member?.assignment ?? assignmentLabel)) ?? selectedAssignmentMode ?? trainingModes[0];
+      setAssignmentLabel(mode.title);
+      setAssignmentExerciseIds(member?.assignmentSession?.exercises.map((exercise) => exercise.exerciseId) ?? mode.defaultExerciseIds);
+      setAssignmentNote(member?.assignmentSession?.coachNote ?? '');
       setAssignmentFeedback('');
     }
     setAssignmentOpen(nextOpen);
+  }
+
+  function handleAssignmentTemplateChange(nextLabel: string) {
+    setAssignmentLabel(nextLabel);
+    const mode = trainingModes.find((item) => item.title === nextLabel);
+    setAssignmentExerciseIds(mode?.defaultExerciseIds ?? []);
+  }
+
+  function toggleAssignmentExercise(exerciseId: string) {
+    setAssignmentExerciseIds((current) => current.includes(exerciseId)
+      ? current.filter((id) => id !== exerciseId)
+      : [...current, exerciseId]);
   }
 
   function applyAssignment() {
@@ -315,17 +343,37 @@ export function InstructorScreen({
       return;
     }
 
-    const assignmentMode = trainingModes.find((mode) => mode.title === assignmentLabel);
+    const assignmentMode = selectedAssignmentMode;
+    const chosenExerciseIds = activeAssignmentExerciseIds;
+    const chosenExercises = chosenExerciseIds
+      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise));
     onUpdateMember(member.id, {
       groupId: group.id,
       assignment: assignmentLabel,
-      pinnedExerciseIds: assignmentMode?.coachPinnedExerciseIds ?? assignmentMode?.defaultExerciseIds.slice(0, 2) ?? [],
+      pinnedExerciseIds: assignmentMode?.coachPinnedExerciseIds?.filter((id) => chosenExerciseIds.includes(id))
+        ?? chosenExerciseIds.slice(0, 2),
+      assignmentSession: {
+        id: `assign-${member.id}-${Date.now()}`,
+        title: assignmentLabel,
+        type: assignmentMode?.type ?? 'Workout',
+        status: 'assigned',
+        assignedAt: new Date().toISOString(),
+        coachNote: assignmentNote.trim() || undefined,
+        exercises: chosenExercises.map((exercise) => ({
+          exerciseId: exercise.id,
+          name: exercise.name,
+          dose: exercise.dose,
+          coachPinned: assignmentMode?.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
+        })),
+      },
     });
     const message = `${member.name} is now assigned to ${assignmentLabel} in ${group.name}.`;
     setAssignmentMemberId(member.id);
     setAssignmentGroupId(group.id);
     setAssignmentFeedback(message);
     setAssignmentOpen(false);
+    setAssignmentNote('');
     showMessage('Assignment saved', message);
   }
 
@@ -648,7 +696,7 @@ export function InstructorScreen({
                   <Pressable
                     key={item}
                     style={[styles.assignmentPill, active && styles.assignmentPillActive]}
-                    onPress={() => setAssignmentLabel(item)}
+                    onPress={() => handleAssignmentTemplateChange(item)}
                   >
                     <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
                   </Pressable>
@@ -656,9 +704,59 @@ export function InstructorScreen({
               })}
             </View>
 
+            <Text style={styles.assignmentLabel}>Exercise category</Text>
+            <View style={styles.assignmentWrap}>
+              {assignmentCategories.map((item) => {
+                const active = item === assignmentCategory;
+                return (
+                  <Pressable
+                    key={item}
+                    style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                    onPress={() => setAssignmentCategory(item)}
+                  >
+                    <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.assignmentLabel}>Select exercises for this member</Text>
+            <View style={styles.assignmentExerciseList}>
+              {assignmentLibrary.map((exercise) => {
+                const active = activeAssignmentExerciseIds.includes(exercise.id);
+                const coachPick = selectedAssignmentMode?.coachPinnedExerciseIds?.includes(exercise.id);
+                return (
+                  <Pressable
+                    key={exercise.id}
+                    style={[styles.assignmentExerciseItem, active && styles.assignmentExerciseItemActive]}
+                    onPress={() => toggleAssignmentExercise(exercise.id)}
+                  >
+                    <View style={styles.memberCopy}>
+                      <Text style={[styles.memberName, active && styles.assignmentExerciseNameActive]}>{exercise.name}</Text>
+                      <Text style={styles.muted}>{exercise.category} - {exercise.dose}</Text>
+                    </View>
+                    <View style={styles.assignmentExerciseRight}>
+                      {coachPick ? <Text style={styles.assignmentCoachPick}>Coach Pick</Text> : null}
+                      <Text style={[styles.assignmentSelectText, active && styles.assignmentSelectTextActive]}>{active ? 'Selected' : 'Select'}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text style={styles.assignmentLabel}>Coach note</Text>
+            <TextInput
+              style={[styles.memberInput, styles.assignmentNoteInput]}
+              value={assignmentNote}
+              onChangeText={setAssignmentNote}
+              placeholder="What should this member focus on today?"
+              placeholderTextColor={colours.soft}
+              multiline
+            />
+
             <View style={styles.assignmentSummary}>
               <Text style={styles.assignmentSummaryText}>
-                {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} {'->'} {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel}
+                {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} {'->'} {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel} / {activeAssignmentExerciseIds.length} exercises
               </Text>
             </View>
 
@@ -692,6 +790,11 @@ export function InstructorScreen({
                 {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
                 {member.deviceSyncProvider && <Text style={styles.memberDeviceSync}>{member.deviceSyncProvider} - {member.deviceSyncStatus ?? 'Disconnected'}</Text>}
                 {member.assignment && <Text style={styles.memberAssignment}>Assigned: {member.assignment}</Text>}
+                {member.assignmentSession?.status ? <Text style={styles.memberAssignmentStatus}>Session: {member.assignmentSession.status}</Text> : null}
+                {member.assignmentSession?.coachNote ? <Text style={styles.memberNote}>Coach note: {member.assignmentSession.coachNote}</Text> : null}
+                {member.assignmentSession?.exercises?.length ? (
+                  <Text style={styles.memberExerciseMeta}>{member.assignmentSession.exercises.length} assigned exercises uploaded to member app</Text>
+                ) : null}
                 {latestCompletion ? (
                   <Text style={styles.memberCompletionMeta}>
                     Last sync: {latestCompletion.sessionKind} - {latestCompletion.volume} volume
@@ -863,6 +966,48 @@ const styles = StyleSheet.create({
   },
   assignmentLabel: { color: colours.muted, fontSize: 11, fontWeight: '900', marginBottom: 8 },
   assignmentWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  assignmentExerciseList: { gap: 8, marginBottom: 12 },
+  assignmentExerciseItem: {
+    minHeight: 54,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  assignmentExerciseItemActive: {
+    borderColor: `${colours.cyan}70`,
+    backgroundColor: colours.cyanDim,
+  },
+  assignmentExerciseRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  assignmentCoachPick: {
+    color: colours.amber,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  assignmentSelectText: {
+    color: colours.muted,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  assignmentSelectTextActive: {
+    color: colours.cyan,
+  },
+  assignmentExerciseNameActive: {
+    color: colours.cyan,
+  },
+  assignmentNoteInput: {
+    minHeight: 82,
+    textAlignVertical: 'top',
+  },
   assignmentPill: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
@@ -917,6 +1062,8 @@ const styles = StyleSheet.create({
   memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberDeviceSync: { color: colours.violet, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  memberAssignmentStatus: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  memberExerciseMeta: { color: colours.cyan, fontSize: 11, fontWeight: '700', marginTop: 3 },
   memberPainArea: { color: colours.red, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberNote: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },

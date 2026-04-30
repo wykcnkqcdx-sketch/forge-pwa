@@ -43,6 +43,7 @@ type RemoteSquadMemberRow = {
   imported_sleep_hours: number | null;
   imported_resting_hr: number | null;
   imported_hrv: number | null;
+  assignment_session: SquadMember['assignmentSession'] | null;
 };
 
 type RemoteWorkoutCompletionRow = {
@@ -143,6 +144,7 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     imported_sleep_hours: member.importedSleepHours ?? null,
     imported_resting_hr: member.importedRestingHR ?? null,
     imported_hrv: member.importedHrv ?? null,
+    assignment_session: member.assignmentSession ?? null,
   };
 }
 
@@ -230,6 +232,7 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
     importedSleepHours: row.imported_sleep_hours ?? undefined,
     importedRestingHR: row.imported_resting_hr ?? undefined,
     importedHrv: row.imported_hrv ?? undefined,
+    assignmentSession: row.assignment_session ?? undefined,
   };
 }
 

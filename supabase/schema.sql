@@ -95,7 +95,8 @@ add column if not exists device_connected_at timestamptz,
 add column if not exists device_last_sync_at timestamptz,
 add column if not exists imported_sleep_hours integer,
 add column if not exists imported_resting_hr integer,
-add column if not exists imported_hrv integer;
+add column if not exists imported_hrv integer,
+add column if not exists assignment_session jsonb;
 
 alter table public.workout_completions
 add column if not exists completion_type text default 'assigned',
