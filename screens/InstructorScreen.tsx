@@ -4,7 +4,7 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { buildCoachGuidance } from '../lib/aiGuidance';
+import { buildCoachGuidance, buildProgrammeRecommendation, ProgrammeBuilderInput } from '../lib/aiGuidance';
 import { colours } from '../theme';
 import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
@@ -140,6 +140,11 @@ export function InstructorScreen({
   const [assignmentNote, setAssignmentNote] = useState('');
   const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
+  const [programmeGoal, setProgrammeGoal] = useState<ProgrammeBuilderInput['goal']>('Tactical Hybrid');
+  const [programmeDays, setProgrammeDays] = useState<ProgrammeBuilderInput['daysPerWeek']>(3);
+  const [programmeMinutes, setProgrammeMinutes] = useState<ProgrammeBuilderInput['sessionMinutes']>(45);
+  const [programmeEquipment, setProgrammeEquipment] = useState<ProgrammeBuilderInput['equipment']>('Full Gym');
+  const [programmeReadiness, setProgrammeReadiness] = useState<ProgrammeBuilderInput['readiness']>('Standard');
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -162,6 +167,17 @@ export function InstructorScreen({
   const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
   const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total: number, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
   const coachGuidance = useMemo(() => buildCoachGuidance(members, sessions), [members, sessions]);
+  const programmeRecommendation = useMemo(
+    () =>
+      buildProgrammeRecommendation({
+        goal: programmeGoal,
+        daysPerWeek: programmeDays,
+        sessionMinutes: programmeMinutes,
+        equipment: programmeEquipment,
+        readiness: programmeReadiness,
+      }),
+    [programmeDays, programmeEquipment, programmeGoal, programmeMinutes, programmeReadiness]
+  );
   const latestCompletionByMember = useMemo(() => {
     const mapped = new Map<string, WorkoutCompletion>();
     workoutCompletions.forEach((completion) => {
@@ -450,6 +466,22 @@ export function InstructorScreen({
     setAssignmentNote('');
     setStagedAssignmentExercises([]);
     showMessage('Assignment saved', message);
+  }
+
+  function loadProgrammeIntoStage() {
+    const mode = trainingModes.find((item) => item.title === programmeRecommendation.assignmentTitle) ?? trainingModes[0];
+    const nextExercises = programmeRecommendation.exerciseIds
+      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+      .map((exercise) => buildAssignedExerciseBlock(exercise, mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false));
+
+    setAssignmentLabel(programmeRecommendation.assignmentTitle);
+    setAssignmentNote(programmeRecommendation.coachNote);
+    setStagedAssignmentExercises(nextExercises);
+    setAssignmentOpen(true);
+    if (!assignmentMemberId && members[0]) setAssignmentMemberId(members[0].id);
+    if (!assignmentGroupId && groups[0]) setAssignmentGroupId(groups[0].id);
+    setAssignmentFeedback(`AI plan loaded: ${programmeRecommendation.assignmentTitle}. Review the staged session, then deploy.`);
   }
 
   return (
@@ -980,13 +1012,124 @@ export function InstructorScreen({
 
       <Card>
         <Text style={styles.cardTitle}>Programme Builder</Text>
-        <View style={styles.programmeGrid}>
-          {['Strength', 'Resistance', 'Cardio', 'Workout', 'Ruck', 'Mobility'].map((item) => (
-            <View key={item} style={styles.programmeCard}>
-              <Text style={styles.programmeText}>{item}</Text>
+        <Text style={styles.programmeCopy}>
+          AI-assisted programme planning grounded in progressive overload, movement balance, and appropriate weekly volume.
+        </Text>
+
+        <Text style={styles.assignmentLabel}>Goal</Text>
+        <View style={styles.assignmentWrap}>
+          {(['Strength Base', 'Hypertrophy', 'Conditioning', 'Recovery', 'Tactical Hybrid'] as const).map((item) => {
+            const active = item === programmeGoal;
+            return (
+              <Pressable
+                key={item}
+                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                onPress={() => setProgrammeGoal(item)}
+              >
+                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={styles.assignmentLabel}>Days per week</Text>
+        <View style={styles.assignmentWrap}>
+          {[2, 3, 4, 5].map((item) => {
+            const active = item === programmeDays;
+            return (
+              <Pressable
+                key={item}
+                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                onPress={() => setProgrammeDays(item as ProgrammeBuilderInput['daysPerWeek'])}
+              >
+                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item} days</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={styles.assignmentLabel}>Session length</Text>
+        <View style={styles.assignmentWrap}>
+          {[30, 45, 60].map((item) => {
+            const active = item === programmeMinutes;
+            return (
+              <Pressable
+                key={item}
+                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                onPress={() => setProgrammeMinutes(item as ProgrammeBuilderInput['sessionMinutes'])}
+              >
+                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item} min</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={styles.assignmentLabel}>Equipment</Text>
+        <View style={styles.assignmentWrap}>
+          {(['Full Gym', 'Minimal Kit', 'Bodyweight'] as const).map((item) => {
+            const active = item === programmeEquipment;
+            return (
+              <Pressable
+                key={item}
+                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                onPress={() => setProgrammeEquipment(item)}
+              >
+                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Text style={styles.assignmentLabel}>Readiness mode</Text>
+        <View style={styles.assignmentWrap}>
+          {(['Conservative', 'Standard', 'Push'] as const).map((item) => {
+            const active = item === programmeReadiness;
+            return (
+              <Pressable
+                key={item}
+                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                onPress={() => setProgrammeReadiness(item)}
+              >
+                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={[styles.programmeInsight, { borderColor: `${programmeRecommendation.tone}40`, backgroundColor: `${programmeRecommendation.tone}10` }]}>
+          <Text style={[styles.programmeTitle, { color: programmeRecommendation.tone }]}>{programmeRecommendation.assignmentTitle}</Text>
+          <Text style={styles.programmeText}>{programmeRecommendation.summary}</Text>
+          <Text style={styles.programmeMeta}>Rationale: {programmeRecommendation.rationale}</Text>
+          <Text style={styles.programmeMeta}>Weekly target: {programmeRecommendation.weeklyVolume}</Text>
+          <Text style={styles.programmeMeta}>Intensity: {programmeRecommendation.intensity}</Text>
+          <Text style={styles.programmeMeta}>Coach cue: {programmeRecommendation.coachNote}</Text>
+        </View>
+
+        <View style={styles.programmeScienceList}>
+          {programmeRecommendation.scienceNotes.map((item) => (
+            <View key={item} style={styles.programmeScienceRow}>
+              <Text style={styles.programmeScienceBullet}>+</Text>
+              <Text style={styles.programmeScienceText}>{item}</Text>
             </View>
           ))}
         </View>
+
+        <View style={styles.programmeExerciseGrid}>
+          {programmeRecommendation.exerciseIds.map((id) => {
+            const exercise = exerciseLibrary.find((item) => item.id === id);
+            if (!exercise) return null;
+            return (
+              <View key={id} style={styles.programmeExerciseChip}>
+                <Text style={styles.programmeExerciseName}>{exercise.name}</Text>
+                <Text style={styles.programmeExerciseDose}>{exercise.dose}</Text>
+              </View>
+            );
+          })}
+        </View>
+
+        <Pressable style={styles.programmeLoadButton} onPress={loadProgrammeIntoStage}>
+          <Text style={styles.programmeLoadButtonText}>Load AI Plan Into Stage</Text>
+        </Pressable>
       </Card>
     </Screen>
   );
@@ -1379,13 +1522,36 @@ const styles = StyleSheet.create({
   },
   completionTime: { color: colours.cyan, fontSize: 11, fontWeight: '900', textAlign: 'right' },
   programmeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  programmeCard: {
-    width: '47%',
-    borderColor: colours.border,
+  programmeCopy: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginBottom: 12 },
+  programmeInsight: {
     borderWidth: 1,
-    borderRadius: 18,
-    padding: 18,
-    backgroundColor: 'rgba(0,0,0,0.18)',
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 4,
   },
-  programmeText: { color: colours.text, fontWeight: '900' },
+  programmeTitle: { fontSize: 18, fontWeight: '900', marginBottom: 8 },
+  programmeText: { color: colours.text, fontSize: 13, lineHeight: 19, fontWeight: '800' },
+  programmeMeta: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  programmeScienceList: { gap: 8, marginTop: 12 },
+  programmeScienceRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
+  programmeScienceBullet: { color: colours.cyan, fontSize: 12, fontWeight: '900', marginTop: 1 },
+  programmeScienceText: { flex: 1, color: colours.textSoft, fontSize: 12, lineHeight: 18, fontWeight: '800' },
+  programmeExerciseGrid: { gap: 8, marginTop: 12 },
+  programmeExerciseChip: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  programmeExerciseName: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  programmeExerciseDose: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
+  programmeLoadButton: {
+    alignItems: 'center',
+    backgroundColor: colours.green,
+    borderRadius: 14,
+    paddingVertical: 12,
+    marginTop: 14,
+  },
+  programmeLoadButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
 });
