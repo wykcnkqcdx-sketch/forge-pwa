@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform } from 'react-native';
+import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -9,9 +9,10 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
-import { getMapPoints, distanceBetween, bearingBetween } from '../utils/mapUtils';
+import { distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, evaluateRoutePoint, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
 import { CoordinateFormat, coordinateFormatOptions, formatCoordinate } from '../utils/coordinates';
+import { buildVisibleTiles, getMercatorRoutePoints, MapLayerKey, mapLayerOptions, MapViewport } from '../utils/mapTiles';
 import { appendActiveRoutePoints, clearActiveRoute, loadActiveRoute, replaceActiveRoute, resetActiveRoute } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
 
@@ -174,6 +175,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [terrainFactor, setTerrainFactor] = useState(1.2);
   const [trackingState, dispatchTracking] = useReducer(trackingReducer, initialTrackingState);
   const [coordinateFormat, setCoordinateFormat] = useState<CoordinateFormat>('mgrs');
+  const [mapLayer, setMapLayer] = useState<MapLayerKey>('topo');
+  const [mapViewport, setMapViewport] = useState<MapViewport>({ width: 0, height: 0 });
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -191,7 +194,16 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
   const activeHeading = compassHeading ?? routeBearing;
   const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
-  const mapPoints = useMemo(() => getMapPoints(decimateRouteForMap(routePoints)), [routePoints]);
+  const displayRoutePoints = useMemo(() => decimateRouteForMap(routePoints), [routePoints]);
+  const mapPoints = useMemo(
+    () => getMercatorRoutePoints(displayRoutePoints, currentPoint, mapViewport),
+    [currentPoint, displayRoutePoints, mapViewport]
+  );
+  const mapTiles = useMemo(
+    () => buildVisibleTiles(currentPoint, mapViewport, mapLayer),
+    [currentPoint, mapLayer, mapViewport]
+  );
+  const activeMapLayer = mapLayerOptions.find((option) => option.key === mapLayer) ?? mapLayerOptions[0];
   const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
   const firstMapPoint = mapPoints[0];
   const lastMapPoint = mapPoints[mapPoints.length - 1];
@@ -502,51 +514,91 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           })}
         </View>
 
-        <View style={styles.mapStage}>
+        <View style={styles.layerSelector}>
+          {mapLayerOptions.map((option) => {
+            const selected = mapLayer === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                style={[styles.layerOption, selected && styles.layerOptionActive]}
+                onPress={() => setMapLayer(option.key)}
+              >
+                <Text style={[styles.layerOptionText, selected && styles.layerOptionTextActive]}>{option.label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View
+          style={styles.mapStage}
+          onLayout={(event) => {
+            const { width, height } = event.nativeEvent.layout;
+            setMapViewport((current) => (
+              Math.round(current.width) === Math.round(width) && Math.round(current.height) === Math.round(height)
+                ? current
+                : { width, height }
+            ));
+          }}
+        >
+          {mapTiles.map((tile) => (
+            <Image key={tile.id} source={{ uri: tile.url }} style={tile.style} />
+          ))}
+          {mapTiles.length > 0 && <View style={styles.mapShade} pointerEvents="none" />}
           <View style={styles.mapGridHorizontal} />
           <View style={styles.mapGridVertical} />
           <View style={[styles.mapRing, styles.mapRingOuter]} />
           <View style={[styles.mapRing, styles.mapRingInner]} />
 
-          {mapPoints.length === 0 ? (
+          {mapTiles.length === 0 ? (
             <View style={styles.mapEmpty}>
               <Ionicons name="navigate-circle-outline" size={42} color={colours.cyan} />
               <Text style={styles.mapEmptyText}>Start GPS to draw your route</Text>
             </View>
           ) : (
-            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none" pointerEvents="none">
+            <Svg
+              style={StyleSheet.absoluteFill}
+              viewBox={`0 0 ${Math.max(1, mapViewport.width)} ${Math.max(1, mapViewport.height)}`}
+              pointerEvents="none"
+            >
               {routeLinePoints && (
                 <Polyline
                   points={routeLinePoints}
                   fill="none"
                   stroke={colours.cyan}
-                  strokeWidth={1.8}
+                  strokeWidth={4}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity={0.82}
+                  opacity={0.9}
                 />
               )}
               {firstMapPoint && (
                 <Circle
                   cx={firstMapPoint.x}
                   cy={firstMapPoint.y}
-                  r={1.8}
+                  r={5}
                   fill={colours.background}
                   stroke={colours.cyan}
-                  strokeWidth={0.8}
+                  strokeWidth={2}
                 />
               )}
               {lastMapPoint && (
                 <Circle
                   cx={lastMapPoint.x}
                   cy={lastMapPoint.y}
-                  r={3}
+                  r={8}
                   fill={colours.green}
                   stroke="rgba(255,255,255,0.75)"
-                  strokeWidth={1}
+                  strokeWidth={2}
                 />
               )}
             </Svg>
+          )}
+          <View style={styles.crosshair} pointerEvents="none">
+            <View style={styles.crosshairHorizontal} />
+            <View style={styles.crosshairVertical} />
+          </View>
+          {mapTiles.length > 0 && (
+            <Text style={styles.mapAttribution}>{activeMapLayer.attribution}</Text>
           )}
         </View>
 
@@ -815,6 +867,28 @@ const styles = StyleSheet.create({
   coordinateOptionActive: { backgroundColor: colours.cyan },
   coordinateOptionText: { color: colours.muted, fontSize: 10, fontWeight: '900' },
   coordinateOptionTextActive: { color: colours.background },
+  layerSelector: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 8,
+  },
+  layerOption: {
+    flex: 1,
+    minHeight: 32,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: 4,
+  },
+  layerOptionActive: {
+    borderColor: `${colours.green}99`,
+    backgroundColor: 'rgba(74,222,128,0.16)',
+  },
+  layerOptionText: { color: colours.muted, fontSize: 10, fontWeight: '900' },
+  layerOptionTextActive: { color: colours.green },
   mapStage: {
     height: 190,
     marginTop: 14,
@@ -824,6 +898,10 @@ const styles = StyleSheet.create({
     borderColor: colours.border,
     backgroundColor: 'rgba(4,8,15,0.72)',
     position: 'relative',
+  },
+  mapShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(4,8,15,0.16)',
   },
   mapGridHorizontal: {
     position: 'absolute',
@@ -851,6 +929,25 @@ const styles = StyleSheet.create({
   mapRingInner: { width: 92, height: 92, borderRadius: 46, top: 49 },
   mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
   mapEmptyText: { color: colours.muted, fontWeight: '700' },
+  crosshair: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  crosshairHorizontal: { width: 30, height: 1, backgroundColor: 'rgba(255,255,255,0.82)' },
+  crosshairVertical: { position: 'absolute', width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.82)' },
+  mapAttribution: {
+    position: 'absolute',
+    right: 8,
+    bottom: 6,
+    color: 'rgba(255,255,255,0.72)',
+    fontSize: 9,
+    fontWeight: '800',
+    backgroundColor: 'rgba(0,0,0,0.32)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
   liveStats: { flexDirection: 'row', gap: 8, marginTop: 12 },
   liveStat: {
     flex: 1,
