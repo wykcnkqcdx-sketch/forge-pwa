@@ -87,17 +87,45 @@ export default function App() {
   const [pinSetupError, setPinSetupError] = useState('');
   const [isReady, setIsReady] = useState(false);
   const [typedText, setTypedText] = useState('');
+  const [toastMessage, setToastMessage] = useState('');
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [activeMemberTab, setActiveMemberTab] = useState<MemberTab>('portal');
   const [pendingMemberInvite, setPendingMemberInvite] = useState<PendingMemberInvite | null>(null);
   const prevTabIndex = useRef(0);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const toastAnim = useRef(new Animated.Value(0)).current;
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudHydrated = useRef(false);
   const skipNextRemotePush = useRef(false);
+  const offlineSyncPending = useRef(false);
   const coachLandingPrimed = useRef(false);
+
+  const isBrowserOffline = useCallback(() => (
+    typeof navigator !== 'undefined' && navigator.onLine === false
+  ), []);
+
+  const showToast = useCallback((message: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastMessage(message);
+    Animated.timing(toastAnim, {
+      toValue: 1,
+      duration: 220,
+      useNativeDriver: true,
+    }).start();
+
+    toastTimer.current = setTimeout(() => {
+      Animated.timing(toastAnim, {
+        toValue: 0,
+        duration: 180,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setToastMessage('');
+      });
+    }, 3200);
+  }, [toastAnim]);
 
   const applyCloudSnapshot = useCallback((snapshot: {
     sessions: TrainingSession[];
@@ -245,6 +273,12 @@ export default function App() {
     resetInactivityTimer();
     return () => { if (inactivityTimer.current) clearTimeout(inactivityTimer.current); };
   }, [resetInactivityTimer]);
+
+  useEffect(() => {
+    return () => {
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     const currentIndex = tabs.findIndex((t) => t.id === activeTab);
@@ -428,14 +462,19 @@ export default function App() {
         setCloudStatus('syncing');
         await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
         setCloudStatus('synced');
+        if (offlineSyncPending.current) {
+          offlineSyncPending.current = false;
+          showToast('Offline records have synced');
+        }
       } catch (error) {
         console.error('Failed to sync cloud data', error);
+        if (isBrowserOffline()) offlineSyncPending.current = true;
         setCloudStatus('error');
       }
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, isReady]);
+  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, isReady, isBrowserOffline, showToast]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !cloudSession?.user || !isReady) return;
@@ -464,7 +503,22 @@ export default function App() {
         if (document.visibilityState === 'visible') refreshSnapshot();
       };
       const handleOnline = () => {
-        refreshSnapshot();
+        const syncOfflineRecords = async () => {
+          try {
+            setCloudStatus('syncing');
+            await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
+            await refreshCloudSnapshot(userId);
+            if (offlineSyncPending.current) {
+              offlineSyncPending.current = false;
+              showToast('Offline records have synced');
+            }
+          } catch (error) {
+            console.error('Failed to sync after reconnect', error);
+            setCloudStatus('error');
+          }
+        };
+
+        syncOfflineRecords();
       };
 
       window.addEventListener('focus', handleVisibilityOrFocus);
@@ -482,7 +536,16 @@ export default function App() {
     return () => {
       client.removeChannel(channel);
     };
-  }, [cloudSession?.user?.id, isReady, refreshCloudSnapshot]);
+  }, [
+    cloudSession?.user?.id,
+    isReady,
+    members,
+    readinessLogs,
+    refreshCloudSnapshot,
+    sessions,
+    showToast,
+    workoutCompletions,
+  ]);
 
   function showBlockingMessage(title: string, message: string) {
     if (typeof window !== 'undefined') {
@@ -696,8 +759,13 @@ export default function App() {
       const userId = cloudSession.user.id;
       await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
       await refreshCloudSnapshot(userId);
+      if (offlineSyncPending.current) {
+        offlineSyncPending.current = false;
+        showToast('Offline records have synced');
+      }
     } catch (error) {
       console.error('Manual cloud sync failed', error);
+      if (isBrowserOffline()) offlineSyncPending.current = true;
       setCloudStatus('error');
     }
   }
@@ -988,6 +1056,36 @@ export default function App() {
     }
   }
 
+  function renderToast() {
+    if (!toastMessage) return null;
+
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.toast,
+          shadow.card,
+          {
+            opacity: toastAnim,
+            transform: [
+              {
+                translateY: toastAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [16, 0],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <View style={styles.toastIcon}>
+          <Ionicons name="cloud-done" size={18} color={colours.background} />
+        </View>
+        <Text style={styles.toastText}>{toastMessage}</Text>
+      </Animated.View>
+    );
+  }
+
   if (!isReady || !authReady) {
     return (
       <View style={styles.lockScreen}>
@@ -1067,6 +1165,8 @@ export default function App() {
           {renderMemberScreen(activeMember)}
         </View>
 
+        {renderToast()}
+
         <View style={[styles.tabBar, shadow.card]}>
           <View style={styles.tabBarHighlight} />
           {memberTabs.map((tab) => {
@@ -1104,6 +1204,8 @@ export default function App() {
       <Animated.View style={[styles.screenContainer, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
         {renderScreen()}
       </Animated.View>
+
+      {renderToast()}
 
       {pinSetupMode && (
         <View style={styles.pinSetupOverlay}>
@@ -1201,6 +1303,40 @@ const styles = StyleSheet.create({
 
   screenContainer: {
     flex: 1,
+  },
+
+  toast: {
+    position: 'absolute',
+    left: 20,
+    right: 20,
+    bottom: 96,
+    zIndex: 30,
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    borderRadius: 18,
+    backgroundColor: 'rgba(27, 31, 26, 0.98)',
+  },
+
+  toastIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.cyan,
+  },
+
+  toastText: {
+    flex: 1,
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '900',
   },
 
   /* Tab bar shell */
