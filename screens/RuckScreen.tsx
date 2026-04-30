@@ -11,6 +11,7 @@ import { colours, touchTarget } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints, distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, evaluateRoutePoint, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
+import { CoordinateFormat, coordinateFormatOptions, formatCoordinate } from '../utils/coordinates';
 import { appendActiveRoutePoints, clearActiveRoute, loadActiveRoute, replaceActiveRoute, resetActiveRoute } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
 
@@ -36,7 +37,7 @@ function cardinalDirection(degrees: number) {
 }
 
 function formatHeading(degrees: number) {
-  return `${String(Math.round(degrees)).padStart(3, '0')}°`;
+  return `${String(Math.round(degrees)).padStart(3, '0')}deg`;
 }
 
 function toTrackPoint(location: Location.LocationObject): TrackPoint {
@@ -172,6 +173,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [plannedAscentM, setPlannedAscentM] = useState(300);
   const [terrainFactor, setTerrainFactor] = useState(1.2);
   const [trackingState, dispatchTracking] = useReducer(trackingReducer, initialTrackingState);
+  const [coordinateFormat, setCoordinateFormat] = useState<CoordinateFormat>('mgrs');
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -182,6 +184,9 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const isStarting = status === 'starting';
 
   const currentPoint = routePoints[routePoints.length - 1];
+  const currentCoordinate = currentPoint
+    ? formatCoordinate(currentPoint.latitude, currentPoint.longitude, coordinateFormat)
+    : null;
   const previousPoint = routePoints[routePoints.length - 2];
   const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
   const activeHeading = compassHeading ?? routeBearing;
@@ -193,8 +198,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const gpsQuality = useMemo(() => {
     if (!currentPoint) return { label: 'IDLE', tone: colours.muted, detail: 'awaiting fix' };
     if (currentPoint.accuracy == null) return { label: 'GOOD', tone: colours.green, detail: 'accuracy unknown' };
-    if (currentPoint.accuracy <= WEAK_ACCURACY_METERS) return { label: 'GOOD', tone: colours.green, detail: `±${Math.round(currentPoint.accuracy)}m` };
-    return { label: 'WEAK', tone: colours.amber, detail: `±${Math.round(currentPoint.accuracy)}m` };
+    if (currentPoint.accuracy <= WEAK_ACCURACY_METERS) return { label: 'GOOD', tone: colours.green, detail: `+/-${Math.round(currentPoint.accuracy)}m` };
+    return { label: 'WEAK', tone: colours.amber, detail: `+/-${Math.round(currentPoint.accuracy)}m` };
   }, [currentPoint]);
 
   const recordLocation = useCallback((location: Location.LocationObject) => {
@@ -205,7 +210,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   useEffect(() => {
     if (activeHeading == null) return;
 
-    // Calculate shortest path to prevent the 359° -> 1° spin-around glitch
+    // Calculate shortest path to prevent the 359deg -> 1deg spin-around glitch
     let delta = activeHeading - ((prevHeading.current % 360 + 360) % 360);
     if (delta > 180) delta -= 360;
     if (delta < -180) delta += 360;
@@ -471,7 +476,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             <Text style={styles.mapText}>{isTracking ? 'Tracking active' : startTime ? 'Track paused' : 'Ready to acquire signal'}</Text>
             <Text style={styles.mapSubText}>
               {gpsQuality.detail}
-              {rejectedPointCount > 0 ? ` · ${rejectedPointCount} rejected${lastRejectedReason ? ` (${lastRejectedReason})` : ''}` : ''}
+              {rejectedPointCount > 0 ? ` | ${rejectedPointCount} rejected${lastRejectedReason ? ` (${lastRejectedReason})` : ''}` : ''}
             </Text>
           </View>
           <View style={[styles.signalBadge, { borderColor: `${gpsQuality.tone}55`, backgroundColor: `${gpsQuality.tone}14` }]}>
@@ -480,6 +485,21 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               {isTracking ? gpsQuality.label : 'IDLE'}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.coordinateSelector}>
+          {coordinateFormatOptions.map((option) => {
+            const selected = coordinateFormat === option.key;
+            return (
+              <Pressable
+                key={option.key}
+                style={[styles.coordinateOption, selected && styles.coordinateOptionActive]}
+                onPress={() => setCoordinateFormat(option.key)}
+              >
+                <Text style={[styles.coordinateOptionText, selected && styles.coordinateOptionTextActive]}>{option.label}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <View style={styles.mapStage}>
@@ -545,10 +565,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           </View>
         </View>
 
-        {currentPoint && (
+        {currentPoint && currentCoordinate && (
           <Text style={styles.coordinateText}>
-            {currentPoint.latitude.toFixed(5)}, {currentPoint.longitude.toFixed(5)}
-            {currentPoint.accuracy ? ` · ±${Math.round(currentPoint.accuracy)}m` : ''}
+            {currentCoordinate}
+            {currentPoint.accuracy ? ` | +/-${Math.round(currentPoint.accuracy)}m` : ''}
           </Text>
         )}
       </Card>
@@ -774,6 +794,27 @@ const styles = StyleSheet.create({
   },
   signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
   signalText: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  coordinateSelector: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 12,
+    padding: 4,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  coordinateOption: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  coordinateOptionActive: { backgroundColor: colours.cyan },
+  coordinateOptionText: { color: colours.muted, fontSize: 10, fontWeight: '900' },
+  coordinateOptionTextActive: { color: colours.background },
   mapStage: {
     height: 190,
     marginTop: 14,
