@@ -92,6 +92,20 @@ export function InstructorScreen({
   const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
   const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total: number, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
   const coachGuidance = useMemo(() => buildCoachGuidance(members, sessions), [members, sessions]);
+  const latestCompletionByMember = useMemo(() => {
+    const mapped = new Map<string, WorkoutCompletion>();
+    workoutCompletions.forEach((completion) => {
+      const existing = mapped.get(completion.memberId);
+      if (!existing || new Date(completion.completedAt).getTime() > new Date(existing.completedAt).getTime()) {
+        mapped.set(completion.memberId, completion);
+      }
+    });
+    return mapped;
+  }, [workoutCompletions]);
+  const notedCompletions = useMemo(
+    () => workoutCompletions.filter((completion) => completion.note?.trim()).slice(0, 6),
+    [workoutCompletions]
+  );
   const selectedAssignmentMember = members.find((member) => member.id === assignmentMemberId) ?? null;
   const selectedAssignmentGroup = groups.find((group) => group.id === assignmentGroupId) ?? null;
   const cloudTone = cloudStatus === 'synced'
@@ -397,6 +411,29 @@ export function InstructorScreen({
       </Card>
 
       <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Coach Notes</Text>
+          <Text style={styles.muted}>{notedCompletions.length ? `latest ${notedCompletions.length}` : 'no notes yet'}</Text>
+        </View>
+        {notedCompletions.length ? notedCompletions.map((completion) => (
+          <View key={`note-${completion.id}`} style={styles.noteRow}>
+            <View style={styles.memberCopy}>
+              <Text style={styles.memberName}>{completion.memberName}</Text>
+              <Text style={styles.muted}>
+                {completion.assignment} - {completion.durationMinutes} min - {completion.effort}
+              </Text>
+              <Text style={styles.coachMessage}>{completion.note}</Text>
+            </View>
+            <Text style={styles.completionTime}>
+              {new Date(completion.completedAt).toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        )) : (
+          <Text style={styles.inviteHelp}>Member notes will show up here after they finish a workout or quick log.</Text>
+        )}
+      </Card>
+
+      <Card>
         <Text style={styles.cardTitle}>Add Team Member</Text>
         <TextInput
           style={styles.memberInput}
@@ -595,8 +632,19 @@ export function InstructorScreen({
           </View>
         ) : null}
 
-        {members.map((member) => (
+        {members.map((member) => {
+          const latestCompletion = latestCompletionByMember.get(member.id);
+          const latestTone = latestCompletion ? completionTone(latestCompletion.completionType) : colours.borderSoft;
+
+          return (
           <View key={member.id} style={styles.memberCard}>
+            {latestCompletion ? (
+              <View style={[styles.memberCompletionBanner, { borderColor: `${latestTone}50`, backgroundColor: `${latestTone}12` }]}>
+                <Text style={[styles.memberCompletionBannerText, { color: latestTone }]}>
+                  Completed {latestCompletion.assignment} - {latestCompletion.durationMinutes} min - {latestCompletion.effort}
+                </Text>
+              </View>
+            ) : null}
             <View style={styles.headerRow}>
               <View style={styles.memberCopy}>
                 <Text style={styles.memberName}>{member.name}</Text>
@@ -606,6 +654,11 @@ export function InstructorScreen({
                 {member.gymName && <Text style={styles.memberPortalName}>Portal: {member.gymName}{member.ghostMode ? ' - Ghost Mode' : ''}</Text>}
                 {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
                 {member.assignment && <Text style={styles.memberAssignment}>Assigned: {member.assignment}</Text>}
+                {latestCompletion ? (
+                  <Text style={styles.memberCompletionMeta}>
+                    Last sync: {latestCompletion.sessionKind} - {latestCompletion.volume} volume
+                  </Text>
+                ) : null}
                 {member.lastWorkoutNote && <Text style={styles.memberNote}>Note: {member.lastWorkoutNote}</Text>}
               </View>
               <View style={styles.memberActions}>
@@ -636,7 +689,8 @@ export function InstructorScreen({
             ))}
           </View>
           </View>
-        ))}
+        );
+        })}
       </Card>
 
       <Card>
@@ -885,6 +939,23 @@ const styles = StyleSheet.create({
     borderColor: colours.borderSoft,
     paddingVertical: 10,
   },
+  noteRow: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    paddingVertical: 10,
+  },
+  coachMessage: {
+    color: colours.text,
+    fontSize: 12,
+    lineHeight: 18,
+    fontWeight: '800',
+    marginTop: 5,
+  },
   completionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -901,6 +972,23 @@ const styles = StyleSheet.create({
   completionBadgeText: {
     fontSize: 10,
     fontWeight: '900',
+  },
+  memberCompletionBanner: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 10,
+  },
+  memberCompletionBannerText: {
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  memberCompletionMeta: {
+    color: colours.amber,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 3,
   },
   completionTime: { color: colours.cyan, fontSize: 11, fontWeight: '900', textAlign: 'right' },
   programmeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
