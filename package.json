@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "export:web": "expo export --platform web",
     "serve:web": "python3 -m http.server 8080 --bind 127.0.0.1 --directory dist",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -35,7 +36,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.2.0",
-    "typescript": "~5.9.2"
+    "typescript": "~5.9.2",
+    "vitest": "^4.1.5"
   },
   "overrides": {
     "postcss": "8.5.12",
