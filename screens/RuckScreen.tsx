@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Svg, { Circle, Polyline } from 'react-native-svg';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -49,6 +50,14 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const supportsBackgroundLocation = Platform.OS !== 'web';
+const MAX_MAP_RENDER_POINTS = 160;
+
+function decimateRouteForMap(points: TrackPoint[], maxPoints = MAX_MAP_RENDER_POINTS) {
+  if (points.length <= maxPoints) return points;
+
+  const stride = (points.length - 1) / (maxPoints - 1);
+  return Array.from({ length: maxPoints }, (_, index) => points[Math.round(index * stride)]);
+}
 
 if (supportsBackgroundLocation) {
   TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
@@ -97,7 +106,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
   const activeHeading = compassHeading ?? routeBearing;
   const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
-  const mapPoints = useMemo(() => getMapPoints(routePoints), [routePoints]);
+  const mapPoints = useMemo(() => getMapPoints(decimateRouteForMap(routePoints)), [routePoints]);
+  const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
+  const firstMapPoint = mapPoints[0];
+  const lastMapPoint = mapPoints[mapPoints.length - 1];
 
   const recordLocation = useCallback((location: Location.LocationObject) => {
     const nextPoint = toTrackPoint(location);
@@ -108,7 +120,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       if (previousPoint) {
         setCurrentDistance((current) => current + distanceBetween(previousPoint, nextPoint));
       }
-      return [...points, nextPoint].slice(-120);
+      return [...points, nextPoint];
     });
   }, []);
 
@@ -135,7 +147,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         if (stored) {
           const points: TrackPoint[] = JSON.parse(stored);
           if (points.length > 0) {
-            setRoutePoints(points.slice(-120));
+            setRoutePoints(points);
             
             let dist = 0;
             for (let i = 1; i < points.length; i++) {
@@ -398,19 +410,39 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               <Text style={styles.mapEmptyText}>Start GPS to draw your route</Text>
             </View>
           ) : (
-            mapPoints.map((point: TrackPoint & { x: number; y: number }, index: number) => {
-              const isCurrent = index === mapPoints.length - 1;
-              return (
-                <View
-                  key={`${point.timestamp}-${index}`}
-                  style={[
-                    styles.trailDot,
-                    isCurrent && styles.currentDot,
-                    { left: `${point.x}%`, top: `${point.y}%` },
-                  ]}
+            <Svg style={StyleSheet.absoluteFill} viewBox="0 0 100 100" preserveAspectRatio="none" pointerEvents="none">
+              {routeLinePoints && (
+                <Polyline
+                  points={routeLinePoints}
+                  fill="none"
+                  stroke={colours.cyan}
+                  strokeWidth={1.8}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={0.82}
                 />
-              );
-            })
+              )}
+              {firstMapPoint && (
+                <Circle
+                  cx={firstMapPoint.x}
+                  cy={firstMapPoint.y}
+                  r={1.8}
+                  fill={colours.background}
+                  stroke={colours.cyan}
+                  strokeWidth={0.8}
+                />
+              )}
+              {lastMapPoint && (
+                <Circle
+                  cx={lastMapPoint.x}
+                  cy={lastMapPoint.y}
+                  r={3}
+                  fill={colours.green}
+                  stroke="rgba(255,255,255,0.75)"
+                  strokeWidth={1}
+                />
+              )}
+            </Svg>
           )}
         </View>
 
@@ -696,27 +728,6 @@ const styles = StyleSheet.create({
   mapRingInner: { width: 92, height: 92, borderRadius: 46, top: 49 },
   mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
   mapEmptyText: { color: colours.muted, fontWeight: '700' },
-  trailDot: {
-    position: 'absolute',
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    marginLeft: -3,
-    marginTop: -3,
-    backgroundColor: colours.cyan,
-    opacity: 0.72,
-  },
-  currentDot: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    marginLeft: -8,
-    marginTop: -8,
-    opacity: 1,
-    backgroundColor: colours.green,
-    borderWidth: 3,
-    borderColor: 'rgba(255,255,255,0.75)',
-  },
   liveStats: { flexDirection: 'row', gap: 8, marginTop: 12 },
   liveStat: {
     flex: 1,
