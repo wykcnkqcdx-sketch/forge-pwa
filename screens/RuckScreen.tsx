@@ -53,6 +53,10 @@ const supportsBackgroundLocation = Platform.OS !== 'web';
 const MAX_MAP_RENDER_POINTS = 160;
 const MAX_MAP_SIMPLIFICATION_SOURCE_POINTS = 800;
 const MAP_SIMPLIFICATION_TOLERANCE_METERS = 10;
+const MAX_ACCEPTED_ACCURACY_METERS = 35;
+const WEAK_ACCURACY_METERS = 20;
+const MIN_MOVEMENT_METERS = 4;
+const MAX_RUCK_SPEED_KPH = 12;
 
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 
@@ -62,12 +66,14 @@ type TrackingState = {
   elapsedSeconds: number;
   routePoints: TrackPoint[];
   startTime: Date | null;
+  rejectedPointCount: number;
+  lastRejectedReason: string | null;
 };
 
 type TrackingAction =
   | { type: 'start_requested' }
   | { type: 'start_succeeded'; firstPoint: TrackPoint }
-  | { type: 'restore'; points: TrackPoint[]; currentDistance: number; elapsedSeconds: number; isTracking: boolean }
+  | { type: 'restore'; points: TrackPoint[]; currentDistance: number; elapsedSeconds: number; isTracking: boolean; rejectedPointCount: number; lastRejectedReason: string | null }
   | { type: 'point_recorded'; point: TrackPoint }
   | { type: 'tick'; elapsedSeconds: number }
   | { type: 'stopped' }
@@ -79,7 +85,54 @@ const initialTrackingState: TrackingState = {
   elapsedSeconds: 0,
   routePoints: [],
   startTime: null,
+  rejectedPointCount: 0,
+  lastRejectedReason: null,
 };
+
+type RouteQualityResult =
+  | { accepted: true; distanceKm: number }
+  | { accepted: false; reason: string };
+
+function evaluateRoutePoint(previousPoint: TrackPoint | undefined, point: TrackPoint): RouteQualityResult {
+  if (point.accuracy != null && point.accuracy > MAX_ACCEPTED_ACCURACY_METERS) {
+    return { accepted: false, reason: 'poor accuracy' };
+  }
+
+  if (!previousPoint) return { accepted: true, distanceKm: 0 };
+  if (previousPoint.timestamp === point.timestamp) return { accepted: false, reason: 'duplicate timestamp' };
+
+  const distanceKm = distanceBetween(previousPoint, point);
+  const distanceMeters = distanceKm * 1000;
+  const elapsedHours = Math.max((point.timestamp - previousPoint.timestamp) / 3600000, 0);
+  const speedKph = elapsedHours > 0 ? distanceKm / elapsedHours : 0;
+
+  if (distanceMeters < MIN_MOVEMENT_METERS) return { accepted: false, reason: 'gps jitter' };
+  if (speedKph > MAX_RUCK_SPEED_KPH) return { accepted: false, reason: 'speed spike' };
+
+  return { accepted: true, distanceKm };
+}
+
+function sanitizeRoutePoints(points: TrackPoint[]) {
+  let rejectedPointCount = 0;
+  let lastRejectedReason: string | null = null;
+  let currentDistance = 0;
+  const routePoints: TrackPoint[] = [];
+
+  points.forEach((point) => {
+    const previousPoint = routePoints[routePoints.length - 1];
+    const result = evaluateRoutePoint(previousPoint, point);
+    if (!result.accepted) {
+      rejectedPointCount += 1;
+      lastRejectedReason = result.reason;
+      return;
+    }
+
+    currentDistance += result.distanceKm;
+    routePoints.push(point);
+  });
+
+  return { routePoints, currentDistance, rejectedPointCount, lastRejectedReason };
+}
 
 function trackingReducer(state: TrackingState, action: TrackingAction): TrackingState {
   switch (action.type) {
@@ -93,6 +146,8 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
         elapsedSeconds: 0,
         routePoints: [action.firstPoint],
         startTime: new Date(action.firstPoint.timestamp),
+        rejectedPointCount: 0,
+        lastRejectedReason: null,
       };
 
     case 'restore': {
@@ -103,19 +158,27 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
         elapsedSeconds: action.elapsedSeconds,
         routePoints: action.points,
         startTime,
+        rejectedPointCount: action.rejectedPointCount,
+        lastRejectedReason: action.lastRejectedReason,
       };
     }
 
     case 'point_recorded': {
       const previousPoint = state.routePoints[state.routePoints.length - 1];
-      if (previousPoint && previousPoint.timestamp === action.point.timestamp) return state;
+      const result = evaluateRoutePoint(previousPoint, action.point);
+      if (!result.accepted) {
+        return {
+          ...state,
+          rejectedPointCount: state.rejectedPointCount + 1,
+          lastRejectedReason: result.reason,
+        };
+      }
 
       return {
         ...state,
-        currentDistance: previousPoint
-          ? state.currentDistance + distanceBetween(previousPoint, action.point)
-          : state.currentDistance,
+        currentDistance: state.currentDistance + result.distanceKm,
         routePoints: [...state.routePoints, action.point],
+        lastRejectedReason: null,
       };
     }
 
@@ -234,7 +297,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const prevHeading = useRef(0);
-  const { currentDistance, elapsedSeconds, routePoints, startTime, status } = trackingState;
+  const { currentDistance, elapsedSeconds, routePoints, startTime, status, rejectedPointCount, lastRejectedReason } = trackingState;
   const isTracking = status === 'tracking';
   const isStarting = status === 'starting';
 
@@ -247,6 +310,12 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
   const firstMapPoint = mapPoints[0];
   const lastMapPoint = mapPoints[mapPoints.length - 1];
+  const gpsQuality = useMemo(() => {
+    if (!currentPoint) return { label: 'IDLE', tone: colours.muted, detail: 'awaiting fix' };
+    if (currentPoint.accuracy == null) return { label: 'GOOD', tone: colours.green, detail: 'accuracy unknown' };
+    if (currentPoint.accuracy <= WEAK_ACCURACY_METERS) return { label: 'GOOD', tone: colours.green, detail: `±${Math.round(currentPoint.accuracy)}m` };
+    return { label: 'WEAK', tone: colours.amber, detail: `±${Math.round(currentPoint.accuracy)}m` };
+  }, [currentPoint]);
 
   const recordLocation = useCallback((location: Location.LocationObject) => {
     const nextPoint = toTrackPoint(location);
@@ -276,12 +345,9 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         if (stored) {
           const points: TrackPoint[] = JSON.parse(stored);
           if (points.length > 0) {
-            let dist = 0;
-            for (let i = 1; i < points.length; i++) {
-              dist += distanceBetween(points[i - 1], points[i]);
-            }
+            const sanitized = sanitizeRoutePoints(points);
 
-            const start = new Date(points[0].timestamp);
+            const start = new Date(sanitized.routePoints[0]?.timestamp ?? points[0].timestamp);
             const restoredElapsedSeconds = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
             let restoredIsTracking = false;
 
@@ -292,10 +358,12 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
             dispatchTracking({
               type: 'restore',
-              points,
-              currentDistance: dist,
+              points: sanitized.routePoints,
+              currentDistance: sanitized.currentDistance,
               elapsedSeconds: restoredElapsedSeconds,
               isTracking: restoredIsTracking,
+              rejectedPointCount: sanitized.rejectedPointCount,
+              lastRejectedReason: sanitized.lastRejectedReason,
             });
           }
         }
@@ -328,6 +396,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       foregroundLocationSubscription.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!startTime || routePoints.length === 0) return;
+    AsyncStorage.setItem('forge:ruck_route', JSON.stringify(routePoints)).catch((error) => {
+      console.error('Failed to persist filtered ruck route', error);
+    });
+  }, [routePoints, startTime]);
 
   useEffect(() => {
     if (!isTracking || !startTime) return undefined;
@@ -517,11 +592,15 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           <View>
             <Text style={styles.mapLabel}>LIVE GPS</Text>
             <Text style={styles.mapText}>{isTracking ? 'Tracking active' : startTime ? 'Track paused' : 'Ready to acquire signal'}</Text>
+            <Text style={styles.mapSubText}>
+              {gpsQuality.detail}
+              {rejectedPointCount > 0 ? ` · ${rejectedPointCount} rejected${lastRejectedReason ? ` (${lastRejectedReason})` : ''}` : ''}
+            </Text>
           </View>
-          <View style={[styles.signalBadge, isTracking && styles.signalBadgeLive]}>
-            <View style={[styles.signalDot, isTracking && styles.signalDotLive]} />
-            <Text style={[styles.signalText, isTracking && styles.signalTextLive]}>
-              {isTracking ? 'LIVE' : 'IDLE'}
+          <View style={[styles.signalBadge, { borderColor: `${gpsQuality.tone}55`, backgroundColor: `${gpsQuality.tone}14` }]}>
+            <View style={[styles.signalDot, { backgroundColor: gpsQuality.tone }]} />
+            <Text style={[styles.signalText, { color: gpsQuality.tone }]}>
+              {isTracking ? gpsQuality.label : 'IDLE'}
             </Text>
           </View>
         </View>
@@ -804,6 +883,7 @@ const styles = StyleSheet.create({
   mapHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
   mapLabel: { color: colours.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.8 },
   mapText: { color: colours.text, fontWeight: '900', marginTop: 2 },
+  mapSubText: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 3 },
   signalBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -815,11 +895,8 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  signalBadgeLive: { borderColor: `${colours.green}55`, backgroundColor: colours.greenDim },
   signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
-  signalDotLive: { backgroundColor: colours.green },
   signalText: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
-  signalTextLive: { color: colours.green },
   mapStage: {
     height: 190,
     marginTop: 14,
