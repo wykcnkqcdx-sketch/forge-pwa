@@ -30,6 +30,7 @@ interface InstructorScreenProps {
   cloudEnabled: boolean;
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
   cloudEmail: string | null;
+  pendingSyncCount?: number;
   onCloudSync: () => void;
   onCloudSignOut: () => void;
   googleSheetsEndpoint: string;
@@ -134,6 +135,7 @@ export function InstructorScreen({
   cloudEnabled,
   cloudStatus,
   cloudEmail,
+  pendingSyncCount = 0,
   onCloudSync,
   onCloudSignOut,
   googleSheetsEndpoint,
@@ -631,7 +633,9 @@ export function InstructorScreen({
         <Text style={styles.cloudCopy}>
           {cloudEnabled
             ? cloudEmail
-              ? `${cloudEmail} is connected. Sessions, members, and completions auto-sync when the connection is healthy. Use Sync Now anytime you want an immediate refresh.`
+              ? pendingSyncCount > 0
+                ? `${cloudEmail} is connected. ${pendingSyncCount} record${pendingSyncCount === 1 ? '' : 's'} pending sync.`
+                : `${cloudEmail} is connected. Sessions, members, and completions auto-sync when the connection is healthy. Use Sync Now anytime you want an immediate refresh.`
               : 'Backend keys are configured. Sign in to enable auth, database sync, and shared team storage.'
             : 'Add Supabase keys to enable login auth and cloud database sync. Until then, the app keeps working from local storage.'}
         </Text>

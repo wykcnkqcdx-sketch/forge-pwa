@@ -97,6 +97,16 @@ type CloudSnapshot = {
   readinessLogs: ReadinessLog[];
 };
 
+export type CloudMutation =
+  | { type: 'upsert_session'; payload: TrainingSession }
+  | { type: 'update_session'; payload: { id: string; updates: Partial<TrainingSession> } }
+  | { type: 'delete_session'; payload: { id: string } }
+  | { type: 'upsert_member'; payload: SquadMember }
+  | { type: 'update_member'; payload: { id: string; updates: Partial<SquadMember> } }
+  | { type: 'delete_member'; payload: { id: string } }
+  | { type: 'upsert_readiness_log'; payload: ReadinessLog }
+  | { type: 'upsert_workout_completion'; payload: WorkoutCompletion };
+
 function ensureSupabase() {
   if (!supabase) throw new Error('Supabase client is not configured.');
   return supabase;
@@ -222,6 +232,19 @@ function toRemoteSession(userId: string, session: TrainingSession): RemoteTraini
   };
 }
 
+function toRemoteSessionUpdates(updates: Partial<TrainingSession>) {
+  const row: Partial<RemoteTrainingSessionRow> = {};
+  if (updates.type !== undefined) row.type = updates.type;
+  if (updates.title !== undefined) row.title = updates.title;
+  if (updates.score !== undefined) row.score = updates.score;
+  if (updates.durationMinutes !== undefined) row.duration_minutes = updates.durationMinutes;
+  if (updates.rpe !== undefined) row.rpe = updates.rpe;
+  if (updates.loadKg !== undefined) row.load_kg = updates.loadKg ?? null;
+  if (updates.routePoints !== undefined) row.route_points = compressRoutePointsForSync(updates.routePoints);
+  if (updates.completedAt !== undefined) row.completed_at = updates.completedAt ?? null;
+  return row;
+}
+
 function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberRow {
   return {
     id: member.id,
@@ -253,6 +276,37 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     imported_hrv: member.importedHrv ?? null,
     assignment_session: member.assignmentSession ?? null,
   };
+}
+
+function toRemoteMemberUpdates(updates: Partial<SquadMember>) {
+  const row: Partial<RemoteSquadMemberRow> = {};
+  if (updates.name !== undefined) row.name = updates.name;
+  if (updates.gymName !== undefined) row.gym_name = updates.gymName ?? null;
+  if (updates.email !== undefined) row.email = updates.email ?? null;
+  if (updates.groupId !== undefined) row.group_id = updates.groupId;
+  if (updates.readiness !== undefined) row.readiness = updates.readiness;
+  if (updates.compliance !== undefined) row.compliance = updates.compliance;
+  if (updates.risk !== undefined) row.risk = updates.risk;
+  if (updates.load !== undefined) row.load = updates.load;
+  if (updates.inviteStatus !== undefined) row.invite_status = updates.inviteStatus ?? null;
+  if (updates.assignment !== undefined) row.assignment = updates.assignment ?? null;
+  if (updates.pinnedExerciseIds !== undefined) row.pinned_exercise_ids = updates.pinnedExerciseIds ?? null;
+  if (updates.ghostMode !== undefined) row.ghost_mode = updates.ghostMode ?? false;
+  if (updates.streakDays !== undefined) row.streak_days = updates.streakDays ?? 0;
+  if (updates.weeklyVolume !== undefined) row.weekly_volume = updates.weeklyVolume ?? 0;
+  if (updates.lastWorkoutTitle !== undefined) row.last_workout_title = updates.lastWorkoutTitle ?? null;
+  if (updates.lastWorkoutAt !== undefined) row.last_workout_at = updates.lastWorkoutAt ?? null;
+  if (updates.lastWorkoutNote !== undefined) row.last_workout_note = updates.lastWorkoutNote ?? null;
+  if (updates.hypeCount !== undefined) row.hype_count = updates.hypeCount ?? 0;
+  if (updates.deviceSyncProvider !== undefined) row.device_sync_provider = updates.deviceSyncProvider ?? null;
+  if (updates.deviceSyncStatus !== undefined) row.device_sync_status = updates.deviceSyncStatus ?? null;
+  if (updates.deviceConnectedAt !== undefined) row.device_connected_at = updates.deviceConnectedAt ?? null;
+  if (updates.deviceLastSyncAt !== undefined) row.device_last_sync_at = updates.deviceLastSyncAt ?? null;
+  if (updates.importedSleepHours !== undefined) row.imported_sleep_hours = updates.importedSleepHours ?? null;
+  if (updates.importedRestingHR !== undefined) row.imported_resting_hr = updates.importedRestingHR ?? null;
+  if (updates.importedHrv !== undefined) row.imported_hrv = updates.importedHrv ?? null;
+  if (updates.assignmentSession !== undefined) row.assignment_session = updates.assignmentSession ?? null;
+  return row;
 }
 
 function toRemoteCompletion(userId: string, completion: WorkoutCompletion): RemoteWorkoutCompletionRow {
@@ -403,6 +457,68 @@ export async function fetchCloudSnapshot(userId: string): Promise<CloudSnapshot>
     workoutCompletions: (completionResponse.data as RemoteWorkoutCompletionRow[]).map(fromRemoteCompletion),
     readinessLogs: (readinessResponse.data as RemoteReadinessLogRow[]).map(fromRemoteReadiness),
   };
+}
+
+export async function pushCloudMutation(userId: string, mutation: CloudMutation) {
+  const client = ensureSupabase();
+
+  switch (mutation.type) {
+    case 'upsert_session': {
+      const { error } = await client.from('training_sessions').upsert(toRemoteSession(userId, mutation.payload), { onConflict: 'user_id,id' });
+      if (error) throw error;
+      return;
+    }
+
+    case 'update_session': {
+      const { error } = await client
+        .from('training_sessions')
+        .update(toRemoteSessionUpdates(mutation.payload.updates))
+        .eq('user_id', userId)
+        .eq('id', mutation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    case 'delete_session': {
+      const { error } = await client.from('training_sessions').delete().eq('user_id', userId).eq('id', mutation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    case 'upsert_member': {
+      const { error } = await client.from('squad_members').upsert(toRemoteMember(userId, mutation.payload), { onConflict: 'user_id,id' });
+      if (error) throw error;
+      return;
+    }
+
+    case 'update_member': {
+      const { error } = await client
+        .from('squad_members')
+        .update(toRemoteMemberUpdates(mutation.payload.updates))
+        .eq('user_id', userId)
+        .eq('id', mutation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    case 'delete_member': {
+      const { error } = await client.from('squad_members').delete().eq('user_id', userId).eq('id', mutation.payload.id);
+      if (error) throw error;
+      return;
+    }
+
+    case 'upsert_readiness_log': {
+      const { error } = await client.from('readiness_logs').upsert(toRemoteReadiness(userId, mutation.payload), { onConflict: 'user_id,id' });
+      if (error) throw error;
+      return;
+    }
+
+    case 'upsert_workout_completion': {
+      const { error } = await client.from('workout_completions').upsert(toRemoteCompletion(userId, mutation.payload), { onConflict: 'user_id,id' });
+      if (error) throw error;
+      return;
+    }
+  }
 }
 
 export async function pushCloudSnapshot(

@@ -16,6 +16,7 @@ type Props = {
   onAddSession: (session: TrainingSession) => void;
   cloudEnabled: boolean;
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
+  pendingSyncCount?: number;
   onCloudSync: () => void;
 };
 
@@ -55,6 +56,7 @@ export function MemberScreen({
   onAddSession,
   cloudEnabled,
   cloudStatus,
+  pendingSyncCount = 0,
   onCloudSync,
 }: Props) {
   const [workoutNote, setWorkoutNote] = useState('');
@@ -96,6 +98,9 @@ export function MemberScreen({
         ? colours.red
         : colours.amber;
   const cloudLabel = cloudEnabled ? cloudStatus.toUpperCase() : 'LOCAL ONLY';
+  const syncCopy = pendingSyncCount > 0
+    ? `${pendingSyncCount} record${pendingSyncCount === 1 ? '' : 's'} pending sync.`
+    : 'Assignments and workout completions sync automatically when connected.';
 
   const teamPulse = useMemo(() => {
     const source = teamMembers.length ? teamMembers : members;
@@ -331,7 +336,7 @@ export function MemberScreen({
             </View>
             <Text style={styles.syncText}>
               {cloudEnabled
-                ? 'Assignments and workout completions sync automatically when connected.'
+                ? syncCopy
                 : 'This device is running in local mode right now.'}
             </Text>
           </View>

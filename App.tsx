@@ -14,8 +14,9 @@ import { AuthScreen } from './screens/AuthScreen';
 import { MemberScreen } from './screens/MemberScreen';
 import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups, ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from './data/domain';
-import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
+import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from './lib/cloud';
 import { buildGoogleSheetsPayload, exportToGoogleSheets } from './lib/googleSheets';
+import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from './lib/offlineQueue';
 import { secureDestroyLocalData, secureGetItem, secureRemoveItem, secureSetItem } from './lib/secureStorage';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { colours, shadow, touchTarget } from './theme';
@@ -89,6 +90,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [typedText, setTypedText] = useState('');
   const [toastMessage, setToastMessage] = useState('');
+  const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [activeMemberTab, setActiveMemberTab] = useState<MemberTab>('portal');
   const [pendingMemberInvite, setPendingMemberInvite] = useState<PendingMemberInvite | null>(null);
@@ -107,6 +109,26 @@ export default function App() {
   const isBrowserOffline = useCallback(() => (
     typeof navigator !== 'undefined' && navigator.onLine === false
   ), []);
+
+  const refreshPendingSyncCount = useCallback(async () => {
+    try {
+      setPendingSyncCount(await getPendingOfflineMutationCount());
+    } catch (error) {
+      console.error('Failed to read pending offline queue count', error);
+    }
+  }, []);
+
+  const enqueueCloudMutation = useCallback(async (mutation: Parameters<typeof enqueueOfflineMutation>[0]) => {
+    if (!isSupabaseConfigured || !cloudSession?.user) return;
+
+    try {
+      await enqueueOfflineMutation(mutation);
+      await refreshPendingSyncCount();
+      if (isBrowserOffline()) offlineSyncPending.current = true;
+    } catch (error) {
+      console.error('Failed to enqueue offline mutation', error);
+    }
+  }, [cloudSession?.user, isBrowserOffline, refreshPendingSyncCount]);
 
   const showToast = useCallback((message: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -146,6 +168,16 @@ export default function App() {
     applyCloudSnapshot(snapshot);
     setCloudStatus('synced');
   }, [applyCloudSnapshot]);
+
+  const flushOfflineMutations = useCallback(async (userId: string) => {
+    const replayed = await replayOfflineQueue((mutation) => pushCloudMutation(userId, mutation));
+    await refreshPendingSyncCount();
+    if (replayed > 0 && offlineSyncPending.current) {
+      offlineSyncPending.current = false;
+      showToast('Offline records have synced');
+    }
+    return replayed;
+  }, [refreshPendingSyncCount, showToast]);
 
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
@@ -398,6 +430,10 @@ export default function App() {
   }, [googleSheetsEndpoint, isReady]);
 
   useEffect(() => {
+    if (isReady) refreshPendingSyncCount();
+  }, [isReady, refreshPendingSyncCount]);
+
+  useEffect(() => {
     if (isReady) {
       if (savedPin === null) secureRemoveItem('forge:pin');
       else secureSetItem('forge:pin', savedPin);
@@ -423,6 +459,7 @@ export default function App() {
             readinessLogs: snapshot.readinessLogs.length > 0 ? snapshot.readinessLogs : readinessLogs,
           });
         } else {
+          await flushOfflineMutations(userId);
           await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
         }
 
@@ -447,7 +484,7 @@ export default function App() {
     return () => {
       cancelled = true;
     };
-  }, [cloudSession?.user?.id, isReady]);
+  }, [cloudSession?.user?.id, isReady, flushOfflineMutations]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !cloudSession?.user || !isReady || !cloudHydrated.current) return;
@@ -461,12 +498,9 @@ export default function App() {
     const timer = setTimeout(async () => {
       try {
         setCloudStatus('syncing');
+        await flushOfflineMutations(userId);
         await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
         setCloudStatus('synced');
-        if (offlineSyncPending.current) {
-          offlineSyncPending.current = false;
-          showToast('Offline records have synced');
-        }
       } catch (error) {
         console.error('Failed to sync cloud data', error);
         if (isBrowserOffline()) offlineSyncPending.current = true;
@@ -475,7 +509,7 @@ export default function App() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, isReady, isBrowserOffline, showToast]);
+  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, isReady, flushOfflineMutations, isBrowserOffline]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !cloudSession?.user || !isReady) return;
@@ -507,12 +541,9 @@ export default function App() {
         const syncOfflineRecords = async () => {
           try {
             setCloudStatus('syncing');
+            await flushOfflineMutations(userId);
             await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
             await refreshCloudSnapshot(userId);
-            if (offlineSyncPending.current) {
-              offlineSyncPending.current = false;
-              showToast('Offline records have synced');
-            }
           } catch (error) {
             console.error('Failed to sync after reconnect', error);
             setCloudStatus('error');
@@ -540,11 +571,11 @@ export default function App() {
   }, [
     cloudSession?.user?.id,
     isReady,
+    flushOfflineMutations,
     members,
     readinessLogs,
     refreshCloudSnapshot,
     sessions,
-    showToast,
     workoutCompletions,
   ]);
 
@@ -591,7 +622,9 @@ export default function App() {
       clearCloudAuthSession(),
       secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin']),
       AsyncStorage.removeItem('forge:ruck_route'),
+      clearOfflineQueue(),
     ]).catch((error) => console.error('Failed to clear local app data', error));
+    setPendingSyncCount(0);
     showBlockingMessage('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
 
@@ -666,28 +699,34 @@ export default function App() {
 
   function addSession(session: TrainingSession) {
     setSessions((current) => [session, ...current]);
+    enqueueCloudMutation({ type: 'upsert_session', payload: session });
   }
 
   function deleteSession(id: string) {
     setSessions((current) => current.filter((s) => s.id !== id));
+    enqueueCloudMutation({ type: 'delete_session', payload: { id } });
   }
 
   function editSession(id: string, updates: Partial<TrainingSession>) {
     setSessions((current) =>
       current.map((s) => (s.id === id ? { ...s, ...updates } : s))
     );
+    enqueueCloudMutation({ type: 'update_session', payload: { id, updates } });
   }
 
   function addMember(member: SquadMember) {
     setMembers((current) => [member, ...current]);
+    enqueueCloudMutation({ type: 'upsert_member', payload: member });
   }
 
   function deleteMember(id: string) {
     setMembers((current) => current.filter((member) => member.id !== id));
+    enqueueCloudMutation({ type: 'delete_member', payload: { id } });
   }
 
   function updateMember(id: string, updates: Partial<SquadMember>) {
     setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...updates } : member)));
+    enqueueCloudMutation({ type: 'update_member', payload: { id, updates } });
   }
 
   function addGroup(group: TrainingGroup) {
@@ -704,10 +743,12 @@ export default function App() {
 
   function addReadinessLog(log: ReadinessLog) {
     setReadinessLogs((current) => [log, ...current]);
+    enqueueCloudMutation({ type: 'upsert_readiness_log', payload: log });
   }
 
   function addWorkoutCompletion(completion: WorkoutCompletion) {
     setWorkoutCompletions((current) => [completion, ...current]);
+    enqueueCloudMutation({ type: 'upsert_workout_completion', payload: completion });
   }
 
   function openCoachView() {
@@ -774,12 +815,9 @@ export default function App() {
     try {
       setCloudStatus('syncing');
       const userId = cloudSession.user.id;
+      await flushOfflineMutations(userId);
       await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
       await refreshCloudSnapshot(userId);
-      if (offlineSyncPending.current) {
-        offlineSyncPending.current = false;
-        showToast('Offline records have synced');
-      }
     } catch (error) {
       console.error('Manual cloud sync failed', error);
       if (isBrowserOffline()) offlineSyncPending.current = true;
@@ -1009,6 +1047,7 @@ export default function App() {
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloudStatus}
             cloudEmail={cloudSession?.user.email ?? null}
+            pendingSyncCount={pendingSyncCount}
             onCloudSync={syncCloudNow}
             onCloudSignOut={signOutCloud}
             googleSheetsEndpoint={googleSheetsEndpoint}
@@ -1067,6 +1106,7 @@ export default function App() {
             onAddSession={addSession}
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloudStatus}
+            pendingSyncCount={pendingSyncCount}
             onCloudSync={syncCloudNow}
           />
         );
