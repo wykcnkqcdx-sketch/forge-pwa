@@ -85,7 +85,20 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [weather, setWeather] = useState<TrainingSession['weather']>('Mild');
-  const [terrain, setTerrain] = useState<TrainingSession['terrain']>('Mixed');
+  const [terrain, setTerrain] = useState<TrainingSession['terrain']>('Pavement');
+  const [calibrationFactor, setCalibrationFactor] = useState(1.0);
+  const bodyWeightKg = 82; // Future: Sync from FuelProfile / user onboarding
+
+  const terrainMultiplier = useMemo(() => {
+    switch(terrain) {
+      case 'Sand':
+      case 'Heavy Brush': return 1.2;
+      case 'Mixed':
+      case 'Hilly': return 1.1;
+      default: return 1.0;
+    }
+  }, [terrain]);
+
   const [footCareChecked, setFootCareChecked] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -286,11 +299,18 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     stopTracking();
 
     const duration = Math.max(1, (new Date().getTime() - startTime.getTime()) / (1000 * 60)); // minutes
+    
+    const loadFraction = weight / bodyWeightKg;
+    const highLoadPenalty = loadFraction > 0.3 ? (loadFraction - 0.3) * 60 : 0;
+    const baseScore = 95 - (weight * 0.5) - (currentDistance * 0.4);
+    const terrainAdjusted = baseScore - ((terrainMultiplier - 1) * 30);
+    const trackedScore = Math.max(55, Math.round((terrainAdjusted - highLoadPenalty) * calibrationFactor));
+
     const session: TrainingSession = {
       id: Date.now().toString(),
       type: 'Ruck',
       title: `${currentDistance.toFixed(1)}km GPS Ruck`,
-      score: Math.max(55, Math.round(95 - weight * 0.6 - currentDistance * 0.4)),
+      score: trackedScore,
       durationMinutes: Math.round(duration),
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
@@ -321,8 +341,15 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     [distance, plannedAscentM]
   );
   const score = useMemo(
-    () => Math.max(55, Math.round(95 - weight * 0.6 - distance * 0.4 - plannedAscentM / 160)),
-    [weight, distance, plannedAscentM]
+    () => {
+      const loadFraction = weight / bodyWeightKg;
+      const highLoadPenalty = loadFraction > 0.3 ? (loadFraction - 0.3) * 60 : 0;
+      const baseScore = 95 - (weight * 0.5) - (distance * 0.4) - (plannedAscentM / 160);
+      const terrainAdjusted = baseScore - ((terrainMultiplier - 1) * 30);
+      const calibrated = (terrainAdjusted - highLoadPenalty) * calibrationFactor;
+      return Math.max(55, Math.round(calibrated));
+    },
+    [weight, distance, plannedAscentM, terrainMultiplier, calibrationFactor]
   );
   const activePace = currentDistance > 0.02 ? (elapsedSeconds / 60 / currentDistance).toFixed(1) : '--';
 
@@ -522,11 +549,24 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         <View style={styles.controlRow}>
           <Text style={styles.controlLabel}>Terrain</Text>
           <View style={styles.pills}>
-            {(['Flat', 'Hilly', 'Mixed', 'Urban'] as const).map(t => (
+            {(['Pavement', 'Mixed', 'Sand', 'Heavy Brush'] as const).map(t => (
               <Pressable key={t} style={[styles.pill, terrain === t && styles.pillActive]} onPress={() => setTerrain(t)}>
                 <Text style={[styles.pillText, terrain === t && styles.pillTextActive]}>{t}</Text>
               </Pressable>
             ))}
+          </View>
+        </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Calibrate Estimate</Text>
+          <View style={styles.buttons}>
+            <Pressable style={styles.smallButton} onPress={() => setCalibrationFactor(c => Math.max(0.8, c - 0.05))}>
+              <Text style={styles.smallButtonText}>-</Text>
+            </Pressable>
+            <Text style={[styles.controlValue, { fontSize: 13 }]}>{(calibrationFactor * 100).toFixed(0)}%</Text>
+            <Pressable style={styles.smallButton} onPress={() => setCalibrationFactor(c => Math.min(1.2, c + 0.05))}>
+              <Text style={styles.smallButtonText}>+</Text>
+            </Pressable>
           </View>
         </View>
 
@@ -597,7 +637,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         <Text style={styles.muted}>Projected session score</Text>
         <Text style={styles.score}>{score}</Text>
         <Text style={styles.muted}>
-          Higher distance and heavier load increase training stress. This is a planning estimate, not medical advice.
+          LCDA-adjusted estimate. High-load fraction ({((weight / bodyWeightKg) * 100).toFixed(0)}% BW) and {terrain.toLowerCase()} terrain multipliers applied. Adjust calibration if HR/RPE indicates a different zone.
         </Text>
       </Card>
 

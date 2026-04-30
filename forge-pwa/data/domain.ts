@@ -18,7 +18,7 @@ export type TrainingSession = {
   completedAt?: string;
   notes?: string;
   weather?: 'Hot' | 'Mild' | 'Cold' | 'Wet';
-  terrain?: 'Flat' | 'Hilly' | 'Mixed' | 'Urban';
+  terrain?: 'Pavement' | 'Mixed' | 'Sand' | 'Heavy Brush' | 'Flat' | 'Hilly' | 'Urban';
 };
 
 export type AssessmentRecord = {
