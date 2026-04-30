@@ -20,6 +20,13 @@ import { colours, shadow, touchTarget } from './theme';
 
 type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
 type PinSetupMode = 'set' | 'change' | null;
+type PendingMemberInvite = {
+  id: string;
+  name: string;
+  gymName: string;
+  email?: string;
+  groupId: string;
+};
 
 type ForgeBackup = {
   version: 1;
@@ -63,6 +70,7 @@ export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [typedText, setTypedText] = useState('');
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
+  const [pendingMemberInvite, setPendingMemberInvite] = useState<PendingMemberInvite | null>(null);
   const prevTabIndex = useRef(0);
   const slideAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim = useRef(new Animated.Value(1)).current;
@@ -118,7 +126,22 @@ export default function App() {
 
     const url = new URL(window.location.href);
     const memberId = url.searchParams.get('member');
-    if (memberId) setActiveMemberId(memberId);
+    if (memberId) {
+      setActiveMemberId(memberId);
+      const inviteName = url.searchParams.get('name');
+      const inviteGymName = url.searchParams.get('gym');
+      const inviteEmail = url.searchParams.get('email') ?? undefined;
+      const inviteGroupId = url.searchParams.get('group') ?? trainingGroups[0]?.id ?? 'alpha';
+      if (inviteName || inviteGymName) {
+        setPendingMemberInvite({
+          id: memberId,
+          name: inviteName || inviteGymName || 'Invited Member',
+          gymName: inviteGymName || inviteName || 'Athlete',
+          email: inviteEmail,
+          groupId: inviteGroupId,
+        });
+      }
+    }
 
     const manifestHref = new URL('manifest.webmanifest', window.location.href).toString();
     const existingManifest = document.querySelector('link[rel="manifest"]');
@@ -238,6 +261,33 @@ export default function App() {
   useEffect(() => {
     if (isReady) secureSetItem('forge:sessions', JSON.stringify(sessions));
   }, [sessions, isReady]);
+
+  useEffect(() => {
+    if (!isReady || !activeMemberId || !pendingMemberInvite) return;
+    if (members.some((member) => member.id === activeMemberId)) return;
+
+    setMembers((current) => [
+      {
+        id: pendingMemberInvite.id,
+        groupId: pendingMemberInvite.groupId,
+        name: pendingMemberInvite.name,
+        gymName: pendingMemberInvite.gymName,
+        email: pendingMemberInvite.email,
+        readiness: 72,
+        compliance: 80,
+        risk: 'Low',
+        load: 65,
+        inviteStatus: 'Joined',
+        assignment: 'Strength Training',
+        pinnedExerciseIds: ['trap-bar-deadlift', 'pull-up'],
+        ghostMode: false,
+        streakDays: 0,
+        weeklyVolume: 0,
+        hypeCount: 0,
+      },
+      ...current,
+    ]);
+  }, [activeMemberId, isReady, members, pendingMemberInvite]);
 
   useEffect(() => {
     if (isReady) secureSetItem('forge:members', JSON.stringify(members));

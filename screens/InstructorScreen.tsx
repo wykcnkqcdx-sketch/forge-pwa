@@ -153,9 +153,16 @@ export function InstructorScreen({
     }
 
     const memberId = `member-${Date.now()}`;
-    const inviteUrl = `${appInviteUrl}?member=${encodeURIComponent(memberId)}`;
     const inviteSubject = 'Join FORGE Tactical Fitness';
     const displayName = trimmedGymName || trimmedName;
+    const inviteParams = new URLSearchParams({
+      member: memberId,
+      name: trimmedName,
+      gym: displayName,
+      group: selectedGroupId,
+    });
+    if (trimmedEmail) inviteParams.set('email', trimmedEmail);
+    const inviteUrl = `${appInviteUrl}?${inviteParams.toString()}`;
     const inviteBody = `You've been invited by your coach, ${displayName}.\n\nOpen your FORGE member portal here:\n${inviteUrl}\n\nYou will see your assigned training and team progress. Shared login and live team sync still need backend team storage.`;
 
     onAddMember({
