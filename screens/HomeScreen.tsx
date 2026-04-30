@@ -56,6 +56,7 @@ export function HomeScreen({
   goToAnalytics,
   goToFuel,
   goToTrain,
+  goToReadiness,
   readinessLogs = [],
 }: {
   sessions: TrainingSession[];
@@ -63,6 +64,7 @@ export function HomeScreen({
   goToAnalytics: () => void;
   goToFuel?: () => void;
   goToTrain?: () => void;
+  goToReadiness?: () => void;
   readinessLogs?: ReadinessLog[];
 }) {
   const performance = buildPerformanceProfile(sessions);
@@ -161,10 +163,9 @@ export function HomeScreen({
   }, [performance.readinessBand, performance.loadRisk, sessions, goToTrain, goToRuck]);
 
   function domainPressHandler(domainId: string) {
-    if (domainId === 'nutrition') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      goToFuel?.();
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (domainId === 'nutrition') goToFuel?.();
+    if (domainId === 'sleep' || domainId === 'mental') goToReadiness?.();
   }
 
   return (
@@ -305,7 +306,7 @@ export function HomeScreen({
       <View style={styles.domainGrid}>
         {domains.map((domain) => {
           const tone = domainTone(domain.status);
-          const tappable = domain.id === 'nutrition' && !!goToFuel;
+          const tappable = (domain.id === 'nutrition' && !!goToFuel) || ((domain.id === 'sleep' || domain.id === 'mental') && !!goToReadiness);
           return (
             <Pressable
               key={domain.id}

@@ -22,7 +22,7 @@ import { secureDestroyLocalData, secureGetItem, secureRemoveItem, secureSetItem 
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { colours, shadow, touchTarget } from './theme';
 
-type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor';
+type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor' | 'readiness';
 type PinSetupMode = 'set' | 'change' | null;
 type PendingMemberInvite = {
   id: string;
@@ -61,6 +61,16 @@ const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionic
   { id: 'fuel', label: 'Fuel', icon: 'restaurant-outline', iconActive: 'restaurant' },
   { id: 'readiness', label: 'Ready', icon: 'body-outline', iconActive: 'body' },
 ];
+
+const COACH_SELF: import('./data/mockData').SquadMember = {
+  id: 'coach-self',
+  name: 'Coach',
+  groupId: 'self',
+  readiness: 80,
+  compliance: 100,
+  risk: 'Low',
+  load: 0,
+};
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -1039,6 +1049,15 @@ export default function App() {
             editSession={editSession}
           />
         );
+      case 'readiness':
+        return (
+          <ReadinessScreen
+            member={COACH_SELF}
+            readinessLogs={readinessLogs}
+            onSubmitReadiness={addReadinessLog}
+            onCompleteCheckIn={() => switchTab('home')}
+          />
+        );
       case 'instructor':
         return (
           <InstructorScreen
@@ -1079,6 +1098,8 @@ export default function App() {
             goToRuck={() => switchTab('ruck')}
             goToAnalytics={() => switchTab('analytics')}
             goToFuel={() => switchTab('fuel')}
+            goToTrain={() => switchTab('train')}
+            goToReadiness={() => switchTab('readiness')}
             readinessLogs={readinessLogs}
           />
         );
