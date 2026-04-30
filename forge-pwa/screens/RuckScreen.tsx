@@ -87,7 +87,23 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [weather, setWeather] = useState<TrainingSession['weather']>('Mild');
   const [terrain, setTerrain] = useState<TrainingSession['terrain']>('Pavement');
   const [calibrationFactor, setCalibrationFactor] = useState(1.0);
-  const bodyWeightKg = 82; // Future: Sync from FuelProfile / user onboarding
+  const [bodyWeightKg, setBodyWeightKg] = useState(82);
+
+  useEffect(() => {
+    AsyncStorage.getItem('forge:profile').then(data => {
+      if (data) {
+        try {
+          const profile = JSON.parse(data);
+          if (profile.weight) {
+            const w = parseFloat(profile.weight);
+            if (!isNaN(w)) setBodyWeightKg(w);
+          }
+        } catch (e) {
+          console.error('Failed to parse profile for weight', e);
+        }
+      }
+    });
+  }, []);
 
   const terrainMultiplier = useMemo(() => {
     switch(terrain) {
