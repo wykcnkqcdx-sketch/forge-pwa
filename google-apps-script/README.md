@@ -30,23 +30,20 @@ Each export replaces the raw sheet contents so the workbook stays current, then 
 3. Replace the default script with the contents of [Code.gs](./Code.gs).
 4. Save the project.
 5. Strong recommendation: set `FORGE_CONFIG.spreadsheetId` to the exact Google Sheet you want FORGE to update.
-6. You can now paste either:
-   - the raw spreadsheet ID
-   - or the full Google Sheets URL
-7. If you leave `spreadsheetId` blank, the script writes to the bound spreadsheet.
-8. To get the spreadsheet ID manually, copy the long ID from the Google Sheet URL:
+6. If you leave `spreadsheetId` blank, the script writes to the bound spreadsheet.
+7. To get the spreadsheet ID, copy the long ID from the Google Sheet URL:
 
 ```text
-https://docs.google.com/spreadsheets/d/SPREADSHEET_ID/edit
+https://docs.google.com/spreadsheets/d/SPREADSSHEET_ID/edit
 ```
 
-9. Click `Deploy -> New deployment`.
-10. Choose `Web app`.
-11. Set:
+8. Click `Deploy -> New deployment`.
+9. Choose `Web app`.
+10. Set:
    - `Execute as`: `Me`
    - `Who has access`: `Anyone`
-12. Deploy and copy the web app URL.
-13. Paste that URL into `Coach -> Google Sheets Export` in FORGE.
+11. Deploy and copy the web app URL.
+12. Paste that URL into `Coach -> Google Sheets Export` in FORGE.
 
 ## Quick test
 
