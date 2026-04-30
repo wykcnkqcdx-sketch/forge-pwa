@@ -68,6 +68,8 @@ export default function App() {
   const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
   const [workoutCompletions, setWorkoutCompletions] = useState<WorkoutCompletion[]>([]);
   const [googleSheetsEndpoint, setGoogleSheetsEndpoint] = useState('');
+  const [googleSheetsExporting, setGoogleSheetsExporting] = useState(false);
+  const [googleSheetsMessage, setGoogleSheetsMessage] = useState('');
   const [cloudSession, setCloudSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authLoading, setAuthLoading] = useState(false);
@@ -703,11 +705,13 @@ export default function App() {
   async function exportGoogleSheetsNow() {
     const trimmedEndpoint = googleSheetsEndpoint.trim();
     if (!trimmedEndpoint) {
-      Alert.alert('Google Sheets URL required', 'Paste your Google Apps Script web app URL before exporting.');
+      showBlockingMessage('Google Sheets URL required', 'Paste your Google Apps Script web app URL before exporting.');
       return;
     }
 
     try {
+      setGoogleSheetsExporting(true);
+      setGoogleSheetsMessage('Sending export to Google Sheets...');
       const payload = buildGoogleSheetsPayload(
         sessions,
         members,
@@ -719,13 +723,21 @@ export default function App() {
       );
       const result = await exportToGoogleSheets(trimmedEndpoint, payload);
       if (result.delivery === 'json' && result.spreadsheetUrl) {
-        Alert.alert('Export sent', `FORGE data was written to Google Sheets.\n\n${result.spreadsheetUrl}`);
+        const message = `FORGE data was written to Google Sheets.\n\n${result.spreadsheetUrl}`;
+        setGoogleSheetsMessage(message);
+        showBlockingMessage('Export sent', message);
       } else {
-        Alert.alert('Export sent', 'FORGE data was sent to Google Sheets. If the workbook still looks blank, refresh the sheet and check the Meta tab first.');
+        const message = 'FORGE sent the export request. Refresh the Google Sheet and check the Meta tab first.';
+        setGoogleSheetsMessage(message);
+        showBlockingMessage('Export sent', message);
       }
     } catch (error) {
       console.error('Failed to export to Google Sheets', error);
-      Alert.alert('Export failed', error instanceof Error ? error.message : 'Could not send data to Google Sheets.');
+      const message = error instanceof Error ? error.message : 'Could not send data to Google Sheets.';
+      setGoogleSheetsMessage(`Export failed: ${message}`);
+      showBlockingMessage('Export failed', message);
+    } finally {
+      setGoogleSheetsExporting(false);
     }
   }
 
@@ -917,6 +929,8 @@ export default function App() {
             googleSheetsEndpoint={googleSheetsEndpoint}
             onChangeGoogleSheetsEndpoint={setGoogleSheetsEndpoint}
             onExportGoogleSheets={exportGoogleSheetsNow}
+            googleSheetsExporting={googleSheetsExporting}
+            googleSheetsMessage={googleSheetsMessage}
           />
         );
       default:

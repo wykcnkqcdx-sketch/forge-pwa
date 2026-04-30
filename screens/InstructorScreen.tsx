@@ -35,6 +35,8 @@ interface InstructorScreenProps {
   googleSheetsEndpoint: string;
   onChangeGoogleSheetsEndpoint: (value: string) => void;
   onExportGoogleSheets: () => void;
+  googleSheetsExporting: boolean;
+  googleSheetsMessage: string;
 }
 
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
@@ -137,6 +139,8 @@ export function InstructorScreen({
   googleSheetsEndpoint,
   onChangeGoogleSheetsEndpoint,
   onExportGoogleSheets,
+  googleSheetsExporting,
+  googleSheetsMessage,
 }: InstructorScreenProps) {
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberGymName, setNewMemberGymName] = useState('');
@@ -649,9 +653,14 @@ export function InstructorScreen({
           autoCapitalize="none"
           autoCorrect={false}
         />
-        <Pressable style={styles.googleSheetsButton} onPress={onExportGoogleSheets}>
-          <Text style={styles.googleSheetsButtonText}>Send To Google Sheets</Text>
+        <Pressable
+          style={[styles.googleSheetsButton, googleSheetsExporting && styles.cloudSyncButtonDisabled]}
+          onPress={onExportGoogleSheets}
+          disabled={googleSheetsExporting}
+        >
+          <Text style={styles.googleSheetsButtonText}>{googleSheetsExporting ? 'Sending...' : 'Send To Google Sheets'}</Text>
         </Pressable>
+        {googleSheetsMessage ? <Text style={styles.googleSheetsStatus}>{googleSheetsMessage}</Text> : null}
         <Text style={styles.inviteHelp}>
           Recommended raw tabs: Members, Groups, Sessions, Assignments, Completions, Readiness, Programme Templates.
         </Text>
@@ -1361,6 +1370,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   googleSheetsButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
+  googleSheetsStatus: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
   cloudSignOutButton: {
     borderWidth: 1,
     borderColor: `${colours.red}40`,
