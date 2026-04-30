@@ -6,7 +6,7 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
-import { exerciseLibrary, ExerciseCategory, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
+import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
 interface InstructorScreenProps {
@@ -64,6 +64,25 @@ function formatReadinessFactor(label: string, log?: ReadinessLog) {
   }
 }
 
+function parseDose(dose: string) {
+  const setsRepsMatch = dose.match(/(\d+)\s*x\s*(\d+)/i);
+  if (setsRepsMatch) {
+    return {
+      sets: Number.parseInt(setsRepsMatch[1], 10),
+      reps: Number.parseInt(setsRepsMatch[2], 10),
+    };
+  }
+
+  const minutesMatch = dose.match(/(\d+)\s*mins?/i);
+  if (minutesMatch) {
+    return {
+      durationMinutes: Number.parseInt(minutesMatch[1], 10),
+    };
+  }
+
+  return {};
+}
+
 export function InstructorScreen({
   pinEnabled,
   sessions,
@@ -97,7 +116,7 @@ export function InstructorScreen({
   const [assignmentLabel, setAssignmentLabel] = useState(assignmentTemplates[0]);
   const [assignmentFeedback, setAssignmentFeedback] = useState('');
   const [assignmentNote, setAssignmentNote] = useState('');
-  const [assignmentExerciseIds, setAssignmentExerciseIds] = useState<string[]>([]);
+  const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
 
   const groupScores = useMemo(() => {
@@ -149,8 +168,29 @@ export function InstructorScreen({
   const selectedAssignmentMember = members.find((member) => member.id === assignmentMemberId) ?? null;
   const selectedAssignmentGroup = groups.find((group) => group.id === assignmentGroupId) ?? null;
   const selectedAssignmentMode = trainingModes.find((mode) => mode.title === assignmentLabel) ?? null;
-  const suggestedAssignmentExercises = selectedAssignmentMode?.defaultExerciseIds ?? [];
-  const activeAssignmentExerciseIds = assignmentExerciseIds.length ? assignmentExerciseIds : suggestedAssignmentExercises;
+  const suggestedAssignmentExercises = useMemo(() => {
+    if (!selectedAssignmentMode) return [];
+    return selectedAssignmentMode.defaultExerciseIds
+      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+      .map((exercise) => ({
+        exerciseId: exercise.id,
+        name: exercise.name,
+        dose: exercise.dose,
+        coachPinned: selectedAssignmentMode.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
+        prescribed: {
+          sets: parseDose(exercise.dose).sets,
+          reps: parseDose(exercise.dose).reps,
+          load: undefined,
+          loadUnit: 'kg' as const,
+          durationMinutes: parseDose(exercise.dose).durationMinutes,
+          restSeconds: undefined,
+        },
+        status: 'assigned' as const,
+      }));
+  }, [selectedAssignmentMode]);
+  const activeAssignmentExercises = stagedAssignmentExercises.length ? stagedAssignmentExercises : suggestedAssignmentExercises;
+  const activeAssignmentExerciseIds = activeAssignmentExercises.map((exercise) => exercise.exerciseId);
   const assignmentLibrary = (assignmentCategory === 'All'
     ? exerciseLibrary
     : exerciseLibrary.filter((exercise) => exercise.category === assignmentCategory))
@@ -311,7 +351,24 @@ export function InstructorScreen({
       const member = members.find((item) => item.id === assignmentMemberId) ?? members[0];
       const mode = trainingModes.find((item) => item.title === (member?.assignment ?? assignmentLabel)) ?? selectedAssignmentMode ?? trainingModes[0];
       setAssignmentLabel(mode.title);
-      setAssignmentExerciseIds(member?.assignmentSession?.exercises.map((exercise) => exercise.exerciseId) ?? mode.defaultExerciseIds);
+      setStagedAssignmentExercises(member?.assignmentSession?.exercises ?? mode.defaultExerciseIds
+        .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+        .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+        .map((exercise) => ({
+          exerciseId: exercise.id,
+          name: exercise.name,
+          dose: exercise.dose,
+          coachPinned: mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
+          prescribed: {
+            sets: parseDose(exercise.dose).sets,
+            reps: parseDose(exercise.dose).reps,
+            load: undefined,
+            loadUnit: 'kg' as const,
+            durationMinutes: parseDose(exercise.dose).durationMinutes,
+            restSeconds: undefined,
+          },
+          status: 'assigned' as const,
+        })));
       setAssignmentNote(member?.assignmentSession?.coachNote ?? '');
       setAssignmentFeedback('');
     }
@@ -321,13 +378,67 @@ export function InstructorScreen({
   function handleAssignmentTemplateChange(nextLabel: string) {
     setAssignmentLabel(nextLabel);
     const mode = trainingModes.find((item) => item.title === nextLabel);
-    setAssignmentExerciseIds(mode?.defaultExerciseIds ?? []);
+    setStagedAssignmentExercises(mode?.defaultExerciseIds
+      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+      .map((exercise) => ({
+        exerciseId: exercise.id,
+        name: exercise.name,
+        dose: exercise.dose,
+        coachPinned: mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
+        prescribed: {
+          sets: parseDose(exercise.dose).sets,
+          reps: parseDose(exercise.dose).reps,
+          load: undefined,
+          loadUnit: 'kg' as const,
+          durationMinutes: parseDose(exercise.dose).durationMinutes,
+          restSeconds: undefined,
+        },
+        status: 'assigned' as const,
+      })) ?? []);
   }
 
   function toggleAssignmentExercise(exerciseId: string) {
-    setAssignmentExerciseIds((current) => current.includes(exerciseId)
-      ? current.filter((id) => id !== exerciseId)
-      : [...current, exerciseId]);
+    const exercise = exerciseLibrary.find((item) => item.id === exerciseId);
+    if (!exercise) return;
+
+    setStagedAssignmentExercises((current) => {
+      const exists = current.some((item) => item.exerciseId === exerciseId);
+      if (exists) return current.filter((item) => item.exerciseId !== exerciseId);
+
+      return [
+        ...current,
+        {
+          exerciseId: exercise.id,
+          name: exercise.name,
+          dose: exercise.dose,
+          coachPinned: selectedAssignmentMode?.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
+          prescribed: {
+            sets: parseDose(exercise.dose).sets,
+            reps: parseDose(exercise.dose).reps,
+            load: undefined,
+            loadUnit: 'kg' as const,
+            durationMinutes: parseDose(exercise.dose).durationMinutes,
+            restSeconds: undefined,
+          },
+          status: 'assigned',
+        },
+      ];
+    });
+  }
+
+  function updateStagedExercise(exerciseId: string, updates: Partial<AssignedExerciseBlock['prescribed']>) {
+    setStagedAssignmentExercises((current) => current.map((exercise) => (
+      exercise.exerciseId === exerciseId
+        ? {
+            ...exercise,
+            prescribed: {
+              ...exercise.prescribed,
+              ...updates,
+            },
+          }
+        : exercise
+    )));
   }
 
   function applyAssignment() {
@@ -345,9 +456,7 @@ export function InstructorScreen({
 
     const assignmentMode = selectedAssignmentMode;
     const chosenExerciseIds = activeAssignmentExerciseIds;
-    const chosenExercises = chosenExerciseIds
-      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
-      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise));
+    const chosenExercises = activeAssignmentExercises;
     onUpdateMember(member.id, {
       groupId: group.id,
       assignment: assignmentLabel,
@@ -361,10 +470,9 @@ export function InstructorScreen({
         assignedAt: new Date().toISOString(),
         coachNote: assignmentNote.trim() || undefined,
         exercises: chosenExercises.map((exercise) => ({
-          exerciseId: exercise.id,
-          name: exercise.name,
-          dose: exercise.dose,
-          coachPinned: assignmentMode?.coachPinnedExerciseIds?.includes(exercise.id) ?? false,
+          ...exercise,
+          coachPinned: assignmentMode?.coachPinnedExerciseIds?.includes(exercise.exerciseId) ?? exercise.coachPinned ?? false,
+          status: 'assigned',
         })),
       },
     });
@@ -374,6 +482,7 @@ export function InstructorScreen({
     setAssignmentFeedback(message);
     setAssignmentOpen(false);
     setAssignmentNote('');
+    setStagedAssignmentExercises([]);
     showMessage('Assignment saved', message);
   }
 
@@ -754,6 +863,73 @@ export function InstructorScreen({
               multiline
             />
 
+            <Text style={styles.assignmentLabel}>Staged session</Text>
+            {activeAssignmentExercises.length ? (
+              <View style={styles.stageList}>
+                {activeAssignmentExercises.map((exercise) => (
+                  <View key={exercise.exerciseId} style={styles.stageCard}>
+                    <View style={styles.stageHeader}>
+                      <View style={styles.memberCopy}>
+                        <Text style={styles.memberName}>{exercise.name}</Text>
+                        <Text style={styles.muted}>{exercise.dose}</Text>
+                      </View>
+                      <Pressable style={styles.stageRemove} onPress={() => toggleAssignmentExercise(exercise.exerciseId)}>
+                        <Text style={styles.stageRemoveText}>Remove</Text>
+                      </Pressable>
+                    </View>
+                    <View style={styles.stageInputs}>
+                      <View style={styles.stageInputBlock}>
+                        <Text style={styles.stageInputLabel}>Sets</Text>
+                        <TextInput
+                          style={styles.stageInput}
+                          value={exercise.prescribed?.sets ? String(exercise.prescribed.sets) : ''}
+                          onChangeText={(value) => updateStagedExercise(exercise.exerciseId, { sets: value ? Number.parseInt(value.replace(/[^0-9]/g, ''), 10) : undefined })}
+                          keyboardType="number-pad"
+                          placeholder="0"
+                          placeholderTextColor={colours.soft}
+                        />
+                      </View>
+                      <View style={styles.stageInputBlock}>
+                        <Text style={styles.stageInputLabel}>Reps</Text>
+                        <TextInput
+                          style={styles.stageInput}
+                          value={exercise.prescribed?.reps ? String(exercise.prescribed.reps) : ''}
+                          onChangeText={(value) => updateStagedExercise(exercise.exerciseId, { reps: value ? Number.parseInt(value.replace(/[^0-9]/g, ''), 10) : undefined })}
+                          keyboardType="number-pad"
+                          placeholder="0"
+                          placeholderTextColor={colours.soft}
+                        />
+                      </View>
+                      <View style={styles.stageInputBlock}>
+                        <Text style={styles.stageInputLabel}>Load</Text>
+                        <TextInput
+                          style={styles.stageInput}
+                          value={exercise.prescribed?.load ? String(exercise.prescribed.load) : ''}
+                          onChangeText={(value) => updateStagedExercise(exercise.exerciseId, { load: value ? Number.parseInt(value.replace(/[^0-9]/g, ''), 10) : undefined })}
+                          keyboardType="number-pad"
+                          placeholder="0"
+                          placeholderTextColor={colours.soft}
+                        />
+                      </View>
+                      <View style={styles.stageInputBlock}>
+                        <Text style={styles.stageInputLabel}>Min</Text>
+                        <TextInput
+                          style={styles.stageInput}
+                          value={exercise.prescribed?.durationMinutes ? String(exercise.prescribed.durationMinutes) : ''}
+                          onChangeText={(value) => updateStagedExercise(exercise.exerciseId, { durationMinutes: value ? Number.parseInt(value.replace(/[^0-9]/g, ''), 10) : undefined })}
+                          keyboardType="number-pad"
+                          placeholder="0"
+                          placeholderTextColor={colours.soft}
+                        />
+                      </View>
+                    </View>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.emptyAssignmentText}>Add exercises to the staged session before deploy.</Text>
+            )}
+
             <View style={styles.assignmentSummary}>
               <Text style={styles.assignmentSummaryText}>
                 {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} {'->'} {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel} / {activeAssignmentExerciseIds.length} exercises
@@ -1007,6 +1183,61 @@ const styles = StyleSheet.create({
   assignmentNoteInput: {
     minHeight: 82,
     textAlignVertical: 'top',
+  },
+  stageList: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  stageCard: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: 'rgba(0,0,0,0.16)',
+  },
+  stageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 10,
+  },
+  stageRemove: {
+    borderWidth: 1,
+    borderColor: `${colours.red}40`,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: colours.redDim,
+  },
+  stageRemoveText: {
+    color: colours.red,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  stageInputs: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  stageInputBlock: {
+    flex: 1,
+  },
+  stageInputLabel: {
+    color: colours.muted,
+    fontSize: 10,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  stageInput: {
+    minHeight: 42,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    color: colours.text,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 10,
+    fontSize: 13,
+    fontWeight: '800',
   },
   assignmentPill: {
     borderWidth: 1,

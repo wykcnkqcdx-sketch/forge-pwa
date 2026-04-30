@@ -127,6 +127,30 @@ export function MemberScreen({
     });
   }, [member?.assignmentSession, member?.id, onUpdateMember]);
 
+  function markExerciseHit(exerciseId: string) {
+    if (!member?.assignmentSession) return;
+
+    onUpdateMember(member.id, {
+      assignmentSession: {
+        ...member.assignmentSession,
+        exercises: member.assignmentSession.exercises.map((exercise) => (
+          exercise.exerciseId === exerciseId
+            ? {
+                ...exercise,
+                actual: {
+                  sets: exercise.prescribed?.sets,
+                  reps: exercise.prescribed?.reps,
+                  load: exercise.prescribed?.load,
+                  durationMinutes: exercise.prescribed?.durationMinutes,
+                },
+                status: 'hit',
+              }
+            : exercise
+        )),
+      },
+    });
+  }
+
   function finishWorkout(effort: 'About Right' | 'Too Easy' | 'Too Hard') {
     if (!member) return;
 
@@ -170,7 +194,12 @@ export function MemberScreen({
       durationMinutes: parsedDuration,
       note: workoutNote.trim() || undefined,
       volume: plannedVolume,
-      exercises: assignedExercises.map((exercise) => ({ name: exercise.name })),
+      exercises: assignmentSession?.exercises.map((exercise) => ({
+        name: exercise.name,
+        sets: exercise.actual?.sets ?? exercise.prescribed?.sets,
+        reps: exercise.actual?.reps ?? exercise.prescribed?.reps,
+        loadKg: exercise.actual?.load ?? exercise.prescribed?.load,
+      })) ?? assignedExercises.map((exercise) => ({ name: exercise.name })),
       completedAt: now,
     });
     setWorkoutNote('');
@@ -347,10 +376,38 @@ export function MemberScreen({
                 <View style={styles.exerciseCopy}>
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
                   {pinnedExerciseIds.includes(exercise.id) && <Text style={styles.coachPick}>Coach's Pick</Text>}
+                  {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed ? (
+                    <Text style={styles.prescribedDose}>
+                      Prescribed: {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.sets ? `${assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.sets} x ` : ''}
+                      {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.reps ? `${assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.reps}` : ''}
+                      {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.load ? ` @ ${assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.load}${assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.loadUnit ?? 'kg'}` : ''}
+                      {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.durationMinutes ? `${assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.prescribed?.durationMinutes} min` : ''}
+                    </Text>
+                  ) : null}
                 </View>
-                <Text style={styles.exerciseDose}>
-                  {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.dose ?? exercise.dose}
-                </Text>
+                <View style={styles.exerciseRight}>
+                  <Text style={styles.exerciseDose}>
+                    {assignmentSession?.exercises.find((item) => item.exerciseId === exercise.id)?.dose ?? exercise.dose}
+                  </Text>
+                  {assignmentSession ? (
+                    <Pressable
+                      style={[
+                        styles.hitButton,
+                        assignmentSession.exercises.find((item) => item.exerciseId === exercise.id)?.status === 'hit' && styles.hitButtonDone,
+                      ]}
+                      onPress={() => markExerciseHit(exercise.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.hitButtonText,
+                          assignmentSession.exercises.find((item) => item.exerciseId === exercise.id)?.status === 'hit' && styles.hitButtonTextDone,
+                        ]}
+                      >
+                        {assignmentSession.exercises.find((item) => item.exerciseId === exercise.id)?.status === 'hit' ? 'Hit' : 'Hit Prescribed'}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </View>
             ))}
           </View>
@@ -692,8 +749,18 @@ const styles = StyleSheet.create({
   exerciseCopy: {
     flex: 1,
   },
+  exerciseRight: {
+    alignItems: 'flex-end',
+    gap: 8,
+  },
   coachPick: {
     color: colours.amber,
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  prescribedDose: {
+    color: colours.green,
     fontSize: 10,
     fontWeight: '900',
     marginTop: 3,
@@ -702,6 +769,28 @@ const styles = StyleSheet.create({
     color: colours.muted,
     fontSize: 12,
     fontWeight: '900',
+  },
+  hitButton: {
+    minHeight: 32,
+    borderWidth: 1,
+    borderColor: `${colours.cyan}40`,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.cyanDim,
+  },
+  hitButtonDone: {
+    borderColor: `${colours.green}40`,
+    backgroundColor: colours.greenDim,
+  },
+  hitButtonText: {
+    color: colours.cyan,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  hitButtonTextDone: {
+    color: colours.green,
   },
   noteInput: {
     minHeight: 72,
