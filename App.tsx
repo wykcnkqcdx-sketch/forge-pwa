@@ -92,6 +92,26 @@ export default function App() {
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudHydrated = useRef(false);
   const skipNextRemotePush = useRef(false);
+  const coachLandingPrimed = useRef(false);
+
+  const applyCloudSnapshot = useCallback((snapshot: {
+    sessions: TrainingSession[];
+    members: SquadMember[];
+    workoutCompletions: WorkoutCompletion[];
+    readinessLogs: ReadinessLog[];
+  }) => {
+    skipNextRemotePush.current = true;
+    setSessions(snapshot.sessions);
+    setMembers(snapshot.members);
+    setWorkoutCompletions(snapshot.workoutCompletions);
+    setReadinessLogs(snapshot.readinessLogs);
+  }, []);
+
+  const refreshCloudSnapshot = useCallback(async (userId: string) => {
+    const snapshot = await fetchCloudSnapshot(userId);
+    applyCloudSnapshot(snapshot);
+    setCloudStatus('synced');
+  }, [applyCloudSnapshot]);
 
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
@@ -207,6 +227,7 @@ export default function App() {
       setAuthError('');
       setCloudStatus(session ? 'syncing' : 'auth');
       cloudHydrated.current = false;
+      if (!session) coachLandingPrimed.current = false;
     });
 
     return () => {
@@ -348,11 +369,12 @@ export default function App() {
         if (cancelled) return;
 
         if (snapshot.sessions.length > 0 || snapshot.members.length > 0 || snapshot.workoutCompletions.length > 0) {
-          skipNextRemotePush.current = true;
-          if (snapshot.sessions.length > 0) setSessions(snapshot.sessions);
-          if (snapshot.members.length > 0) setMembers(snapshot.members);
-          if (snapshot.workoutCompletions.length > 0) setWorkoutCompletions(snapshot.workoutCompletions);
-          if (snapshot.readinessLogs.length > 0) setReadinessLogs(snapshot.readinessLogs);
+          applyCloudSnapshot({
+            sessions: snapshot.sessions.length > 0 ? snapshot.sessions : sessions,
+            members: snapshot.members.length > 0 ? snapshot.members : members,
+            workoutCompletions: snapshot.workoutCompletions.length > 0 ? snapshot.workoutCompletions : workoutCompletions,
+            readinessLogs: snapshot.readinessLogs.length > 0 ? snapshot.readinessLogs : readinessLogs,
+          });
         } else {
           await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
         }
@@ -360,6 +382,10 @@ export default function App() {
         if (!cancelled) {
           cloudHydrated.current = true;
           setCloudStatus('synced');
+          if (!activeMemberId && activeTab === 'home' && !coachLandingPrimed.current) {
+            coachLandingPrimed.current = true;
+            setActiveTab('instructor');
+          }
         }
       } catch (error) {
         console.error('Failed to hydrate cloud data', error);
@@ -406,12 +432,8 @@ export default function App() {
 
     const refreshSnapshot = async () => {
       try {
-        const snapshot = await fetchCloudSnapshot(userId);
-        setSessions(snapshot.sessions);
-        setMembers(snapshot.members);
-        setWorkoutCompletions(snapshot.workoutCompletions);
-        setReadinessLogs(snapshot.readinessLogs);
-        setCloudStatus('synced');
+        setCloudStatus('syncing');
+        await refreshCloudSnapshot(userId);
       } catch (error) {
         console.error('Failed to refresh realtime snapshot', error);
         setCloudStatus('error');
@@ -425,10 +447,30 @@ export default function App() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'readiness_logs', filter: `user_id=eq.${userId}` }, refreshSnapshot)
       .subscribe();
 
+    if (typeof window !== 'undefined') {
+      const handleVisibilityOrFocus = () => {
+        if (document.visibilityState === 'visible') refreshSnapshot();
+      };
+      const handleOnline = () => {
+        refreshSnapshot();
+      };
+
+      window.addEventListener('focus', handleVisibilityOrFocus);
+      window.addEventListener('online', handleOnline);
+      document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+
+      return () => {
+        window.removeEventListener('focus', handleVisibilityOrFocus);
+        window.removeEventListener('online', handleOnline);
+        document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+        client.removeChannel(channel);
+      };
+    }
+
     return () => {
       client.removeChannel(channel);
     };
-  }, [cloudSession?.user?.id, isReady]);
+  }, [cloudSession?.user?.id, isReady, refreshCloudSnapshot]);
 
   function showBlockingMessage(title: string, message: string) {
     if (typeof window !== 'undefined') {
@@ -578,6 +620,7 @@ export default function App() {
   function openCoachView() {
     setActiveMemberId(null);
     setActiveMemberTab('portal');
+    setActiveTab('instructor');
     if (typeof window !== 'undefined') {
       const url = new URL(window.location.href);
       url.searchParams.delete('member');
@@ -639,13 +682,7 @@ export default function App() {
       setCloudStatus('syncing');
       const userId = cloudSession.user.id;
       await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
-      const snapshot = await fetchCloudSnapshot(userId);
-      skipNextRemotePush.current = true;
-      setSessions(snapshot.sessions);
-      setMembers(snapshot.members);
-      setWorkoutCompletions(snapshot.workoutCompletions);
-      setReadinessLogs(snapshot.readinessLogs);
-      setCloudStatus('synced');
+      await refreshCloudSnapshot(userId);
     } catch (error) {
       console.error('Manual cloud sync failed', error);
       setCloudStatus('error');

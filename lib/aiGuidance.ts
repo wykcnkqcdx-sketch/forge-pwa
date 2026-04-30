@@ -21,6 +21,19 @@ export type ProgrammeBuilderInput = {
   readiness: ProgrammeReadiness;
 };
 
+export type EvidenceSource = {
+  title: string;
+  url: string;
+};
+
+export type EvidencePack = {
+  id: string;
+  label: string;
+  updatedAt: string;
+  summary: string;
+  sources: EvidenceSource[];
+};
+
 export type ProgrammeRecommendation = {
   assignmentTitle: string;
   tone: string;
@@ -28,9 +41,36 @@ export type ProgrammeRecommendation = {
   rationale: string;
   weeklyVolume: string;
   intensity: string;
+  weeklyStructure: string[];
   coachNote: string;
   scienceNotes: string[];
   exerciseIds: string[];
+  evidencePack: EvidencePack;
+};
+
+const forgeEvidencePack202604: EvidencePack = {
+  id: 'forge-evidence-2026-04',
+  label: 'FORGE Evidence v2026.04',
+  updatedAt: '2026-04-30',
+  summary: 'Built from ACSM 2026 resistance training guidance, current strength-hypertrophy meta-analysis, WHO physical activity guidance, and 2024 concurrent training evidence.',
+  sources: [
+    {
+      title: 'ACSM 2026 Position Stand: Resistance Training Prescription for Muscle Function, Hypertrophy, and Physical Performance in Healthy Adults',
+      url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC12965823/',
+    },
+    {
+      title: 'Currier et al. 2023: Resistance training prescription for muscle strength and hypertrophy',
+      url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10579494/',
+    },
+    {
+      title: 'WHO physical activity guidance',
+      url: 'https://www.who.int/health-topics/physical-activity/physical-activity',
+    },
+    {
+      title: 'Huiberts et al. 2024: Concurrent strength and endurance training meta-analysis',
+      url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10933151/',
+    },
+  ],
 };
 
 export function buildAthleteGuidance(sessions: TrainingSession[]): AiGuidance {
@@ -119,12 +159,16 @@ export function buildProgrammeRecommendation(input: ProgrammeBuilderInput): Prog
       rationale: 'Strength adaptations respond best to repeated exposures to high-force patterns, controlled fatigue, and enough rest to keep bar speed and motor unit recruitment high.',
       weeklyVolume: input.daysPerWeek <= 3 ? '10 to 14 hard sets per major movement per week' : '12 to 16 hard sets per major movement per week',
       intensity: 'Primary lifts at 75 to 88% effort, mostly 3 to 6 reps, with 2 to 4 min rest.',
+      weeklyStructure: input.daysPerWeek <= 3
+        ? ['Day 1: Lower strength + pull', 'Day 2: Upper push-pull + carries', 'Day 3: Secondary lower strength + trunk']
+        : ['Day 1: Heavy lower', 'Day 2: Upper force', 'Day 3: Lower accessory + carries', 'Day 4: Upper assistance + trunk'],
       coachNote: `${readinessModifier} Focus on bracing, clean reps, and progressive overload before adding more exercise variety.`,
       scienceNotes: [
         'Use multi-joint lifts first while fatigue is lowest.',
         'Keep weekly hard-set volume moderate so quality stays high.',
         'Carries and pulls support tactical trunk and grip resilience.',
       ],
+      evidencePack: forgeEvidencePack202604,
       exerciseIds: input.equipment === 'Bodyweight'
         ? ['pull-up', 'push-up-ladder', 'walking-lunge', 'bear-crawl']
         : input.equipment === 'Minimal Kit'
@@ -141,12 +185,16 @@ export function buildProgrammeRecommendation(input: ProgrammeBuilderInput): Prog
       rationale: 'Hypertrophy tends to improve with enough weekly hard-set volume, moderate reps, and proximity to failure that still allows clean repeated efforts.',
       weeklyVolume: input.daysPerWeek <= 3 ? '12 to 16 hard sets per muscle group per week' : '14 to 18 hard sets per muscle group per week',
       intensity: 'Mostly 6 to 12 reps, 60 to 90 sec rest on accessories, 1 to 3 reps in reserve.',
+      weeklyStructure: input.daysPerWeek <= 3
+        ? ['Day 1: Lower push-pull', 'Day 2: Upper push-pull', 'Day 3: Single-leg + trunk + accessories']
+        : ['Day 1: Lower A', 'Day 2: Upper A', 'Day 3: Lower B', 'Day 4: Upper B'],
       coachNote: `${readinessModifier} Pair push, pull, and single-leg work so the session grows tissue without burying recovery.`,
       scienceNotes: [
         'Volume drives growth more than constant load chasing.',
         'Balanced push-pull pairing helps shoulder tolerance.',
         'Accessory work is useful once primary movement quality is stable.',
       ],
+      evidencePack: forgeEvidencePack202604,
       exerciseIds: input.equipment === 'Bodyweight'
         ? ['push-up-ladder', 'pull-up', 'walking-lunge', 'bear-crawl']
         : input.equipment === 'Minimal Kit'
@@ -163,12 +211,16 @@ export function buildProgrammeRecommendation(input: ProgrammeBuilderInput): Prog
       rationale: 'A strong aerobic base supports recovery, work capacity, and repeated high-intensity efforts. Most conditioning should stay submaximal, with brief targeted interval exposure.',
       weeklyVolume: input.daysPerWeek <= 3 ? '2 aerobic exposures plus 1 interval exposure' : '3 aerobic exposures plus 1 interval exposure',
       intensity: 'Roughly 80% easy aerobic work, 20% threshold or interval work.',
+      weeklyStructure: input.daysPerWeek <= 3
+        ? ['Day 1: Zone 2 aerobic', 'Day 2: Tempo or threshold', 'Day 3: Easy aerobic + strides']
+        : ['Day 1: Zone 2 aerobic', 'Day 2: Tempo', 'Day 3: Recovery aerobic', 'Day 4: Intervals or hill work'],
       coachNote: `${readinessModifier} Keep the easy work actually easy, then place the hard interval piece on the day the squad is freshest.`,
       scienceNotes: [
         'Zone 2 work raises the floor for recovery and endurance.',
         'Intervals should be brief and purposeful rather than daily.',
         'Do not stack hard intervals beside the heaviest lower-body day when readiness is soft.',
       ],
+      evidencePack: forgeEvidencePack202604,
       exerciseIds: input.equipment === 'Bodyweight'
         ? ['zone-2-run', 'tempo-run', 'strides']
         : ['zone-2-run', 'tempo-run', 'rower-base', 'bike-intervals', 'strides'],
@@ -183,12 +235,14 @@ export function buildProgrammeRecommendation(input: ProgrammeBuilderInput): Prog
       rationale: 'When readiness is limited, recovery sessions work best when they preserve movement quality, gently raise circulation, and avoid adding large mechanical or nervous system stress.',
       weeklyVolume: 'Low volume by design, focused on restoration rather than overload',
       intensity: 'Easy effort, nasal breathing, relaxed tempo, low joint threat.',
+      weeklyStructure: ['Block 1: Breathing + mobility', 'Block 2: Easy tissue-friendly movement', 'Block 3: Short easy aerobic flush'],
       coachNote: `${readinessModifier} The win today is leaving the session feeling better than the athlete arrived.`,
       scienceNotes: [
         'Mobility is more useful when paired with breathing and easy movement.',
         'Do not chase fatigue on a recovery day.',
         'Short easy aerobic work can help the next harder session land better.',
       ],
+      evidencePack: forgeEvidencePack202604,
       exerciseIds: ['mobility-reset', 'hip-airplane', 'thoracic-rotation', 'calf-ankle-rock'],
     };
   }
@@ -200,12 +254,16 @@ export function buildProgrammeRecommendation(input: ProgrammeBuilderInput): Prog
     rationale: 'Hybrid tactical work is strongest when it layers one or two force patterns with loaded locomotion and a simple conditioning demand instead of turning into random fatigue.',
     weeklyVolume: input.daysPerWeek <= 3 ? '2 strength-biased days plus 1 conditioning-biased day' : '2 strength-biased days plus 2 hybrid or aerobic days',
     intensity: 'Primary task at moderate-high effort, accessories and conditioning capped before technique falls apart.',
+    weeklyStructure: input.daysPerWeek <= 3
+      ? ['Day 1: Strength + carry', 'Day 2: Aerobic base', 'Day 3: Hybrid field circuit']
+      : ['Day 1: Lower force + carry', 'Day 2: Aerobic base', 'Day 3: Upper force + trunk', 'Day 4: Hybrid field circuit'],
     coachNote: `${readinessModifier} Build the session around one main task, one support strength movement, then one clean conditioning finish.`,
     scienceNotes: [
       'Hybrid sessions work best when the movement menu is small and intentional.',
       'Carries and awkward-object work transfer well to tactical tasks.',
       'Cap density before quality drops into random exhaustion.',
     ],
+    evidencePack: forgeEvidencePack202604,
     exerciseIds: input.equipment === 'Bodyweight'
       ? ['push-up-ladder', 'bear-crawl', 'shuttle-run']
       : input.equipment === 'Minimal Kit'

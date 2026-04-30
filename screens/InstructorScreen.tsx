@@ -503,10 +503,15 @@ export function InstructorScreen({
       name,
       assignmentTitle: assignmentLabel || programmeRecommendation.assignmentTitle,
       type: selectedAssignmentMode?.type ?? programmeRecommendation.assignmentTitle === 'Cardio Training' ? 'Cardio' : programmeRecommendation.assignmentTitle === 'Mobility Reset' ? 'Mobility' : programmeRecommendation.assignmentTitle === 'Resistance Training' ? 'Resistance' : programmeRecommendation.assignmentTitle === 'Strength Training' ? 'Strength' : 'Workout',
+      evidenceLabel: programmeRecommendation.evidencePack.label,
+      evidenceUpdatedAt: programmeRecommendation.evidencePack.updatedAt,
+      evidenceSummary: programmeRecommendation.evidencePack.summary,
+      evidenceSources: programmeRecommendation.evidencePack.sources,
       coachNote: assignmentNote.trim() || programmeRecommendation.coachNote,
       summary: programmeRecommendation.summary,
       weeklyVolume: programmeRecommendation.weeklyVolume,
       intensity: programmeRecommendation.intensity,
+      weeklyStructure: programmeRecommendation.weeklyStructure,
       scienceNotes: programmeRecommendation.scienceNotes,
       exercises: exercisesToSave,
       createdAt: new Date().toISOString(),
@@ -1169,10 +1174,22 @@ export function InstructorScreen({
         <View style={[styles.programmeInsight, { borderColor: `${programmeRecommendation.tone}40`, backgroundColor: `${programmeRecommendation.tone}10` }]}>
           <Text style={[styles.programmeTitle, { color: programmeRecommendation.tone }]}>{programmeRecommendation.assignmentTitle}</Text>
           <Text style={styles.programmeText}>{programmeRecommendation.summary}</Text>
+          <Text style={styles.programmeMeta}>Evidence pack: {programmeRecommendation.evidencePack.label}</Text>
+          <Text style={styles.programmeMeta}>Updated: {programmeRecommendation.evidencePack.updatedAt}</Text>
           <Text style={styles.programmeMeta}>Rationale: {programmeRecommendation.rationale}</Text>
           <Text style={styles.programmeMeta}>Weekly target: {programmeRecommendation.weeklyVolume}</Text>
           <Text style={styles.programmeMeta}>Intensity: {programmeRecommendation.intensity}</Text>
           <Text style={styles.programmeMeta}>Coach cue: {programmeRecommendation.coachNote}</Text>
+        </View>
+
+        <Text style={[styles.assignmentLabel, { marginTop: 12 }]}>Weekly structure</Text>
+        <View style={styles.programmeScienceList}>
+          {programmeRecommendation.weeklyStructure.map((item) => (
+            <View key={item} style={styles.programmeScienceRow}>
+              <Text style={styles.programmeScienceBullet}>+</Text>
+              <Text style={styles.programmeScienceText}>{item}</Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.programmeScienceList}>
@@ -1180,6 +1197,16 @@ export function InstructorScreen({
             <View key={item} style={styles.programmeScienceRow}>
               <Text style={styles.programmeScienceBullet}>+</Text>
               <Text style={styles.programmeScienceText}>{item}</Text>
+            </View>
+          ))}
+        </View>
+
+        <Text style={[styles.assignmentLabel, { marginTop: 12 }]}>Evidence sources</Text>
+        <View style={styles.programmeScienceList}>
+          {programmeRecommendation.evidencePack.sources.map((source) => (
+            <View key={source.url} style={styles.programmeScienceRow}>
+              <Text style={styles.programmeScienceBullet}>+</Text>
+              <Text style={styles.programmeScienceText}>{source.title}</Text>
             </View>
           ))}
         </View>
@@ -1222,12 +1249,26 @@ export function InstructorScreen({
                 <View style={styles.memberCopy}>
                   <Text style={styles.memberName}>{template.name}</Text>
                   <Text style={styles.muted}>{template.assignmentTitle} - {template.exercises.length} exercises</Text>
+                  {template.evidenceLabel ? (
+                    <Text style={styles.memberDeviceSync}>{template.evidenceLabel} / {template.evidenceUpdatedAt}</Text>
+                  ) : null}
                 </View>
                 <Pressable style={styles.stageRemove} onPress={() => onDeleteProgrammeTemplate(template.id)}>
                   <Text style={styles.stageRemoveText}>Delete</Text>
                 </Pressable>
               </View>
               {template.summary ? <Text style={styles.programmeMeta}>{template.summary}</Text> : null}
+              {template.evidenceSummary ? <Text style={styles.programmeMeta}>{template.evidenceSummary}</Text> : null}
+              {template.weeklyStructure?.length ? (
+                <View style={styles.programmeScienceList}>
+                  {template.weeklyStructure.map((item) => (
+                    <View key={`${template.id}-${item}`} style={styles.programmeScienceRow}>
+                      <Text style={styles.programmeScienceBullet}>+</Text>
+                      <Text style={styles.programmeScienceText}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
               <View style={styles.templateActions}>
                 <Pressable style={styles.templateActionButton} onPress={() => loadTemplateIntoStage(template)}>
                   <Text style={styles.templateActionText}>Load To Stage</Text>

@@ -159,10 +159,18 @@ export type ProgrammeTemplate = {
   name: string;
   assignmentTitle: string;
   type: TrainingSession['type'];
+  evidenceLabel?: string;
+  evidenceUpdatedAt?: string;
+  evidenceSummary?: string;
+  evidenceSources?: Array<{
+    title: string;
+    url: string;
+  }>;
   coachNote?: string;
   summary?: string;
   weeklyVolume?: string;
   intensity?: string;
+  weeklyStructure?: string[];
   scienceNotes?: string[];
   exercises: AssignedExerciseBlock[];
   createdAt: string;
@@ -287,10 +295,28 @@ export const programmeTemplates: ProgrammeTemplate[] = [
     name: 'Strength Base / Full Gym',
     assignmentTitle: 'Strength Training',
     type: 'Strength',
+    evidenceLabel: 'FORGE Evidence v2026.04',
+    evidenceUpdatedAt: '2026-04-30',
+    evidenceSummary: 'Built from ACSM 2026 resistance training guidance with FORGE tactical session rules.',
+    evidenceSources: [
+      {
+        title: 'ACSM 2026 Position Stand: Resistance Training Prescription',
+        url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC12965823/',
+      },
+      {
+        title: 'Currier et al. 2023 Bayesian Meta-analysis',
+        url: 'https://pmc.ncbi.nlm.nih.gov/articles/PMC10579494/',
+      },
+    ],
     coachNote: 'Prioritise force production, then finish with carries.',
     summary: 'A lower-rep compound session built around high-force patterns and enough rest to keep quality high.',
     weeklyVolume: '10 to 14 hard sets per movement each week',
     intensity: 'Primary lifts at moderate-high effort with 2 to 4 min rest',
+    weeklyStructure: [
+      'Day 1: Heavy bilateral lower + pull',
+      'Day 2: Upper push-pull + carries',
+      'Day 3: Secondary lower strength + trunk stiffness',
+    ],
     scienceNotes: [
       'Place the most technical heavy lift first.',
       'Keep weekly hard-set volume moderate so bar speed stays honest.',
