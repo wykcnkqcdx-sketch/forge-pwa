@@ -1,6 +1,12 @@
 import { SquadMember, TrainingSession } from '../data/mockData';
-import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import type { ReadinessLog, TrackPoint, WorkoutCompletion } from '../data/domain';
 import { supabase } from './supabase';
+
+const MAX_SYNCED_ROUTE_POINTS = 180;
+const MAX_SYNCED_ROUTE_ACCURACY_METERS = 35;
+const MIN_SYNCED_ROUTE_DISTANCE_METERS = 8;
+const MIN_SYNCED_ROUTE_INTERVAL_MS = 5000;
+const ROUTE_SIMPLIFICATION_TOLERANCE_METERS = 10;
 
 type RemoteTrainingSessionRow = {
   id: string;
@@ -100,6 +106,107 @@ function toInFilter(ids: string[]) {
   return `(${ids.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(',')})`;
 }
 
+function distanceMeters(a: Pick<TrackPoint, 'latitude' | 'longitude'>, b: Pick<TrackPoint, 'latitude' | 'longitude'>) {
+  const p = Math.PI / 180;
+  const lat1 = a.latitude * p;
+  const lat2 = b.latitude * p;
+  const deltaLat = (b.latitude - a.latitude) * p;
+  const deltaLon = (b.longitude - a.longitude) * p;
+  const haversine =
+    Math.sin(deltaLat / 2) ** 2 +
+    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+
+  return 6371000 * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
+function projectPoint(point: Pick<TrackPoint, 'latitude' | 'longitude'>, origin: Pick<TrackPoint, 'latitude' | 'longitude'>) {
+  const metersPerDegreeLat = 111320;
+  const metersPerDegreeLon = metersPerDegreeLat * Math.cos(origin.latitude * (Math.PI / 180));
+
+  return {
+    x: (point.longitude - origin.longitude) * metersPerDegreeLon,
+    y: (point.latitude - origin.latitude) * metersPerDegreeLat,
+  };
+}
+
+function perpendicularDistanceMeters(point: TrackPoint, start: TrackPoint, end: TrackPoint) {
+  const projectedPoint = projectPoint(point, start);
+  const projectedEnd = projectPoint(end, start);
+  const segmentLengthSquared = projectedEnd.x ** 2 + projectedEnd.y ** 2;
+
+  if (segmentLengthSquared === 0) return distanceMeters(point, start);
+
+  const t = Math.max(
+    0,
+    Math.min(1, (projectedPoint.x * projectedEnd.x + projectedPoint.y * projectedEnd.y) / segmentLengthSquared)
+  );
+  const closest = {
+    x: t * projectedEnd.x,
+    y: t * projectedEnd.y,
+  };
+
+  return Math.hypot(projectedPoint.x - closest.x, projectedPoint.y - closest.y);
+}
+
+function simplifyRoute(points: TrackPoint[], toleranceMeters: number): TrackPoint[] {
+  if (points.length <= 2) return points;
+
+  let maxDistance = 0;
+  let splitIndex = 0;
+  const start = points[0];
+  const end = points[points.length - 1];
+
+  for (let i = 1; i < points.length - 1; i += 1) {
+    const distance = perpendicularDistanceMeters(points[i], start, end);
+    if (distance > maxDistance) {
+      maxDistance = distance;
+      splitIndex = i;
+    }
+  }
+
+  if (maxDistance <= toleranceMeters) return [start, end];
+
+  const beforeSplit = simplifyRoute(points.slice(0, splitIndex + 1), toleranceMeters);
+  const afterSplit = simplifyRoute(points.slice(splitIndex), toleranceMeters);
+  return [...beforeSplit.slice(0, -1), ...afterSplit];
+}
+
+function limitRoutePoints(points: TrackPoint[], maxPoints: number) {
+  if (points.length <= maxPoints) return points;
+
+  const stride = (points.length - 1) / (maxPoints - 1);
+  return Array.from({ length: maxPoints }, (_, index) => points[Math.round(index * stride)]);
+}
+
+function roundSyncedRoutePoint(point: TrackPoint): TrackPoint {
+  return {
+    latitude: Number(point.latitude.toFixed(5)),
+    longitude: Number(point.longitude.toFixed(5)),
+    altitude: point.altitude == null ? null : Math.round(point.altitude),
+    accuracy: point.accuracy == null ? null : Math.round(point.accuracy),
+    timestamp: point.timestamp,
+  };
+}
+
+function compressRoutePointsForSync(points: TrackPoint[] | undefined): TrackPoint[] | null {
+  if (!points || points.length === 0) return null;
+  if (points.length <= 2) return points.map(roundSyncedRoutePoint);
+
+  const filtered = points.filter((point, index) => {
+    if (index === 0 || index === points.length - 1) return true;
+    if (point.accuracy != null && point.accuracy > MAX_SYNCED_ROUTE_ACCURACY_METERS) return false;
+
+    const previous = points[index - 1];
+    const movedFarEnough = distanceMeters(previous, point) >= MIN_SYNCED_ROUTE_DISTANCE_METERS;
+    const waitedLongEnough = point.timestamp - previous.timestamp >= MIN_SYNCED_ROUTE_INTERVAL_MS;
+
+    return movedFarEnough || waitedLongEnough;
+  });
+
+  const simplified = simplifyRoute(filtered, ROUTE_SIMPLIFICATION_TOLERANCE_METERS);
+  return limitRoutePoints(simplified, MAX_SYNCED_ROUTE_POINTS).map(roundSyncedRoutePoint);
+}
+
 function toRemoteSession(userId: string, session: TrainingSession): RemoteTrainingSessionRow {
   return {
     id: session.id,
@@ -110,7 +217,7 @@ function toRemoteSession(userId: string, session: TrainingSession): RemoteTraini
     duration_minutes: session.durationMinutes,
     rpe: session.rpe,
     load_kg: session.loadKg ?? null,
-    route_points: session.routePoints ?? null,
+    route_points: compressRoutePointsForSync(session.routePoints),
     completed_at: session.completedAt ?? null,
   };
 }
