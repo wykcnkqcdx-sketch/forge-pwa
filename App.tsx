@@ -14,6 +14,7 @@ import { MemberScreen } from './screens/MemberScreen';
 import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups, ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
+import { buildGoogleSheetsPayload, exportToGoogleSheets } from './lib/googleSheets';
 import { secureGetItem, secureMultiRemove, secureRemoveItem, secureSetItem } from './lib/secureStorage';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { colours, shadow, touchTarget } from './theme';
@@ -37,6 +38,7 @@ type ForgeBackup = {
   programmeTemplates?: ProgrammeTemplate[];
   readinessLogs?: ReadinessLog[];
   workoutCompletions?: WorkoutCompletion[];
+  googleSheetsEndpoint?: string;
 };
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -65,6 +67,7 @@ export default function App() {
   const [programmeTemplates, setProgrammeTemplates] = useState<ProgrammeTemplate[]>(initialProgrammeTemplates);
   const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
   const [workoutCompletions, setWorkoutCompletions] = useState<WorkoutCompletion[]>([]);
+  const [googleSheetsEndpoint, setGoogleSheetsEndpoint] = useState('');
   const [cloudSession, setCloudSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authLoading, setAuthLoading] = useState(false);
@@ -287,6 +290,9 @@ export default function App() {
 
         const storedCompletions = await secureGetItem('forge:workout_completions');
         if (storedCompletions) setWorkoutCompletions(JSON.parse(storedCompletions));
+
+        const storedGoogleSheetsEndpoint = await secureGetItem('forge:google_sheets_endpoint');
+        if (storedGoogleSheetsEndpoint) setGoogleSheetsEndpoint(storedGoogleSheetsEndpoint);
         
         const storedPin = await secureGetItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
@@ -349,6 +355,10 @@ export default function App() {
   useEffect(() => {
     if (isReady) secureSetItem('forge:workout_completions', JSON.stringify(workoutCompletions));
   }, [workoutCompletions, isReady]);
+
+  useEffect(() => {
+    if (isReady) secureSetItem('forge:google_sheets_endpoint', googleSheetsEndpoint);
+  }, [googleSheetsEndpoint, isReady]);
 
   useEffect(() => {
     if (isReady) {
@@ -497,7 +507,8 @@ export default function App() {
       window.history.replaceState({}, '', url.toString());
     }
     setWorkoutCompletions([]);
-    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:pin'])
+    setGoogleSheetsEndpoint('');
+    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin'])
       .catch((error) => console.error('Failed to clear local secure storage', error));
     showBlockingMessage('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
@@ -689,6 +700,31 @@ export default function App() {
     }
   }
 
+  async function exportGoogleSheetsNow() {
+    const trimmedEndpoint = googleSheetsEndpoint.trim();
+    if (!trimmedEndpoint) {
+      Alert.alert('Google Sheets URL required', 'Paste your Google Apps Script web app URL before exporting.');
+      return;
+    }
+
+    try {
+      const payload = buildGoogleSheetsPayload(
+        sessions,
+        members,
+        groups,
+        programmeTemplates,
+        readinessLogs,
+        workoutCompletions,
+        cloudSession?.user.email ?? null
+      );
+      await exportToGoogleSheets(trimmedEndpoint, payload);
+      Alert.alert('Export sent', 'FORGE data was sent to your Google Sheets endpoint.');
+    } catch (error) {
+      console.error('Failed to export to Google Sheets', error);
+      Alert.alert('Export failed', error instanceof Error ? error.message : 'Could not send data to Google Sheets.');
+    }
+  }
+
   function validateImportedSessions(value: unknown): TrainingSession[] | null {
     if (!Array.isArray(value)) return null;
 
@@ -746,6 +782,7 @@ export default function App() {
       programmeTemplates,
       readinessLogs,
       workoutCompletions,
+      googleSheetsEndpoint,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -791,6 +828,7 @@ export default function App() {
           if (!Array.isArray(parsed) && Array.isArray(parsed.programmeTemplates)) setProgrammeTemplates(parsed.programmeTemplates);
           if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
           if (parsed.workoutCompletions) setWorkoutCompletions(parsed.workoutCompletions);
+          if (!Array.isArray(parsed) && typeof parsed.googleSheetsEndpoint === 'string') setGoogleSheetsEndpoint(parsed.googleSheetsEndpoint);
           Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
         } catch (error) {
           console.error('Failed to import backup', error);
@@ -872,6 +910,9 @@ export default function App() {
             cloudEmail={cloudSession?.user.email ?? null}
             onCloudSync={syncCloudNow}
             onCloudSignOut={signOutCloud}
+            googleSheetsEndpoint={googleSheetsEndpoint}
+            onChangeGoogleSheetsEndpoint={setGoogleSheetsEndpoint}
+            onExportGoogleSheets={exportGoogleSheetsNow}
           />
         );
       default:

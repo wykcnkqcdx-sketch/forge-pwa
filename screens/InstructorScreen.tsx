@@ -32,6 +32,9 @@ interface InstructorScreenProps {
   cloudEmail: string | null;
   onCloudSync: () => void;
   onCloudSignOut: () => void;
+  googleSheetsEndpoint: string;
+  onChangeGoogleSheetsEndpoint: (value: string) => void;
+  onExportGoogleSheets: () => void;
 }
 
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
@@ -131,6 +134,9 @@ export function InstructorScreen({
   cloudEmail,
   onCloudSync,
   onCloudSignOut,
+  googleSheetsEndpoint,
+  onChangeGoogleSheetsEndpoint,
+  onExportGoogleSheets,
 }: InstructorScreenProps) {
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberGymName, setNewMemberGymName] = useState('');
@@ -624,6 +630,30 @@ export function InstructorScreen({
               ? `${cloudEmail} is connected. Sessions, members, and completions auto-sync when the connection is healthy. Use Sync Now anytime you want an immediate refresh.`
               : 'Backend keys are configured. Sign in to enable auth, database sync, and shared team storage.'
             : 'Add Supabase keys to enable login auth and cloud database sync. Until then, the app keeps working from local storage.'}
+        </Text>
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Google Sheets Export</Text>
+        </View>
+        <Text style={styles.cloudCopy}>
+          Paste a Google Apps Script web app URL here. FORGE will send raw tabs for members, groups, sessions, assignments, completions, readiness, and programme templates so charts can sit on top of clean data.
+        </Text>
+        <TextInput
+          style={styles.memberInput}
+          value={googleSheetsEndpoint}
+          onChangeText={onChangeGoogleSheetsEndpoint}
+          placeholder="https://script.google.com/macros/s/..."
+          placeholderTextColor={colours.soft}
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Pressable style={styles.googleSheetsButton} onPress={onExportGoogleSheets}>
+          <Text style={styles.googleSheetsButtonText}>Send To Google Sheets</Text>
+        </Pressable>
+        <Text style={styles.inviteHelp}>
+          Recommended raw tabs: Members, Groups, Sessions, Assignments, Completions, Readiness, Programme Templates.
         </Text>
       </Card>
 
@@ -1324,6 +1354,13 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
   cloudSyncText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
+  googleSheetsButton: {
+    alignItems: 'center',
+    backgroundColor: colours.green,
+    borderRadius: 14,
+    paddingVertical: 12,
+  },
+  googleSheetsButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
   cloudSignOutButton: {
     borderWidth: 1,
     borderColor: `${colours.red}40`,

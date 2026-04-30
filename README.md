@@ -22,6 +22,7 @@ The app is currently local-first with optional Supabase cloud sync. It can run a
 - [Injury Reporting](#injury-reporting)
 - [Data Storage and Privacy](#data-storage-and-privacy)
 - [Supabase Cloud Sync](#supabase-cloud-sync)
+- [Google Sheets Export](#google-sheets-export)
 - [Project Structure](#project-structure)
 - [Setup](#setup)
 - [Development Commands](#development-commands)
@@ -791,6 +792,66 @@ Current snapshot sync:
 - if remote has records, hydrate local state
 - otherwise push local snapshot
 - later local changes debounce and push to remote
+
+## Google Sheets Export
+
+FORGE includes a Phase 1 coach-side Google Sheets export flow using a Google Apps Script web app URL.
+
+### What it sends
+
+The export sends structured raw tabs for:
+
+- `Members`
+- `Groups`
+- `Sessions`
+- `Assignments`
+- `Completions`
+- `Readiness`
+- `Programme Templates`
+
+### Why it is raw-first
+
+This export is designed for reporting and chart-building. Instead of sending only summary numbers, it sends normalized rows so Google Sheets can calculate:
+
+- weekly volume
+- completion rate
+- readiness trends
+- group comparisons
+- assigned vs completed work
+
+### Recommended architecture
+
+```text
+FORGE Coach App
+-> POST JSON to Google Apps Script
+-> Apps Script writes raw tabs into Google Sheets
+-> chart sheets reference those raw tabs
+```
+
+### Recommended first chart pack
+
+- Weekly team volume
+- Completion rate by member
+- Readiness trend over time
+- Risk distribution
+- Group comparison
+- Sleep / soreness / pain trend
+
+### Current scope
+
+The current app side:
+
+- stores a Google Apps Script endpoint URL
+- sends the export payload from the Coach dashboard
+- keeps the endpoint in local storage and backup export/import
+
+The current app side does not yet:
+
+- create the Google Sheet automatically
+- generate charts automatically
+- manage Google OAuth directly
+
+The intended next step is a Google Apps Script that receives the payload and writes each tab into a matching worksheet.
 
 ## Project Structure
 
