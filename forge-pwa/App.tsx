@@ -13,6 +13,7 @@ import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
+import { ReadinessLog } from './data/domain';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { getSecureItem, setSecureItem, removeSecureItem } from './lib/storage';
 import { OnboardingScreen } from './screens/OnboardingScreen';
@@ -26,6 +27,7 @@ type ForgeBackup = {
   exportedAt: string;
   sessions: TrainingSession[];
   members: SquadMember[];
+  readinessLogs?: ReadinessLog[];
 };
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -41,6 +43,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
   const [members, setMembers] = useState<SquadMember[]>(squadMembers);
+  const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
   const [cloudSession, setCloudSession] = useState<Session | null>(null);
   const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
   const [authLoading, setAuthLoading] = useState(false);
@@ -217,6 +220,9 @@ export default function App() {
         const storedMembers = await AsyncStorage.getItem('forge:members');
         if (storedMembers) setMembers(JSON.parse(storedMembers));
         
+        const storedReadiness = await AsyncStorage.getItem('forge:readiness_logs');
+        if (storedReadiness) setReadinessLogs(JSON.parse(storedReadiness));
+
         const storedPin = await getSecureItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
 
@@ -238,6 +244,10 @@ export default function App() {
   useEffect(() => {
     if (isReady) AsyncStorage.setItem('forge:members', JSON.stringify(members));
   }, [members, isReady]);
+
+  useEffect(() => {
+    if (isReady) AsyncStorage.setItem('forge:readiness_logs', JSON.stringify(readinessLogs));
+  }, [readinessLogs, isReady]);
 
   useEffect(() => {
     if (isReady) {
@@ -310,6 +320,7 @@ export default function App() {
   function executeDuressWipe() {
     setSessions([]);
     setMembers([]);
+    setReadinessLogs([]);
     setSavedPin(null);
     setIsUnlocked(true);
     setPinInput('');
@@ -400,6 +411,10 @@ export default function App() {
 
   function updateMember(id: string, updates: Partial<SquadMember>) {
     setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...updates } : member)));
+  }
+
+  function addReadinessLog(log: ReadinessLog) {
+    setReadinessLogs((current) => [log, ...current]);
   }
 
   async function signInWithEmail(email: string, password: string) {
@@ -493,6 +508,7 @@ export default function App() {
       exportedAt: new Date().toISOString(),
       sessions,
       members,
+      readinessLogs,
     };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -534,6 +550,7 @@ export default function App() {
 
           setSessions(imported);
           if (importedMembers) setMembers(importedMembers);
+          if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
           Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
         } catch (error) {
           console.error('Failed to import backup', error);
@@ -588,7 +605,9 @@ export default function App() {
       case 'analytics':
         return (
           <AnalyticsScreen 
-            sessions={sessions} 
+            sessions={sessions}
+            readinessLogs={readinessLogs}
+            addReadinessLog={addReadinessLog}
             deleteSession={deleteSession}
             editSession={editSession}
           />
