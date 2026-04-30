@@ -853,6 +853,23 @@ The current app side does not yet:
 
 The intended next step is a Google Apps Script that receives the payload and writes each tab into a matching worksheet.
 
+### Included receiver template
+
+This repository now includes a ready-to-use Google Apps Script receiver:
+
+```text
+google-apps-script/Code.gs
+google-apps-script/README.md
+```
+
+That script:
+
+- accepts the FORGE export payload
+- writes `Meta`, `Members`, `Groups`, `Sessions`, `Assignments`, `Completions`, `Readiness`, and `Programme Templates`
+- freezes header rows
+- adds filters
+- rewrites the raw tabs on each export
+
 ## Project Structure
 
 ```text
