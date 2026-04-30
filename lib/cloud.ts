@@ -27,6 +27,7 @@ type RemoteSquadMemberRow = {
   load: number;
   invite_status: SquadMember['inviteStatus'] | null;
   assignment: string | null;
+  pinned_exercise_ids: string[] | null;
   ghost_mode: boolean | null;
   streak_days: number | null;
   weekly_volume: number | null;
@@ -79,6 +80,7 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     load: member.load,
     invite_status: member.inviteStatus ?? null,
     assignment: member.assignment ?? null,
+    pinned_exercise_ids: member.pinnedExerciseIds ?? null,
     ghost_mode: member.ghostMode ?? false,
     streak_days: member.streakDays ?? 0,
     weekly_volume: member.weeklyVolume ?? 0,
@@ -116,6 +118,7 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
     load: row.load,
     inviteStatus: row.invite_status ?? undefined,
     assignment: row.assignment ?? undefined,
+    pinnedExerciseIds: row.pinned_exercise_ids ?? undefined,
     ghostMode: row.ghost_mode ?? undefined,
     streakDays: row.streak_days ?? undefined,
     weeklyVolume: row.weekly_volume ?? undefined,

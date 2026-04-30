@@ -37,6 +37,7 @@ alter table public.squad_members enable row level security;
 
 alter table public.squad_members
 add column if not exists gym_name text,
+add column if not exists pinned_exercise_ids jsonb,
 add column if not exists ghost_mode boolean default false,
 add column if not exists streak_days integer default 0,
 add column if not exists weekly_volume integer default 0,

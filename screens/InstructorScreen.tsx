@@ -247,7 +247,12 @@ export function InstructorScreen({
       return;
     }
 
-    onUpdateMember(member.id, { groupId: group.id, assignment: assignmentLabel });
+    const assignmentMode = trainingModes.find((mode) => mode.title === assignmentLabel);
+    onUpdateMember(member.id, {
+      groupId: group.id,
+      assignment: assignmentLabel,
+      pinnedExerciseIds: assignmentMode?.coachPinnedExerciseIds ?? assignmentMode?.defaultExerciseIds.slice(0, 2) ?? [],
+    });
     const message = `${member.name} is now assigned to ${assignmentLabel} in ${group.name}.`;
     setAssignmentMemberId(member.id);
     setAssignmentGroupId(group.id);

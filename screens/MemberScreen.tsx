@@ -38,11 +38,12 @@ export function MemberScreen({ member, members, groups, onUpdateMember, onCoachV
   const teamMembers = groupMembers.length ? groupMembers : members;
   const displayName = member?.gymName || member?.name || 'Athlete';
   const assignmentMode = trainingModes.find((mode) => mode.title === member?.assignment);
+  const pinnedExerciseIds = member?.pinnedExerciseIds ?? assignmentMode?.coachPinnedExerciseIds ?? [];
   const assignedExercises = assignmentMode
-    ? assignmentMode.defaultExerciseIds
+    ? [...new Set([...pinnedExerciseIds, ...assignmentMode.defaultExerciseIds])]
         .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
         .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
-        .slice(0, 5)
+        .slice(0, 8)
     : [];
   const plannedVolume = Math.max(120, assignedExercises.length * 60 + (assignmentMode?.key === 'cardio' ? 180 : 0));
 
@@ -172,7 +173,10 @@ export function MemberScreen({ member, members, groups, onUpdateMember, onCoachV
           <View style={styles.exerciseList}>
             {assignedExercises.map((exercise) => (
               <View key={exercise.id} style={styles.exerciseRow}>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
+                <View style={styles.exerciseCopy}>
+                  <Text style={styles.exerciseName}>{exercise.name}</Text>
+                  {pinnedExerciseIds.includes(exercise.id) && <Text style={styles.coachPick}>Coach's Pick</Text>}
+                </View>
                 <Text style={styles.exerciseDose}>{exercise.dose}</Text>
               </View>
             ))}
@@ -389,6 +393,15 @@ const styles = StyleSheet.create({
     color: colours.text,
     fontSize: 14,
     fontWeight: '900',
+  },
+  exerciseCopy: {
+    flex: 1,
+  },
+  coachPick: {
+    color: colours.amber,
+    fontSize: 10,
+    fontWeight: '900',
+    marginTop: 3,
   },
   exerciseDose: {
     color: colours.muted,
