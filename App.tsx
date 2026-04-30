@@ -4,6 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import type { Session } from '@supabase/supabase-js';
 import { HomeScreen } from './screens/HomeScreen';
+import { ReadinessScreen } from './screens/ReadinessScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { RuckScreen } from './screens/RuckScreen';
 import { TrainScreen } from './screens/TrainScreen';
@@ -1077,8 +1078,6 @@ export default function App() {
             sessions={sessions}
             goToRuck={() => switchTab('ruck')}
             goToAnalytics={() => switchTab('analytics')}
-            deleteSession={deleteSession}
-            editSession={editSession}
           />
         );
     }
@@ -1096,13 +1095,8 @@ export default function App() {
         return <FuelScreen sessions={memberSessions.length ? memberSessions : sessions} />;
       case 'readiness':
         return (
-          <HomeScreen
-            sessions={memberSessions.length ? memberSessions : sessions}
-            goToRuck={() => setActiveMemberTab('ruck')}
-            goToAnalytics={() => setActiveMemberTab('portal')}
-            deleteSession={deleteSession}
-            editSession={editSession}
-            member={activeMember}
+          <ReadinessScreen
+            member={activeMember ?? members[0]}
             readinessLogs={readinessLogs}
             onSubmitReadiness={addReadinessLog}
             onUpdateMember={updateMember}

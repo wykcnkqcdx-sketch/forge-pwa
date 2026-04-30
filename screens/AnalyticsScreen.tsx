@@ -11,6 +11,8 @@ import { TrainingSession, TrackPoint } from '../data/mockData';
 import { ReadinessLog } from '../data/domain';
 import { getMapPoints } from '../utils/mapUtils';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
+import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
+import { calculateWHtR } from '../lib/h2f';
 
 export function AnalyticsScreen({ 
   sessions,
@@ -122,6 +124,33 @@ export function AnalyticsScreen({
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
   const [editScore, setEditScore] = useState('');
   const [editDuration, setEditDuration] = useState('');
+
+  // Body Metrics state
+  const [waistCm, setWaistCm] = useState('88');
+  const [heightCm, setHeightCm] = useState('180');
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
+  const [bodyMapView, setBodyMapView] = useState<BodyMapView>('anterior');
+  const [selectedPainLevel, setSelectedPainLevel] = useState(4);
+  const [painMap, setPainMap] = useState<PainMap>({});
+  const whtr = calculateWHtR(Number(waistCm), Number(heightCm));
+  const hotspots = choirSegments
+    .map((seg) => ({ ...seg, level: painMap[seg.id] ?? 0 }))
+    .filter((seg) => seg.level > 0)
+    .sort((a, b) => b.level - a.level)
+    .slice(0, 3);
+  const lowerBackLoadFlag =
+    sessions.some((s) => s.type === 'Ruck' && (s.loadKg ?? 0) >= 18) &&
+    ((painMap.P09 ?? 0) >= 5 || (painMap.P10 ?? 0) >= 5);
+
+  function markInjury(segmentId: string) {
+    setSelectedSegment(segmentId);
+    setPainMap((cur) => ({ ...cur, [segmentId]: selectedPainLevel }));
+  }
+
+  function setPainIntensity(level: number) {
+    setSelectedPainLevel(level);
+    if (selectedSegment) setPainMap((cur) => ({ ...cur, [selectedSegment]: level }));
+  }
 
   function confirmDelete(id: string) {
     Alert.alert(
@@ -375,6 +404,84 @@ export function AnalyticsScreen({
         </View>
       )}
 
+      {/* Body Composition */}
+      <Card>
+        <Text style={styles.cardTitle}>Body Composition</Text>
+        <Text style={styles.muted}>2026 WHtR mandate target: under 0.55</Text>
+        <View style={styles.bodyInputRow}>
+          <View style={styles.bodyInputGroup}>
+            <Text style={styles.bodyInputLabel}>WAIST CM</Text>
+            <TextInput value={waistCm} onChangeText={setWaistCm} keyboardType="numeric" style={styles.bodyInput} />
+          </View>
+          <View style={styles.bodyInputGroup}>
+            <Text style={styles.bodyInputLabel}>HEIGHT CM</Text>
+            <TextInput value={heightCm} onChangeText={setHeightCm} keyboardType="numeric" style={styles.bodyInput} />
+          </View>
+        </View>
+        <View style={styles.whtrResult}>
+          <Text style={[styles.whtrValue, { color: whtr.compliant ? colours.green : colours.red }]}>
+            {whtr.ratio.toFixed(3)}
+          </Text>
+          <Text style={styles.muted}>
+            {whtr.compliant ? `Compliant — ${whtr.marginCm} cm margin` : `${Math.abs(whtr.marginCm)} cm over threshold`}
+          </Text>
+        </View>
+      </Card>
+
+      {/* Injury Report */}
+      <Card>
+        <Text style={styles.cardTitle}>Injury Report</Text>
+        <Text style={styles.muted}>Tap a CHOIR segment, then set pain intensity.</Text>
+        <View style={styles.intensityRow}>
+          {[0, 2, 4, 6, 8, 10].map((level) => (
+            <Pressable
+              key={level}
+              style={[
+                styles.intensityButton,
+                {
+                  backgroundColor:
+                    level <= 0 ? colours.cyanDim : level <= 3 ? colours.cyan : level <= 6 ? colours.amber : colours.red,
+                  borderColor: selectedPainLevel === level ? colours.text : 'transparent',
+                },
+              ]}
+              onPress={() => setPainIntensity(level)}
+              accessibilityRole="button"
+              accessibilityLabel={`Set pain intensity ${level} out of 10`}
+            >
+              <Text style={[styles.intensityText, level > 0 && { color: colours.background }]}>{level}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <BodyMap
+          activeView={bodyMapView}
+          painMap={painMap}
+          selectedSegment={selectedSegment}
+          selectedPainLevel={selectedPainLevel}
+          onChangeView={setBodyMapView}
+          onSelect={markInjury}
+        />
+        <View style={styles.hotspotPanel}>
+          <Text style={styles.hotspotTitle}>HPT Hotspots</Text>
+          {hotspots.length ? (
+            hotspots.map((seg) => (
+              <View key={seg.id} style={styles.hotspotRow}>
+                <Text style={styles.hotspotName}>{seg.id} {seg.label}</Text>
+                <Text style={[styles.hotspotScore, { color: seg.level >= 7 ? colours.red : seg.level >= 4 ? colours.amber : colours.cyan }]}>
+                  {seg.level}/10
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.muted}>No musculoskeletal reports logged.</Text>
+          )}
+          {lowerBackLoadFlag && (
+            <Text style={styles.hotspotAlert}>
+              Lower-back hotspot rising after loaded ruck exposure. Flag for HPT trend review.
+            </Text>
+          )}
+        </View>
+      </Card>
+
       {/* Edit Modal */}
       <Modal visible={!!editingSession} transparent animationType="fade">
         <View style={styles.modalOverlay}>
@@ -539,6 +646,21 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 14, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16, fontSize: 16, fontWeight: '800' },
   saveBtn: { alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 16, paddingVertical: 13, marginTop: 4 },
   saveBtnText: { color: colours.background, fontSize: 15, fontWeight: '900' },
+  bodyInputRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  bodyInputGroup: { flex: 1 },
+  bodyInputLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginBottom: 4 },
+  bodyInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, color: colours.text, backgroundColor: 'rgba(0,0,0,0.22)', paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '900' },
+  whtrResult: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
+  whtrValue: { fontSize: 30, fontWeight: '900' },
+  intensityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 12 },
+  intensityButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  intensityText: { color: colours.text, fontSize: 14, fontWeight: '900' },
+  hotspotPanel: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, padding: 12, backgroundColor: 'rgba(10,18,30,0.6)', marginTop: 12, gap: 6 },
+  hotspotTitle: { color: colours.text, fontSize: 16, fontWeight: '900', marginBottom: 4 },
+  hotspotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 6, borderTopWidth: 1, borderColor: colours.borderSoft },
+  hotspotName: { flex: 1, color: colours.textSoft, fontSize: 13, fontWeight: '800' },
+  hotspotScore: { fontSize: 13, fontWeight: '900' },
+  hotspotAlert: { color: colours.red, fontSize: 12, fontWeight: '900', lineHeight: 17, marginTop: 4 },
   loadMoreBtn: {
     alignItems: 'center',
     paddingVertical: 14,
