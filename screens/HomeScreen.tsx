@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
-import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
+import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } from '../lib/performance';
 import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession } from '../data/mockData';
@@ -55,12 +55,14 @@ export function HomeScreen({
   goToRuck,
   goToAnalytics,
   goToFuel,
+  goToTrain,
   readinessLogs = [],
 }: {
   sessions: TrainingSession[];
   goToRuck: () => void;
   goToAnalytics: () => void;
   goToFuel?: () => void;
+  goToTrain?: () => void;
   readinessLogs?: ReadinessLog[];
 }) {
   const performance = buildPerformanceProfile(sessions);
@@ -90,6 +92,74 @@ export function HomeScreen({
     return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
   });
 
+  // 7-day activity strip
+  const weeklyLoadSeries = useMemo(() => buildWeeklyLoadSeries(sessions), [sessions]);
+  const dayLabels = useMemo(() => {
+    const dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const now = new Date();
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
+      return dayLetters[d.getDay()];
+    });
+  }, []);
+  const maxLoad = Math.max(...weeklyLoadSeries, 1);
+
+  // Warning banners
+  const warnings = useMemo(() => {
+    const list: { tone: string; icon: keyof typeof Ionicons.glyphMap; text: string }[] = [];
+    if (performance.monotony > 2.0) {
+      list.push({ tone: colours.amber, icon: 'warning-outline', text: `Monotony elevated (${performance.monotony.toFixed(1)}) — vary training type` });
+    }
+    if (latestReadiness?.sleepHours !== undefined && latestReadiness.sleepHours < 6) {
+      list.push({ tone: colours.amber, icon: 'moon-outline', text: 'Low sleep flagged — limit high-intensity work today' });
+    }
+    if (latestReadiness?.hydration === 'Poor') {
+      list.push({ tone: colours.red, icon: 'water-outline', text: 'Hydration poor — address before training' });
+    }
+    return list;
+  }, [performance.monotony, latestReadiness]);
+
+  // Recommended session
+  const recommendedSession = useMemo(() => {
+    if (performance.readinessBand === 'RED' || performance.loadRisk === 'High') {
+      return {
+        title: 'Mobility & Recovery',
+        detail: '20–30 min · Low intensity · Focus on tissue care',
+        icon: 'body-outline' as keyof typeof Ionicons.glyphMap,
+        tone: colours.red,
+        goTo: goToTrain,
+      };
+    }
+    if (performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate') {
+      return {
+        title: 'Zone 2 Aerobic',
+        detail: '40 min · Heart rate 130–145 bpm · Steady effort',
+        icon: 'heart-outline' as keyof typeof Ionicons.glyphMap,
+        tone: colours.amber,
+        goTo: goToTrain,
+      };
+    }
+    const now = new Date();
+    const weekAgo = now.getTime() - 7 * 24 * 60 * 60 * 1000;
+    const hasRuckThisWeek = sessions.some((s) => s.type === 'Ruck' && s.completedAt && new Date(s.completedAt).getTime() >= weekAgo);
+    if (!hasRuckThisWeek) {
+      return {
+        title: 'Ruck Intervals',
+        detail: '60 min · 25–30kg load · Varied pace',
+        icon: 'footsteps-outline' as keyof typeof Ionicons.glyphMap,
+        tone: colours.green,
+        goTo: goToRuck,
+      };
+    }
+    return {
+      title: 'Strength Block',
+      detail: '45 min · Compound movements · RPE 7–8',
+      icon: 'barbell-outline' as keyof typeof Ionicons.glyphMap,
+      tone: colours.green,
+      goTo: goToTrain,
+    };
+  }, [performance.readinessBand, performance.loadRisk, sessions, goToTrain, goToRuck]);
+
   function domainPressHandler(domainId: string) {
     if (domainId === 'nutrition') {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -112,6 +182,27 @@ export function HomeScreen({
           <Ionicons name="shield-checkmark" size={16} color={colours.cyan} />
           <Text style={styles.opsecText}>Offline · Private</Text>
         </View>
+      </View>
+
+      {/* 7-day activity strip */}
+      <View style={styles.stripContainer}>
+        {weeklyLoadSeries.map((load, i) => {
+          const isToday = i === 6;
+          const barFraction = load > 0 ? Math.max(0.08, load / maxLoad) : 0;
+          const barTone = load === 0 ? colours.borderSoft
+            : load < 300 ? colours.green
+            : load < 600 ? colours.amber
+            : colours.red;
+          return (
+            <View key={i} style={styles.stripDay}>
+              <View style={styles.stripTrack}>
+                <View style={[styles.stripBar, { flex: barFraction, backgroundColor: barTone, opacity: isToday ? 1 : 0.72 }]} />
+              </View>
+              <Text style={[styles.stripLabel, isToday && styles.stripLabelToday]}>{dayLabels[i]}</Text>
+              {isToday && <View style={styles.stripTodayDot} />}
+            </View>
+          );
+        })}
       </View>
 
       {/* Readiness card */}
@@ -181,6 +272,34 @@ export function HomeScreen({
           </Pressable>
         </View>
       </Card>
+
+      {/* Warning banners */}
+      {warnings.map((w, i) => (
+        <View key={i} style={[styles.warningBanner, { borderColor: `${w.tone}55`, backgroundColor: `${w.tone}12` }]}>
+          <Ionicons name={w.icon} size={16} color={w.tone} />
+          <Text style={[styles.warningText, { color: w.tone }]}>{w.text}</Text>
+        </View>
+      ))}
+
+      {/* Today's recommended session */}
+      <Pressable
+        style={({ pressed }) => [styles.recCard, { borderColor: `${recommendedSession.tone}44`, backgroundColor: `${recommendedSession.tone}0D` }, pressed && { opacity: 0.8 }]}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); recommendedSession.goTo?.(); }}
+      >
+        <View style={styles.recLeft}>
+          <View style={[styles.recIconWrap, { backgroundColor: `${recommendedSession.tone}22` }]}>
+            <Ionicons name={recommendedSession.icon} size={22} color={recommendedSession.tone} />
+          </View>
+          <View style={styles.recCopy}>
+            <Text style={styles.recKicker}>TODAY'S SESSION</Text>
+            <Text style={[styles.recTitle, { color: recommendedSession.tone }]}>{recommendedSession.title}</Text>
+            <Text style={styles.recDetail}>{recommendedSession.detail}</Text>
+          </View>
+        </View>
+        <View style={[styles.recChevron, { borderColor: `${recommendedSession.tone}44` }]}>
+          <Ionicons name="chevron-forward" size={16} color={recommendedSession.tone} />
+        </View>
+      </Pressable>
 
       {/* H2F Domain grid */}
       <View style={styles.domainGrid}>
@@ -579,5 +698,115 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1.2,
+  },
+  // Activity strip
+  stripContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 6,
+    height: 72,
+    paddingBottom: 4,
+  },
+  stripDay: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  stripTrack: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'flex-end',
+    borderRadius: 4,
+    overflow: 'hidden',
+    backgroundColor: colours.borderSoft,
+  },
+  stripBar: {
+    width: '100%',
+    borderRadius: 4,
+    minHeight: 4,
+  },
+  stripLabel: {
+    color: colours.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+  },
+  stripLabelToday: {
+    color: colours.cyan,
+  },
+  stripTodayDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colours.cyan,
+  },
+  // Warning banners
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    lineHeight: 17,
+  },
+  // Recommended session card
+  recCard: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  recLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  recIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  recCopy: {
+    flex: 1,
+  },
+  recKicker: {
+    color: colours.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    marginBottom: 2,
+  },
+  recTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  recDetail: {
+    color: colours.textSoft,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: 2,
+  },
+  recChevron: {
+    width: 32,
+    height: 32,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
 });
