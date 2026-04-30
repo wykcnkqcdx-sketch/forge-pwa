@@ -7,6 +7,12 @@ This folder contains a ready-to-paste Google Apps Script receiver for the FORGE 
 It accepts the JSON payload sent from the FORGE Coach dashboard and writes raw tabs into Google Sheets:
 
 - `Meta`
+- `Dashboard`
+- `Weekly Rollups`
+- `Member Drilldown`
+- `Volume Trends`
+- `Readiness Trends`
+- `Compliance`
 - `Members`
 - `Groups`
 - `Sessions`
@@ -15,7 +21,7 @@ It accepts the JSON payload sent from the FORGE Coach dashboard and writes raw t
 - `Readiness`
 - `Programme Templates`
 
-Each export replaces the raw sheet contents so the workbook stays current.
+Each export replaces the raw sheet contents so the workbook stays current, then rebuilds the dashboard tabs and charts.
 
 ## Setup
 
@@ -52,18 +58,32 @@ That confirms the receiver is live.
 - Headers are rebuilt from the payload keys.
 - Filters and frozen headers are added automatically.
 
-## Recommended next dashboard layer
+## What the dashboard tabs do
 
-After raw tabs are flowing, build charts in separate sheets such as:
+After each export, the script also rebuilds:
 
 - `Dashboard`
+  - export meta
+  - member / assignment / completion / readiness counts
+  - risk distribution chart
+  - completions by member chart
+  - volume by group chart
+- `Weekly Rollups`
+  - weekly completion volume and minutes
+  - weekly readiness averages
+- `Member Drilldown`
+  - choose a member
+  - inspect recent completions
+  - inspect recent readiness history
 - `Volume Trends`
+  - total volume, minutes, and sessions by member
 - `Readiness Trends`
+  - average sleep, soreness, and pain by member
 - `Compliance`
-
-Those chart sheets should reference the raw tabs rather than being overwritten by Apps Script.
+  - effort distribution
+  - session kind distribution
 
 ## Notes
 
-- This is a Phase 1 receiver. It focuses on clean raw data, not chart creation.
-- If you later want automatic dashboard tabs and charts, extend this script rather than changing the app payload.
+- This receiver now handles both raw tab writing and a first dashboard layer.
+- If you want more polished coach reporting later, extend the dashboard tabs rather than changing the app payload.

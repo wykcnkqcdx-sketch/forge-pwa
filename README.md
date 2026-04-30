@@ -865,6 +865,7 @@ google-apps-script/README.md
 That script:
 
 - accepts the FORGE export payload
+- creates `Dashboard`, `Volume Trends`, `Readiness Trends`, and `Compliance` tabs
 - writes `Meta`, `Members`, `Groups`, `Sessions`, `Assignments`, `Completions`, `Readiness`, and `Programme Templates`
 - freezes header rows
 - adds filters
