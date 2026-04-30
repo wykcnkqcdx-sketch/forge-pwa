@@ -4,7 +4,7 @@ import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { Screen } from '../components/Screen';
 import { colours, touchTarget } from '../theme';
-import { exerciseLibrary, SquadMember, TrainingGroup, trainingModes } from '../data/mockData';
+import { exerciseLibrary, SquadMember, TrainingGroup, TrainingSession, trainingModes } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
 
 type Props = {
@@ -13,12 +13,25 @@ type Props = {
   groups: TrainingGroup[];
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
   onCompleteWorkout: (completion: WorkoutCompletion) => void;
+  onAddSession: (session: TrainingSession) => void;
   cloudEnabled: boolean;
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
   onCloudSync: () => void;
 };
 
 const weeklyGoal = 10000;
+const quickLogKinds: TrainingSession['type'][] = ['Run', 'Ruck', 'Cardio', 'Strength', 'Workout', 'Mobility'];
+
+function estimateQuickLogVolume(kind: TrainingSession['type'], durationMinutes: number) {
+  const rate = kind === 'Strength' || kind === 'Workout'
+    ? 10
+    : kind === 'Ruck'
+      ? 8
+      : kind === 'Run' || kind === 'Cardio'
+        ? 6
+        : 2;
+  return Math.max(rate * Math.max(durationMinutes, 1), kind === 'Mobility' ? 20 : 60);
+}
 
 function scoreTone(value: number) {
   if (value >= 75) return colours.green;
@@ -39,12 +52,19 @@ export function MemberScreen({
   groups,
   onUpdateMember,
   onCompleteWorkout,
+  onAddSession,
   cloudEnabled,
   cloudStatus,
   onCloudSync,
 }: Props) {
   const [workoutNote, setWorkoutNote] = useState('');
   const [finishFeedback, setFinishFeedback] = useState('');
+  const [quickLogKind, setQuickLogKind] = useState<TrainingSession['type']>('Run');
+  const [quickLogDuration, setQuickLogDuration] = useState('30');
+  const [quickLogVolume, setQuickLogVolume] = useState('');
+  const [quickLogEffort, setQuickLogEffort] = useState<'Too Easy' | 'About Right' | 'Too Hard'>('About Right');
+  const [quickLogNote, setQuickLogNote] = useState('');
+  const [quickLogFeedback, setQuickLogFeedback] = useState('');
   const group = member ? groups.find((item) => item.id === member.groupId) ?? null : null;
   const groupMembers = group ? members.filter((item) => item.groupId === group.id) : [];
   const teamMembers = groupMembers.length ? groupMembers : members;
@@ -113,14 +133,85 @@ export function MemberScreen({
       memberId: member.id,
       memberName: member.gymName || member.name,
       groupId: member.groupId,
+      completionType: 'assigned',
+      sessionKind: assignmentMode?.type ?? 'Workout',
       assignment: member.assignment ?? 'Assigned Workout',
       effort,
+      durationMinutes: assignmentMode?.type === 'Cardio' ? 30 : assignmentMode?.type === 'Mobility' ? 20 : 45,
       note: workoutNote.trim() || undefined,
       volume: plannedVolume,
+      exercises: assignedExercises.map((exercise) => ({ name: exercise.name })),
       completedAt: now,
     });
     setWorkoutNote('');
     setFinishFeedback(message);
+  }
+
+  function submitQuickLog() {
+    if (!member) return;
+
+    const parsedDuration = Number.parseInt(quickLogDuration, 10);
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      setQuickLogFeedback('Enter a valid duration in minutes.');
+      return;
+    }
+
+    const parsedVolume = quickLogVolume.trim()
+      ? Number.parseInt(quickLogVolume, 10)
+      : estimateQuickLogVolume(quickLogKind, parsedDuration);
+
+    if (!Number.isFinite(parsedVolume) || parsedVolume <= 0) {
+      setQuickLogFeedback('Enter a valid volume or leave it blank to auto-calculate.');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const title = `Quick Log: ${quickLogKind}`;
+    const loadDelta = quickLogEffort === 'Too Hard' ? 5 : quickLogEffort === 'Too Easy' ? 1 : 3;
+    const readinessDelta = quickLogEffort === 'Too Hard' ? -3 : quickLogEffort === 'Too Easy' ? 2 : 1;
+
+    onUpdateMember(member.id, {
+      inviteStatus: 'Joined',
+      weeklyVolume: (member.weeklyVolume ?? 0) + parsedVolume,
+      compliance: Math.min(100, (member.compliance ?? 0) + 3),
+      load: Math.min(100, (member.load ?? 0) + loadDelta),
+      readiness: Math.max(1, Math.min(100, member.readiness + readinessDelta)),
+      streakDays: (member.streakDays ?? 0) + 1,
+      lastWorkoutTitle: title,
+      lastWorkoutAt: now,
+      lastWorkoutNote: quickLogNote.trim() || undefined,
+    });
+
+    onAddSession({
+      id: `member-${member.id}-${Date.now()}`,
+      type: quickLogKind,
+      title,
+      score: quickLogEffort === 'About Right' ? 84 : quickLogEffort === 'Too Easy' ? 78 : 70,
+      durationMinutes: parsedDuration,
+      rpe: quickLogEffort === 'About Right' ? 7 : quickLogEffort === 'Too Easy' ? 5 : 8,
+      completedAt: now,
+    });
+
+    onCompleteWorkout({
+      id: `completion-${member.id}-${Date.now()}`,
+      memberId: member.id,
+      memberName: member.gymName || member.name,
+      groupId: member.groupId,
+      completionType: 'quick_log',
+      sessionKind: quickLogKind,
+      assignment: title,
+      effort: quickLogEffort,
+      durationMinutes: parsedDuration,
+      note: quickLogNote.trim() || undefined,
+      volume: parsedVolume,
+      completedAt: now,
+    });
+
+    setQuickLogDuration('30');
+    setQuickLogVolume('');
+    setQuickLogNote('');
+    setQuickLogEffort('About Right');
+    setQuickLogFeedback(`Logged ${quickLogKind.toLowerCase()} for ${parsedDuration} min and sent it to the coach feed.`);
   }
 
   function toggleGhostMode() {
@@ -247,6 +338,77 @@ export function MemberScreen({
           ))}
         </View>
         {finishFeedback ? <Text style={styles.finishFeedback}>{finishFeedback}</Text> : null}
+      </Card>
+
+      <Card>
+        <Text style={styles.cardTitle}>Quick Log</Text>
+        <Text style={styles.body}>
+          Record a run, ruck, mobility block, or extra session without building every exercise.
+        </Text>
+        <View style={styles.kindGrid}>
+          {quickLogKinds.map((kind) => {
+            const active = quickLogKind === kind;
+            return (
+              <Pressable
+                key={kind}
+                style={[styles.kindPill, active && styles.kindPillActive]}
+                onPress={() => setQuickLogKind(kind)}
+              >
+                <Text style={[styles.kindPillText, active && styles.kindPillTextActive]}>{kind}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <View style={styles.quickLogRow}>
+          <View style={styles.quickLogField}>
+            <Text style={styles.fieldLabel}>Duration</Text>
+            <TextInput
+              style={styles.quickLogInput}
+              value={quickLogDuration}
+              onChangeText={setQuickLogDuration}
+              keyboardType="number-pad"
+              placeholder="30"
+              placeholderTextColor={colours.soft}
+            />
+          </View>
+          <View style={styles.quickLogField}>
+            <Text style={styles.fieldLabel}>Volume</Text>
+            <TextInput
+              style={styles.quickLogInput}
+              value={quickLogVolume}
+              onChangeText={setQuickLogVolume}
+              keyboardType="number-pad"
+              placeholder={`${estimateQuickLogVolume(quickLogKind, Number.parseInt(quickLogDuration || '0', 10) || 30)}`}
+              placeholderTextColor={colours.soft}
+            />
+          </View>
+        </View>
+        <Text style={styles.fieldHint}>
+          Leave volume blank and FORGE will estimate it from your session type and time.
+        </Text>
+        <View style={styles.finishGrid}>
+          {(['Too Easy', 'About Right', 'Too Hard'] as const).map((label) => (
+            <Pressable
+              key={label}
+              style={[styles.finishButton, quickLogEffort === label && styles.finishButtonActive]}
+              onPress={() => setQuickLogEffort(label)}
+            >
+              <Text style={styles.finishButtonText}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <TextInput
+          style={styles.noteInput}
+          value={quickLogNote}
+          onChangeText={setQuickLogNote}
+          placeholder="Optional note for coach"
+          placeholderTextColor={colours.soft}
+          multiline
+        />
+        <Pressable style={styles.logButton} onPress={submitQuickLog}>
+          <Text style={styles.logButtonText}>Log Session</Text>
+        </Pressable>
+        {quickLogFeedback ? <Text style={styles.finishFeedback}>{quickLogFeedback}</Text> : null}
       </Card>
 
       <Card>
@@ -511,11 +673,86 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
+  finishButtonActive: {
+    borderWidth: 1,
+    borderColor: `${colours.green}60`,
+    backgroundColor: colours.green,
+  },
   finishButtonText: {
     color: colours.background,
     fontSize: 12,
     fontWeight: '900',
     textAlign: 'center',
+  },
+  kindGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  kindPill: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  kindPillActive: {
+    borderColor: `${colours.amber}70`,
+    backgroundColor: colours.amberDim,
+  },
+  kindPillText: {
+    color: colours.muted,
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  kindPillTextActive: {
+    color: colours.amber,
+  },
+  quickLogRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  quickLogField: {
+    flex: 1,
+  },
+  fieldLabel: {
+    color: colours.muted,
+    fontSize: 11,
+    fontWeight: '900',
+    marginBottom: 6,
+  },
+  quickLogInput: {
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    color: colours.text,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 12,
+    fontSize: 15,
+    fontWeight: '800',
+  },
+  fieldHint: {
+    color: colours.muted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  logButton: {
+    minHeight: touchTarget,
+    borderRadius: 8,
+    backgroundColor: colours.amber,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  logButtonText: {
+    color: colours.background,
+    fontSize: 13,
+    fontWeight: '900',
   },
   finishFeedback: {
     color: colours.green,

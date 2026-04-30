@@ -44,10 +44,14 @@ type RemoteWorkoutCompletionRow = {
   member_id: string;
   member_name: string;
   group_id: string;
+  completion_type: WorkoutCompletion['completionType'];
+  session_kind: WorkoutCompletion['sessionKind'];
   assignment: string;
   effort: WorkoutCompletion['effort'];
+  duration_minutes: number;
   note: string | null;
   volume: number;
+  exercises: WorkoutCompletion['exercises'] | null;
   completed_at: string;
 };
 
@@ -113,10 +117,14 @@ function toRemoteCompletion(userId: string, completion: WorkoutCompletion): Remo
     member_id: completion.memberId,
     member_name: completion.memberName,
     group_id: completion.groupId,
+    completion_type: completion.completionType,
+    session_kind: completion.sessionKind,
     assignment: completion.assignment,
     effort: completion.effort,
+    duration_minutes: completion.durationMinutes,
     note: completion.note ?? null,
     volume: completion.volume,
+    exercises: completion.exercises ?? null,
     completed_at: completion.completedAt,
   };
 }
@@ -165,10 +173,14 @@ function fromRemoteCompletion(row: RemoteWorkoutCompletionRow): WorkoutCompletio
     memberId: row.member_id,
     memberName: row.member_name,
     groupId: row.group_id,
+    completionType: row.completion_type,
+    sessionKind: row.session_kind,
     assignment: row.assignment,
     effort: row.effort,
+    durationMinutes: row.duration_minutes,
     note: row.note ?? undefined,
     volume: row.volume,
+    exercises: row.exercises ?? undefined,
     completedAt: row.completed_at,
   };
 }

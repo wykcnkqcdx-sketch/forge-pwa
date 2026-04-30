@@ -38,10 +38,14 @@ create table if not exists public.workout_completions (
   member_id text not null,
   member_name text not null,
   group_id text not null,
+  completion_type text not null default 'assigned',
+  session_kind text not null default 'Workout',
   assignment text not null,
   effort text not null,
+  duration_minutes integer not null default 0,
   note text,
   volume integer not null,
+  exercises jsonb,
   completed_at timestamptz not null,
   inserted_at timestamptz not null default now(),
   primary key (user_id, id)
@@ -61,6 +65,12 @@ add column if not exists last_workout_title text,
 add column if not exists last_workout_at timestamptz,
 add column if not exists last_workout_note text,
 add column if not exists hype_count integer default 0;
+
+alter table public.workout_completions
+add column if not exists completion_type text default 'assigned',
+add column if not exists session_kind text default 'Workout',
+add column if not exists duration_minutes integer default 0,
+add column if not exists exercises jsonb;
 
 create policy "training sessions are private to owner"
 on public.training_sessions

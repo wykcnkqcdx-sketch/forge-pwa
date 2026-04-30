@@ -29,14 +29,27 @@ export type ReadinessLog = {
   hrv?: number;
 };
 
+export type WorkoutCompletionType = 'assigned' | 'quick_log' | 'ad_hoc';
+
+export type LoggedExercise = {
+  name: string;
+  sets?: number;
+  reps?: number;
+  loadKg?: number;
+};
+
 export type WorkoutCompletion = {
   id: string;
   memberId: string;
   memberName: string;
   groupId: string;
+  completionType: WorkoutCompletionType;
+  sessionKind: TrainingSession['type'];
   assignment: string;
   effort: 'Too Easy' | 'About Right' | 'Too Hard';
+  durationMinutes: number;
   note?: string;
   volume: number;
+  exercises?: LoggedExercise[];
   completedAt: string;
 };

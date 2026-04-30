@@ -33,6 +33,12 @@ interface InstructorScreenProps {
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
 const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
 
+function completionTone(type: WorkoutCompletion['completionType']) {
+  if (type === 'quick_log') return colours.amber;
+  if (type === 'ad_hoc') return colours.violet;
+  return colours.green;
+}
+
 export function InstructorScreen({
   pinEnabled,
   sessions,
@@ -360,9 +366,24 @@ export function InstructorScreen({
         {workoutCompletions.length ? workoutCompletions.slice(0, 5).map((completion) => (
           <View key={completion.id} style={styles.completionRow}>
             <View style={styles.memberCopy}>
-              <Text style={styles.memberName}>{completion.memberName}</Text>
+              <View style={styles.completionHeader}>
+                <Text style={styles.memberName}>{completion.memberName}</Text>
+                <View
+                  style={[
+                    styles.completionBadge,
+                    {
+                      borderColor: `${completionTone(completion.completionType)}50`,
+                      backgroundColor: `${completionTone(completion.completionType)}12`,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.completionBadgeText, { color: completionTone(completion.completionType) }]}>
+                    {completion.completionType === 'quick_log' ? 'QUICK LOG' : completion.completionType.toUpperCase()}
+                  </Text>
+                </View>
+              </View>
               <Text style={styles.muted}>
-                {completion.assignment} - {completion.effort} - +{completion.volume}
+                {completion.assignment} - {completion.sessionKind} - {completion.durationMinutes} min - {completion.effort} - +{completion.volume}
               </Text>
               {completion.note && <Text style={styles.memberNote}>Note: {completion.note}</Text>}
             </View>
@@ -863,6 +884,23 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: colours.borderSoft,
     paddingVertical: 10,
+  },
+  completionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 2,
+  },
+  completionBadge: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  completionBadgeText: {
+    fontSize: 10,
+    fontWeight: '900',
   },
   completionTime: { color: colours.cyan, fontSize: 11, fontWeight: '900', textAlign: 'right' },
   programmeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },

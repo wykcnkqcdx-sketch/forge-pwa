@@ -850,6 +850,7 @@ export default function App() {
             groups={groups}
             onUpdateMember={updateMember}
             onCompleteWorkout={addWorkoutCompletion}
+            onAddSession={addSession}
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloudStatus}
             onCloudSync={syncCloudNow}
