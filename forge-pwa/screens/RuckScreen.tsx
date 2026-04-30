@@ -119,6 +119,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
+  const lastPointRef = useRef<TrackPoint | null>(null);
   const prevHeading = useRef(0);
 
   const currentPoint = routePoints[routePoints.length - 1];
@@ -131,12 +132,14 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const recordLocation = useCallback((location: Location.LocationObject) => {
     const nextPoint = toTrackPoint(location);
 
+    if (lastPointRef.current && lastPointRef.current.timestamp === nextPoint.timestamp) return;
+    if (lastPointRef.current) {
+      const dist = distanceBetween(lastPointRef.current, nextPoint);
+      setCurrentDistance((current) => current + dist);
+    }
+    lastPointRef.current = nextPoint;
+
     setRoutePoints((points) => {
-      const previousPoint = points[points.length - 1];
-      if (previousPoint && previousPoint.timestamp === nextPoint.timestamp) return points;
-      if (previousPoint) {
-        setCurrentDistance((current) => current + distanceBetween(previousPoint, nextPoint));
-      }
       return [...points, nextPoint].slice(-120);
     });
   }, []);
@@ -171,6 +174,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               dist += distanceBetween(points[i - 1], points[i]);
             }
             setCurrentDistance(dist);
+          lastPointRef.current = points[points.length - 1];
 
             const start = new Date(points[0].timestamp);
             setStartTime(start);
@@ -190,16 +194,23 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   }, []);
 
   useEffect(() => {
+    let isMounted = true;
     Location.watchHeadingAsync((heading) => {
       const nextHeading = heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading;
       if (nextHeading >= 0) setCompassHeading(Math.round(nextHeading));
     }).then((subscription) => {
-      headingSubscription.current = subscription;
+      if (isMounted) {
+        headingSubscription.current = subscription;
+      } else {
+        // Component unmounted before the promise resolved
+        subscription.remove();
+      }
     }).catch((error) => {
       console.warn('Compass heading unavailable', error);
     });
 
     return () => {
+      isMounted = false;
       headingSubscription.current?.remove();
       headingSubscription.current = null;
     };
@@ -298,6 +309,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
       setIsTracking(true);
       setCurrentDistance(0);
+      lastPointRef.current = toTrackPoint(firstPosition);
       setElapsedSeconds(0);
       setRoutePoints([toTrackPoint(firstPosition)]);
       setStartTime(new Date(firstPosition.timestamp));
@@ -337,6 +349,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCurrentDistance(0);
     setElapsedSeconds(0);
     setRoutePoints([]);
+    lastPointRef.current = null;
     setStartTime(null);
     AsyncStorage.removeItem('forge:ruck_route');
   };
@@ -346,6 +359,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCurrentDistance(0);
     setElapsedSeconds(0);
     setRoutePoints([]);
+    lastPointRef.current = null;
     setStartTime(null);
     setFootCareChecked(false);
     AsyncStorage.removeItem('forge:ruck_route');
