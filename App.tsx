@@ -11,7 +11,7 @@ import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { MemberScreen } from './screens/MemberScreen';
-import { initialSessions, squadMembers, trainingGroups, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
+import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups, ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from './data/domain';
 import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
 import { secureGetItem, secureMultiRemove, secureRemoveItem, secureSetItem } from './lib/secureStorage';
@@ -34,6 +34,7 @@ type ForgeBackup = {
   sessions: TrainingSession[];
   members: SquadMember[];
   groups?: TrainingGroup[];
+  programmeTemplates?: ProgrammeTemplate[];
   readinessLogs?: ReadinessLog[];
   workoutCompletions?: WorkoutCompletion[];
 };
@@ -61,6 +62,7 @@ export default function App() {
   const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
   const [members, setMembers] = useState<SquadMember[]>(squadMembers);
   const [groups, setGroups] = useState<TrainingGroup[]>(trainingGroups);
+  const [programmeTemplates, setProgrammeTemplates] = useState<ProgrammeTemplate[]>(initialProgrammeTemplates);
   const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
   const [workoutCompletions, setWorkoutCompletions] = useState<WorkoutCompletion[]>([]);
   const [cloudSession, setCloudSession] = useState<Session | null>(null);
@@ -256,6 +258,9 @@ export default function App() {
         const storedGroups = await secureGetItem('forge:groups');
         if (storedGroups) setGroups(JSON.parse(storedGroups));
 
+        const storedProgrammeTemplates = await secureGetItem('forge:programme_templates');
+        if (storedProgrammeTemplates) setProgrammeTemplates(JSON.parse(storedProgrammeTemplates));
+
         const storedReadiness = await secureGetItem('forge:readiness_logs');
         if (storedReadiness) setReadinessLogs(JSON.parse(storedReadiness));
 
@@ -311,6 +316,10 @@ export default function App() {
   useEffect(() => {
     if (isReady) secureSetItem('forge:groups', JSON.stringify(groups));
   }, [groups, isReady]);
+
+  useEffect(() => {
+    if (isReady) secureSetItem('forge:programme_templates', JSON.stringify(programmeTemplates));
+  }, [programmeTemplates, isReady]);
 
   useEffect(() => {
     if (isReady) secureSetItem('forge:readiness_logs', JSON.stringify(readinessLogs));
@@ -434,6 +443,7 @@ export default function App() {
     setSessions([]);
     setMembers([]);
     setGroups([]);
+    setProgrammeTemplates([]);
     setReadinessLogs([]);
     setSavedPin(null);
     setIsUnlocked(true);
@@ -445,7 +455,7 @@ export default function App() {
       window.history.replaceState({}, '', url.toString());
     }
     setWorkoutCompletions([]);
-    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:readiness_logs', 'forge:workout_completions', 'forge:pin'])
+    secureMultiRemove(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:pin'])
       .catch((error) => console.error('Failed to clear local secure storage', error));
     showBlockingMessage('OPSEC WIPE', 'All local data has been permanently destroyed.');
   }
@@ -547,6 +557,14 @@ export default function App() {
 
   function addGroup(group: TrainingGroup) {
     setGroups((current) => [...current, group]);
+  }
+
+  function addProgrammeTemplate(template: ProgrammeTemplate) {
+    setProgrammeTemplates((current) => [template, ...current.filter((item) => item.id !== template.id)]);
+  }
+
+  function deleteProgrammeTemplate(id: string) {
+    setProgrammeTemplates((current) => current.filter((template) => template.id !== id));
   }
 
   function addReadinessLog(log: ReadinessLog) {
@@ -688,6 +706,7 @@ export default function App() {
       sessions,
       members,
       groups,
+      programmeTemplates,
       readinessLogs,
       workoutCompletions,
     };
@@ -732,6 +751,7 @@ export default function App() {
           setSessions(imported);
           if (importedMembers) setMembers(importedMembers);
           if (!Array.isArray(parsed) && Array.isArray(parsed.groups)) setGroups(parsed.groups);
+          if (!Array.isArray(parsed) && Array.isArray(parsed.programmeTemplates)) setProgrammeTemplates(parsed.programmeTemplates);
           if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
           if (parsed.workoutCompletions) setWorkoutCompletions(parsed.workoutCompletions);
           Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
@@ -797,6 +817,7 @@ export default function App() {
             sessions={sessions}
             members={members}
             groups={groups}
+            programmeTemplates={programmeTemplates}
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
             onSetPin={handleSetPin}
@@ -807,6 +828,8 @@ export default function App() {
             onDeleteMember={deleteMember}
             onUpdateMember={updateMember}
             onAddGroup={addGroup}
+            onAddProgrammeTemplate={addProgrammeTemplate}
+            onDeleteProgrammeTemplate={deleteProgrammeTemplate}
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloudStatus}
             cloudEmail={cloudSession?.user.email ?? null}

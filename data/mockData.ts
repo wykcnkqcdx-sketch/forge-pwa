@@ -154,6 +154,20 @@ export type MemberAssignment = {
   exercises: AssignedExerciseBlock[];
 };
 
+export type ProgrammeTemplate = {
+  id: string;
+  name: string;
+  assignmentTitle: string;
+  type: TrainingSession['type'];
+  coachNote?: string;
+  summary?: string;
+  weeklyVolume?: string;
+  intensity?: string;
+  scienceNotes?: string[];
+  exercises: AssignedExerciseBlock[];
+  createdAt: string;
+};
+
 export type TrainingMode = {
   key: string;
   type: TrainingSession['type'];
@@ -264,5 +278,30 @@ export const trainingModes: TrainingMode[] = [
     defaultExerciseIds: ['trap-bar-deadlift', 'front-squat', 'sandbag-clean', 'shuttle-run', 'burpee'],
     coachPinnedExerciseIds: ['trap-bar-deadlift', 'sandbag-clean'],
     unlockLevel: 10,
+  },
+];
+
+export const programmeTemplates: ProgrammeTemplate[] = [
+  {
+    id: 'template-strength-base',
+    name: 'Strength Base / Full Gym',
+    assignmentTitle: 'Strength Training',
+    type: 'Strength',
+    coachNote: 'Prioritise force production, then finish with carries.',
+    summary: 'A lower-rep compound session built around high-force patterns and enough rest to keep quality high.',
+    weeklyVolume: '10 to 14 hard sets per movement each week',
+    intensity: 'Primary lifts at moderate-high effort with 2 to 4 min rest',
+    scienceNotes: [
+      'Place the most technical heavy lift first.',
+      'Keep weekly hard-set volume moderate so bar speed stays honest.',
+      'Carries and pulls support grip and trunk resilience.',
+    ],
+    exercises: [
+      { exerciseId: 'trap-bar-deadlift', name: 'Trap-bar deadlift', dose: '5 x 5', coachPinned: true, prescribed: { sets: 5, reps: 5, loadUnit: 'kg' }, status: 'assigned' },
+      { exerciseId: 'front-squat', name: 'Front squat', dose: '4 x 5', prescribed: { sets: 4, reps: 5, loadUnit: 'kg' }, status: 'assigned' },
+      { exerciseId: 'pull-up', name: 'Pull-up', dose: '5 x max clean', coachPinned: true, prescribed: { sets: 5, reps: 6 }, status: 'assigned' },
+      { exerciseId: 'farmer-carry', name: 'Farmer carry', dose: '6 x 40m', prescribed: { sets: 6, durationMinutes: 12 }, status: 'assigned' },
+    ],
+    createdAt: '2026-04-30T08:00:00.000Z',
   },
 ];

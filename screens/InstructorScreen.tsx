@@ -6,7 +6,7 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { buildCoachGuidance, buildProgrammeRecommendation, ProgrammeBuilderInput } from '../lib/aiGuidance';
 import { colours } from '../theme';
-import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
+import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, ProgrammeTemplate, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
 interface InstructorScreenProps {
@@ -14,6 +14,7 @@ interface InstructorScreenProps {
   sessions: TrainingSession[];
   members: SquadMember[];
   groups: TrainingGroup[];
+  programmeTemplates: ProgrammeTemplate[];
   readinessLogs: ReadinessLog[];
   workoutCompletions: WorkoutCompletion[];
   onSetPin: () => void;
@@ -24,6 +25,8 @@ interface InstructorScreenProps {
   onDeleteMember: (id: string) => void;
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
   onAddGroup: (group: TrainingGroup) => void;
+  onAddProgrammeTemplate: (template: ProgrammeTemplate) => void;
+  onDeleteProgrammeTemplate: (id: string) => void;
   cloudEnabled: boolean;
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
   cloudEmail: string | null;
@@ -110,6 +113,7 @@ export function InstructorScreen({
   sessions,
   members,
   groups,
+  programmeTemplates,
   readinessLogs,
   workoutCompletions,
   onSetPin,
@@ -120,6 +124,8 @@ export function InstructorScreen({
   onDeleteMember,
   onUpdateMember,
   onAddGroup,
+  onAddProgrammeTemplate,
+  onDeleteProgrammeTemplate,
   cloudEnabled,
   cloudStatus,
   cloudEmail,
@@ -140,6 +146,7 @@ export function InstructorScreen({
   const [assignmentNote, setAssignmentNote] = useState('');
   const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
+  const [templateName, setTemplateName] = useState('');
   const [programmeGoal, setProgrammeGoal] = useState<ProgrammeBuilderInput['goal']>('Tactical Hybrid');
   const [programmeDays, setProgrammeDays] = useState<ProgrammeBuilderInput['daysPerWeek']>(3);
   const [programmeMinutes, setProgrammeMinutes] = useState<ProgrammeBuilderInput['sessionMinutes']>(45);
@@ -482,6 +489,69 @@ export function InstructorScreen({
     if (!assignmentMemberId && members[0]) setAssignmentMemberId(members[0].id);
     if (!assignmentGroupId && groups[0]) setAssignmentGroupId(groups[0].id);
     setAssignmentFeedback(`AI plan loaded: ${programmeRecommendation.assignmentTitle}. Review the staged session, then deploy.`);
+  }
+
+  function saveProgrammeTemplate() {
+    const exercisesToSave = activeAssignmentExercises.length ? activeAssignmentExercises : programmeRecommendation.exerciseIds
+      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+      .map((exercise) => buildAssignedExerciseBlock(exercise, programmeRecommendation.exerciseIds.slice(0, 2).includes(exercise.id)));
+
+    const name = templateName.trim() || `${programmeGoal} ${programmeEquipment} ${programmeMinutes}m`;
+    onAddProgrammeTemplate({
+      id: `template-${Date.now()}`,
+      name,
+      assignmentTitle: assignmentLabel || programmeRecommendation.assignmentTitle,
+      type: selectedAssignmentMode?.type ?? programmeRecommendation.assignmentTitle === 'Cardio Training' ? 'Cardio' : programmeRecommendation.assignmentTitle === 'Mobility Reset' ? 'Mobility' : programmeRecommendation.assignmentTitle === 'Resistance Training' ? 'Resistance' : programmeRecommendation.assignmentTitle === 'Strength Training' ? 'Strength' : 'Workout',
+      coachNote: assignmentNote.trim() || programmeRecommendation.coachNote,
+      summary: programmeRecommendation.summary,
+      weeklyVolume: programmeRecommendation.weeklyVolume,
+      intensity: programmeRecommendation.intensity,
+      scienceNotes: programmeRecommendation.scienceNotes,
+      exercises: exercisesToSave,
+      createdAt: new Date().toISOString(),
+    });
+    setTemplateName('');
+    setAssignmentFeedback(`Template saved: ${name}`);
+  }
+
+  function loadTemplateIntoStage(template: ProgrammeTemplate) {
+    setAssignmentLabel(template.assignmentTitle);
+    setAssignmentNote(template.coachNote ?? '');
+    setStagedAssignmentExercises(template.exercises);
+    setAssignmentOpen(true);
+    setAssignmentFeedback(`Template loaded: ${template.name}`);
+  }
+
+  function assignTemplateToGroup(template: ProgrammeTemplate, groupId: string) {
+    const group = groups.find((item) => item.id === groupId);
+    const targetMembers = members.filter((member) => member.groupId === groupId);
+    if (!group || !targetMembers.length) {
+      showMessage('No team members', 'Choose a group that has members before assigning a template.');
+      return;
+    }
+
+    targetMembers.forEach((member) => {
+      onUpdateMember(member.id, {
+        assignment: template.assignmentTitle,
+        pinnedExerciseIds: template.exercises.filter((exercise) => exercise.coachPinned).map((exercise) => exercise.exerciseId),
+        assignmentSession: {
+          id: `assign-${member.id}-${Date.now()}`,
+          title: template.assignmentTitle,
+          type: template.type,
+          status: 'assigned',
+          assignedAt: new Date().toISOString(),
+          coachNote: template.coachNote,
+          exercises: template.exercises.map((exercise) => ({
+            ...exercise,
+            actual: undefined,
+            status: 'assigned',
+          })),
+        },
+      });
+    });
+
+    setAssignmentFeedback(`${template.name} assigned to ${targetMembers.length} members in ${group.name}.`);
   }
 
   return (
@@ -1127,9 +1197,51 @@ export function InstructorScreen({
           })}
         </View>
 
-        <Pressable style={styles.programmeLoadButton} onPress={loadProgrammeIntoStage}>
-          <Text style={styles.programmeLoadButtonText}>Load AI Plan Into Stage</Text>
-        </Pressable>
+        <TextInput
+          style={styles.memberInput}
+          value={templateName}
+          onChangeText={setTemplateName}
+          placeholder="Template name"
+          placeholderTextColor={colours.soft}
+        />
+
+        <View style={styles.programmeActionRow}>
+          <Pressable style={styles.programmeLoadButton} onPress={loadProgrammeIntoStage}>
+            <Text style={styles.programmeLoadButtonText}>Load AI Plan Into Stage</Text>
+          </Pressable>
+          <Pressable style={styles.programmeSaveButton} onPress={saveProgrammeTemplate}>
+            <Text style={styles.programmeSaveButtonText}>Save Template</Text>
+          </Pressable>
+        </View>
+
+        <Text style={[styles.assignmentLabel, { marginTop: 14 }]}>Saved templates</Text>
+        <View style={styles.templateList}>
+          {programmeTemplates.map((template) => (
+            <View key={template.id} style={styles.templateCard}>
+              <View style={styles.stageHeader}>
+                <View style={styles.memberCopy}>
+                  <Text style={styles.memberName}>{template.name}</Text>
+                  <Text style={styles.muted}>{template.assignmentTitle} - {template.exercises.length} exercises</Text>
+                </View>
+                <Pressable style={styles.stageRemove} onPress={() => onDeleteProgrammeTemplate(template.id)}>
+                  <Text style={styles.stageRemoveText}>Delete</Text>
+                </Pressable>
+              </View>
+              {template.summary ? <Text style={styles.programmeMeta}>{template.summary}</Text> : null}
+              <View style={styles.templateActions}>
+                <Pressable style={styles.templateActionButton} onPress={() => loadTemplateIntoStage(template)}>
+                  <Text style={styles.templateActionText}>Load To Stage</Text>
+                </Pressable>
+                {groups.map((group) => (
+                  <Pressable key={`${template.id}-${group.id}`} style={styles.templateActionButton} onPress={() => assignTemplateToGroup(template, group.id)}>
+                    <Text style={styles.templateActionText}>Assign {group.name}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ))}
+        </View>
+
       </Card>
     </Screen>
   );
@@ -1546,12 +1658,48 @@ const styles = StyleSheet.create({
   },
   programmeExerciseName: { color: colours.text, fontSize: 13, fontWeight: '900' },
   programmeExerciseDose: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
+  programmeActionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   programmeLoadButton: {
+    flex: 1,
     alignItems: 'center',
     backgroundColor: colours.green,
     borderRadius: 14,
     paddingVertical: 12,
-    marginTop: 14,
   },
   programmeLoadButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
+  programmeSaveButton: {
+    flex: 1,
+    alignItems: 'center',
+    backgroundColor: colours.cyan,
+    borderRadius: 14,
+    paddingVertical: 12,
+  },
+  programmeSaveButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
+  templateList: { gap: 8, marginTop: 8 },
+  templateCard: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    padding: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  templateActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  templateActionButton: {
+    borderWidth: 1,
+    borderColor: `${colours.cyan}40`,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colours.cyanDim,
+  },
+  templateActionText: {
+    color: colours.cyan,
+    fontSize: 11,
+    fontWeight: '900',
+  },
 });
