@@ -12,7 +12,7 @@ import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import { initialSessions, squadMembers, SquadMember, TrainingSession } from './data/mockData';
-import { fetchCloudSnapshot, pushCloudSnapshot } from './lib/cloud';
+import { fetchCloudSnapshot, pushSession, removeSession, pushMember, removeMember } from './lib/cloud';
 import { ReadinessLog } from './data/domain';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { getSecureItem, setSecureItem, removeSecureItem } from './lib/storage';
@@ -29,6 +29,12 @@ type ForgeBackup = {
   members: SquadMember[];
   readinessLogs?: ReadinessLog[];
 };
+
+type OfflineAction =
+  | { type: 'push_session'; payload: TrainingSession }
+  | { type: 'remove_session'; payload: string }
+  | { type: 'push_member'; payload: SquadMember }
+  | { type: 'remove_member'; payload: string };
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
   { id: 'home',       label: 'Home',    icon: 'home-outline',      iconActive: 'home' },
@@ -69,7 +75,58 @@ export default function App() {
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
   const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cloudHydrated = useRef(false);
-  const skipNextRemotePush = useRef(false);
+
+  const processOfflineQueue = useCallback(async () => {
+    if (!cloudSession?.user) return;
+    const userId = cloudSession.user.id;
+    
+    try {
+      const stored = await AsyncStorage.getItem('forge:offline_queue');
+      if (!stored) return;
+      const queue: OfflineAction[] = JSON.parse(stored);
+      if (queue.length === 0) return;
+
+      setCloudStatus('syncing');
+      const remainingQueue: OfflineAction[] = [];
+
+      for (const action of queue) {
+        try {
+          if (action.type === 'push_session') await pushSession(userId, action.payload);
+          else if (action.type === 'remove_session') await removeSession(userId, action.payload);
+          else if (action.type === 'push_member') await pushMember(userId, action.payload);
+          else if (action.type === 'remove_member') await removeMember(userId, action.payload);
+        } catch (err) {
+          // Operation failed again, keep it in the queue for later
+          remainingQueue.push(action);
+        }
+      }
+
+      if (remainingQueue.length !== queue.length) {
+        await AsyncStorage.setItem('forge:offline_queue', JSON.stringify(remainingQueue));
+      }
+      setCloudStatus(remainingQueue.length === 0 ? 'synced' : 'error');
+    } catch (e) {
+      console.error('Failed to process offline queue', e);
+    }
+  }, [cloudSession]);
+
+  const handleCloudMutation = useCallback(async (action: OfflineAction) => {
+    if (!cloudSession?.user) return;
+    const userId = cloudSession.user.id;
+
+    try {
+      if (action.type === 'push_session') await pushSession(userId, action.payload);
+      else if (action.type === 'remove_session') await removeSession(userId, action.payload);
+      else if (action.type === 'push_member') await pushMember(userId, action.payload);
+      else if (action.type === 'remove_member') await removeMember(userId, action.payload);
+    } catch (error) {
+      const stored = await AsyncStorage.getItem('forge:offline_queue');
+      const queue: OfflineAction[] = stored ? JSON.parse(stored) : [];
+      queue.push(action);
+      await AsyncStorage.setItem('forge:offline_queue', JSON.stringify(queue));
+      setCloudStatus('error');
+    }
+  }, [cloudSession]);
 
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
@@ -268,16 +325,19 @@ export default function App() {
         if (cancelled) return;
 
         if (snapshot.sessions.length > 0 || snapshot.members.length > 0) {
-          skipNextRemotePush.current = true;
           if (snapshot.sessions.length > 0) setSessions(snapshot.sessions);
           if (snapshot.members.length > 0) setMembers(snapshot.members);
         } else {
-          await pushCloudSnapshot(userId, sessions, members);
+          Promise.all([
+            ...sessions.map((s) => pushSession(userId, s)),
+            ...members.map((m) => pushMember(userId, m)),
+          ]).catch(console.error);
         }
 
         if (!cancelled) {
           cloudHydrated.current = true;
           setCloudStatus('synced');
+          processOfflineQueue();
         }
       } catch (error) {
         console.error('Failed to hydrate cloud data', error);
@@ -295,27 +355,62 @@ export default function App() {
   }, [cloudSession?.user?.id, isReady]);
 
   useEffect(() => {
-    if (!isSupabaseConfigured || !cloudSession?.user || !isReady || !cloudHydrated.current) return;
+    if (!isSupabaseConfigured || !supabase || !cloudSession?.user || !isReady) return;
     const userId = cloudSession.user.id;
 
-    if (skipNextRemotePush.current) {
-      skipNextRemotePush.current = false;
-      return;
-    }
+    const channel = supabase.channel(`forge-sync-${userId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'training_sessions', filter: `user_id=eq.${userId}` }, (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const row = payload.new as any;
+          const session: TrainingSession = {
+            id: row.id,
+            type: row.type,
+            title: row.title,
+            score: row.score,
+            durationMinutes: row.duration_minutes,
+            rpe: row.rpe,
+            loadKg: row.load_kg ?? undefined,
+            routePoints: row.route_points ?? undefined,
+          };
+          setSessions((current) => {
+            if (payload.eventType === 'INSERT' && current.some(s => s.id === session.id)) return current;
+            if (payload.eventType === 'INSERT') return [session, ...current];
+            return current.map(s => s.id === session.id ? session : s);
+          });
+        } else if (payload.eventType === 'DELETE') {
+          setSessions((current) => current.filter(s => s.id !== payload.old.id));
+        }
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'squad_members', filter: `user_id=eq.${userId}` }, (payload) => {
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const row = payload.new as any;
+          const member: SquadMember = {
+            id: row.id,
+            name: row.name,
+            email: row.email ?? undefined,
+            groupId: row.group_id,
+            readiness: row.readiness,
+            compliance: row.compliance,
+            risk: row.risk,
+            load: row.load,
+            inviteStatus: row.invite_status ?? undefined,
+            assignment: row.assignment ?? undefined,
+          };
+          setMembers((current) => {
+            if (payload.eventType === 'INSERT' && current.some(m => m.id === member.id)) return current;
+            if (payload.eventType === 'INSERT') return [member, ...current];
+            return current.map(m => m.id === member.id ? member : m);
+          });
+        } else if (payload.eventType === 'DELETE') {
+          setMembers((current) => current.filter(m => m.id !== payload.old.id));
+        }
+      })
+      .subscribe();
 
-    const timer = setTimeout(async () => {
-      try {
-        setCloudStatus('syncing');
-        await pushCloudSnapshot(userId, sessions, members);
-        setCloudStatus('synced');
-      } catch (error) {
-        console.error('Failed to sync cloud data', error);
-        setCloudStatus('error');
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [sessions, members, cloudSession?.user?.id, isReady]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [cloudSession?.user?.id, isReady]);
 
   function executeDuressWipe() {
     setSessions([]);
@@ -399,24 +494,35 @@ export default function App() {
 
   function addSession(session: TrainingSession) {
     setSessions((current) => [session, ...current]);
+    handleCloudMutation({ type: 'push_session', payload: session });
   }
 
   function deleteSession(id: string) {
     setSessions((current) => current.filter((s) => s.id !== id));
+    handleCloudMutation({ type: 'remove_session', payload: id });
   }
 
   function editSession(id: string, updates: Partial<TrainingSession>) {
     setSessions((current) =>
       current.map((s) => (s.id === id ? { ...s, ...updates } : s))
     );
+    const existing = sessions.find((s) => s.id === id);
+    if (existing) {
+      handleCloudMutation({ type: 'push_session', payload: { ...existing, ...updates } });
+    }
   }
 
   function addMember(member: SquadMember) {
     setMembers((current) => [member, ...current]);
+    handleCloudMutation({ type: 'push_member', payload: member });
   }
 
   function updateMember(id: string, updates: Partial<SquadMember>) {
     setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...updates } : member)));
+    const existing = members.find((m) => m.id === id);
+    if (existing) {
+      handleCloudMutation({ type: 'push_member', payload: { ...existing, ...updates } });
+    }
   }
 
   function addReadinessLog(log: ReadinessLog) {
