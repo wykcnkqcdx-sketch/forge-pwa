@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import type { Session } from '@supabase/supabase-js';
@@ -17,6 +16,7 @@ import type { ReadinessLog, WorkoutCompletion } from './data/domain';
 import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from './lib/cloud';
 import { buildGoogleSheetsPayload, exportToGoogleSheets } from './lib/googleSheets';
 import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from './lib/offlineQueue';
+import { clearActiveRoute } from './lib/ruckRouteStore';
 import { secureDestroyLocalData, secureGetItem, secureRemoveItem, secureSetItem } from './lib/secureStorage';
 import { isSupabaseConfigured, supabase } from './lib/supabase';
 import { colours, shadow, touchTarget } from './theme';
@@ -630,7 +630,7 @@ export default function App() {
     await Promise.all([
       clearCloudAuthSession(),
       secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin']),
-      AsyncStorage.removeItem('forge:ruck_route'),
+      clearActiveRoute(),
       clearOfflineQueue(),
     ]).catch((error) => console.error('Failed to clear local app data', error));
     setPendingSyncCount(0);

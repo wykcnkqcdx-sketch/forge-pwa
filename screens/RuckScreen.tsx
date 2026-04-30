@@ -3,7 +3,6 @@ import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated,
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import Svg, { Circle, Polyline } from 'react-native-svg';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -12,6 +11,7 @@ import { colours, touchTarget } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { getMapPoints, distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, evaluateRoutePoint, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
+import { appendActiveRoutePoints, clearActiveRoute, loadActiveRoute, replaceActiveRoute, resetActiveRoute } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
 
 function formatElapsed(seconds: number) {
@@ -154,11 +154,8 @@ if (supportsBackgroundLocation) {
       const { locations } = data as { locations: Location.LocationObject[] };
 
       try {
-        const stored = await AsyncStorage.getItem('forge:ruck_route');
-        const existingPoints: TrackPoint[] = stored ? JSON.parse(stored) : [];
         const newPoints = locations.map(toTrackPoint);
-
-        await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([...existingPoints, ...newPoints]));
+        await appendActiveRoutePoints(newPoints);
       } catch (e) {
         console.error('Failed to save background locations', e);
       }
@@ -224,31 +221,28 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   useEffect(() => {
     async function restoreSession() {
       try {
-        const stored = await AsyncStorage.getItem('forge:ruck_route');
-        if (stored) {
-          const points: TrackPoint[] = JSON.parse(stored);
-          if (points.length > 0) {
-            const sanitized = sanitizeRoutePoints(points);
+        const points = await loadActiveRoute();
+        if (points.length > 0) {
+          const sanitized = sanitizeRoutePoints(points);
 
-            const start = new Date(sanitized.routePoints[0]?.timestamp ?? points[0].timestamp);
-            const restoredElapsedSeconds = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
-            let restoredIsTracking = false;
+          const start = new Date(sanitized.routePoints[0]?.timestamp ?? points[0].timestamp);
+          const restoredElapsedSeconds = Math.max(0, Math.floor((Date.now() - start.getTime()) / 1000));
+          let restoredIsTracking = false;
 
-            if (supportsBackgroundLocation) {
-              const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
-              restoredIsTracking = hasStarted;
-            }
-
-            dispatchTracking({
-              type: 'restore',
-              points: sanitized.routePoints,
-              currentDistance: sanitized.currentDistance,
-              elapsedSeconds: restoredElapsedSeconds,
-              isTracking: restoredIsTracking,
-              rejectedPointCount: sanitized.rejectedPointCount,
-              lastRejectedReason: sanitized.lastRejectedReason,
-            });
+          if (supportsBackgroundLocation) {
+            const hasStarted = await Location.hasStartedLocationUpdatesAsync(LOCATION_TASK_NAME);
+            restoredIsTracking = hasStarted;
           }
+
+          dispatchTracking({
+            type: 'restore',
+            points: sanitized.routePoints,
+            currentDistance: sanitized.currentDistance,
+            elapsedSeconds: restoredElapsedSeconds,
+            isTracking: restoredIsTracking,
+            rejectedPointCount: sanitized.rejectedPointCount,
+            lastRejectedReason: sanitized.lastRejectedReason,
+          });
         }
       } catch (e) {
         console.error('Failed to restore ruck session', e);
@@ -282,7 +276,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
   useEffect(() => {
     if (!startTime || routePoints.length === 0) return;
-    AsyncStorage.setItem('forge:ruck_route', JSON.stringify(routePoints)).catch((error) => {
+    replaceActiveRoute(routePoints).catch((error) => {
       console.error('Failed to persist filtered ruck route', error);
     });
   }, [routePoints, startTime]);
@@ -341,7 +335,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       const firstPosition = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
       const firstPoint = toTrackPoint(firstPosition);
 
-      await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([firstPoint]));
+      await resetActiveRoute(firstPoint);
 
       if (supportsBackgroundLocation) {
         const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
@@ -400,13 +394,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     addSession(session);
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
     dispatchTracking({ type: 'reset' });
-    AsyncStorage.removeItem('forge:ruck_route');
+    clearActiveRoute();
   };
 
   const discardTrackedRuck = () => {
     stopTracking();
     dispatchTracking({ type: 'reset' });
-    AsyncStorage.removeItem('forge:ruck_route');
+    clearActiveRoute();
   };
 
   const speedKph = useMemo(() => Math.max(3.2, Math.min(7.2, 60 / (7.4 + weight / 25))), [weight]);
