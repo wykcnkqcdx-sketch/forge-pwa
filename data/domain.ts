@@ -40,6 +40,17 @@ export type ReadinessLog = {
   updatedAt?: string;
 };
 
+export type FuelLog = {
+  id: string;
+  date: string;
+  caloriesKcal: number;
+  proteinG: number;
+  hydrationMl: number;
+  calorieTarget: number;
+  proteinTarget: number;
+  hydrationTargetMl: number;
+};
+
 export type WorkoutCompletionType = 'assigned' | 'quick_log' | 'ad_hoc';
 
 export type LoggedExercise = {
