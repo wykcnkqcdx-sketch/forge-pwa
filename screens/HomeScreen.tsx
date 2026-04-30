@@ -44,6 +44,33 @@ function calculateMemberReadiness(check: {
   return Math.max(25, Math.min(98, Math.round(score)));
 }
 
+function nextActionForReadiness(performance: ReturnType<typeof buildPerformanceProfile>, hasMember: boolean) {
+  if (performance.readinessBand === 'RED' || performance.loadRisk === 'High') {
+    return {
+      title: 'Recovery priority',
+      detail: performance.recoveryFocus,
+      icon: 'bed-outline' as keyof typeof Ionicons.glyphMap,
+      tone: colours.red,
+    };
+  }
+
+  if (performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate') {
+    return {
+      title: 'Controlled training',
+      detail: 'Cap intensity and check soreness after warm-up',
+      icon: 'speedometer-outline' as keyof typeof Ionicons.glyphMap,
+      tone: colours.amber,
+    };
+  }
+
+  return {
+    title: hasMember ? 'Open assigned work' : 'Build today',
+    detail: 'Good window for quality work',
+    icon: 'flash-outline' as keyof typeof Ionicons.glyphMap,
+    tone: colours.green,
+  };
+}
+
 function FactorRow({
   label,
   value,
@@ -122,6 +149,7 @@ export function HomeScreen({
   const performance = buildPerformanceProfile(sessions);
   const domains = useMemo(() => buildH2FDomains(sessions), [sessions]);
   const guidance = buildPrescriptiveGuidance(sessions, 6.25, performance.loadRisk === 'High' ? 'down' : 'flat');
+  const nextAction = nextActionForReadiness(performance, Boolean(member));
   const whtr = calculateWHtR(Number(waistCm), Number(heightCm));
   const loadedKm = sessions
     .filter((session) => session.type === 'Ruck')
@@ -258,7 +286,7 @@ export function HomeScreen({
       <Card hot>
         <View style={styles.readinessRow}>
           <View>
-            <Text style={styles.label}>PRESCRIPTIVE MODEL</Text>
+            <Text style={styles.label}>TODAY BRIEF</Text>
             <Text style={[styles.readinessValue, { color: performance.readinessTone }]}>{performance.readiness}</Text>
           </View>
           <View style={styles.readinessCopy}>
@@ -267,6 +295,47 @@ export function HomeScreen({
           </View>
         </View>
         <ProgressBar value={performance.readiness} colour={performance.readinessTone} />
+        <View style={styles.commandGrid}>
+          <View style={styles.commandTile}>
+            <Text style={styles.commandLabel}>LOAD</Text>
+            <Text style={[styles.commandValue, { color: performance.riskTone }]}>{performance.loadRisk}</Text>
+            <Text style={styles.commandSub}>{performance.weeklyLoad} AU</Text>
+          </View>
+          <View style={styles.commandTile}>
+            <Text style={styles.commandLabel}>ACWR</Text>
+            <Text style={styles.commandValue}>{performance.acuteChronicRatio}</Text>
+            <Text style={styles.commandSub}>{performance.acuteLoad}/{performance.chronicLoad}</Text>
+          </View>
+          <View style={styles.commandTile}>
+            <Text style={styles.commandLabel}>RUCK</Text>
+            <Text style={styles.commandValue}>{performance.ruckKm}km</Text>
+            <Text style={styles.commandSub}>{performance.ruckLoadKg || '--'}kg avg</Text>
+          </View>
+          <View style={styles.commandTile}>
+            <Text style={styles.commandLabel}>RPE</Text>
+            <Text style={styles.commandValue}>{performance.averageRpe ? performance.averageRpe.toFixed(1) : '--'}</Text>
+            <Text style={styles.commandSub}>{performance.highIntensityCount} hard</Text>
+          </View>
+        </View>
+        <View style={[styles.nextActionPanel, { borderColor: `${nextAction.tone}66`, backgroundColor: `${nextAction.tone}12` }]}>
+          <View style={[styles.nextActionIcon, { backgroundColor: `${nextAction.tone}22` }]}>
+            <Ionicons name={nextAction.icon} size={22} color={nextAction.tone} />
+          </View>
+          <View style={styles.nextActionCopy}>
+            <Text style={[styles.nextActionTitle, { color: nextAction.tone }]}>{nextAction.title}</Text>
+            <Text style={styles.nextActionDetail}>{nextAction.detail}</Text>
+          </View>
+        </View>
+        <View style={styles.actionRow}>
+          <Pressable style={styles.primaryButton} onPress={() => completeCriticalEvent(member ? onCompleteCheckIn ?? goToRuck : goToRuck)}>
+            <Ionicons name={member ? 'barbell' : 'footsteps'} size={20} color={colours.background} />
+            <Text style={styles.primaryButtonText}>{member ? 'Train Now' : 'Start Ruck'}</Text>
+          </Pressable>
+          <Pressable style={styles.secondaryButton} onPress={() => completeCriticalEvent(goToAnalytics)}>
+            <Ionicons name="analytics" size={20} color={colours.cyan} />
+            <Text style={styles.secondaryButtonText}>Intel</Text>
+          </Pressable>
+        </View>
       </Card>
 
       {member ? (
@@ -546,12 +615,19 @@ export function HomeScreen({
         <Text style={styles.sectionTitle}>Recent Load</Text>
         <Text style={styles.label}>LAST 3</Text>
       </View>
-      {recentSessions.map((session) => (
-        <View key={session.id} style={styles.sessionRow}>
-          <Text style={styles.sessionTitle}>{session.title}</Text>
-          <Text style={styles.sessionMeta}>{session.type} | {session.durationMinutes} min | RPE {session.rpe}</Text>
+      {recentSessions.length ? (
+        recentSessions.map((session) => (
+          <View key={session.id} style={styles.sessionRow}>
+            <Text style={styles.sessionTitle}>{session.title}</Text>
+            <Text style={styles.sessionMeta}>{session.type} | {session.durationMinutes} min | RPE {session.rpe}</Text>
+          </View>
+        ))
+      ) : (
+        <View style={styles.sessionRow}>
+          <Text style={styles.sessionTitle}>No training logged yet</Text>
+          <Text style={styles.sessionMeta}>Start with a ruck, workout, or readiness check.</Text>
         </View>
-      ))}
+      )}
     </Screen>
   );
 }
@@ -603,6 +679,69 @@ const styles = StyleSheet.create({
   },
   readinessCopy: {
     flex: 1,
+  },
+  commandGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 14,
+  },
+  commandTile: {
+    width: '48%',
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+  },
+  commandLabel: {
+    color: colours.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  commandValue: {
+    color: colours.text,
+    fontSize: 22,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  commandSub: {
+    color: colours.textSoft,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  nextActionPanel: {
+    minHeight: 72,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  nextActionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  nextActionCopy: {
+    flex: 1,
+  },
+  nextActionTitle: {
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  nextActionDetail: {
+    color: colours.textSoft,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 2,
   },
   status: {
     fontSize: 18,
