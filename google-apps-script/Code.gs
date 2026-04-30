@@ -37,7 +37,7 @@ function doPost(e) {
     validateForgePayload_(payload);
 
     const spreadsheet = getForgeSpreadsheet_();
-    ensureTabOrder_(spreadsheet);
+    initializeWorkbook_(spreadsheet);
 
     writeMetaTab_(spreadsheet, payload);
 
@@ -69,6 +69,8 @@ function doPost(e) {
 
 function doGet() {
   const spreadsheet = getForgeSpreadsheet_();
+  initializeWorkbook_(spreadsheet);
+  writeMetaStatusOnly_(spreadsheet, 'Receiver reachable. Waiting for FORGE export payload.');
   return jsonResponse({
     ok: true,
     service: 'FORGE Google Sheets Receiver',
@@ -82,7 +84,11 @@ function getForgeSpreadsheet_() {
   if (FORGE_CONFIG.spreadsheetId) {
     return SpreadsheetApp.openById(FORGE_CONFIG.spreadsheetId);
   }
-  return SpreadsheetApp.getActiveSpreadsheet();
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+  if (!spreadsheet) {
+    throw new Error('No active spreadsheet found. Bind this script to a Google Sheet or set FORGE_CONFIG.spreadsheetId.');
+  }
+  return spreadsheet;
 }
 
 function validateForgePayload_(payload) {
@@ -109,6 +115,33 @@ function ensureTabOrder_(spreadsheet) {
     spreadsheet.setActiveSheet(existing);
     spreadsheet.moveActiveSheet(index + 1);
   });
+}
+
+function initializeWorkbook_(spreadsheet) {
+  ensureTabOrder_(spreadsheet);
+  FORGE_CONFIG.tabOrder.forEach(function (sheetName) {
+    const sheet = spreadsheet.getSheetByName(sheetName) || spreadsheet.insertSheet(sheetName);
+    if (sheet.getLastRow() === 0 && sheet.getLastColumn() === 0) {
+      sheet.getRange(1, 1).setValue(sheetName);
+    }
+  });
+}
+
+function writeMetaStatusOnly_(spreadsheet, message) {
+  const sheet = spreadsheet.getSheetByName('Meta') || spreadsheet.insertSheet('Meta');
+  resetSheet_(sheet);
+  const rows = [
+    ['FORGE Export Meta', ''],
+    ['Status', message],
+    ['Processed At', new Date().toISOString()],
+    ['Spreadsheet ID', spreadsheet.getId()],
+    ['Spreadsheet URL', spreadsheet.getUrl()],
+  ];
+  sheet.getRange(1, 1, rows.length, 2).setValues(rows);
+  sheet.getRange(1, 1, 1, 2).merge();
+  sheet.getRange(1, 1).setFontWeight('bold').setFontSize(14);
+  sheet.getRange(2, 1, rows.length - 1, 1).setFontWeight('bold');
+  sheet.autoResizeColumns(1, 2);
 }
 
 function writeDashboardTabs_(spreadsheet) {
