@@ -268,27 +268,38 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setIsStarting(true);
 
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
+      const fgResponse = await Location.requestForegroundPermissionsAsync();
+      if (fgResponse.status !== 'granted') {
         Alert.alert('Permission denied', 'Location permission is required for GPS tracking.');
         return;
+      }
+
+      const isPrecise = Platform.OS === 'ios' ? fgResponse.ios?.scope === 'fine' : fgResponse.android?.accuracy === 'fine';
+      if (!isPrecise && Platform.OS !== 'web') {
+        Alert.alert('Precise Location Required', 'Ruck tracking requires precise GPS. Your route map and distance will be highly inaccurate.');
       }
 
       const firstPosition = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
 
       await AsyncStorage.setItem('forge:ruck_route', JSON.stringify([toTrackPoint(firstPosition)]));
 
+      let useBackground = false;
       if (supportsBackgroundLocation) {
         const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-        if (bgStatus !== 'granted') {
-          Alert.alert('Permission denied', 'Background location permission is required for locked-screen tracking.');
-          return;
+        if (bgStatus === 'granted') {
+          useBackground = true;
+        } else {
+          Alert.alert('Background Restricted', 'App will only track your ruck while the screen is open.');
         }
+      }
 
+      if (useBackground) {
         await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
           accuracy: Location.Accuracy.High,
           timeInterval: 3000,
           distanceInterval: 5,
+          deferredUpdatesDistance: 25,
+          deferredUpdatesInterval: 10000,
           showsBackgroundLocationIndicator: true,
           foregroundService: {
             notificationTitle: 'FORGE Ruck Tracker',

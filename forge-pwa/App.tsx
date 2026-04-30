@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, Animated, PanResponder, Pressable, StyleSheet
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NetInfo from '@react-native-community/netinfo';
 import type { Session } from '@supabase/supabase-js';
 import { HomeScreen } from './screens/HomeScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
@@ -127,6 +128,17 @@ export default function App() {
       setCloudStatus('error');
     }
   }, [cloudSession]);
+
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (state.isConnected && state.isInternetReachable !== false) {
+        if (cloudSession?.user && isReady) {
+          processOfflineQueue();
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [cloudSession, isReady, processOfflineQueue]);
 
   const resetInactivityTimer = useCallback(() => {
     if (inactivityTimer.current) clearTimeout(inactivityTimer.current);

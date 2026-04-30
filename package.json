@@ -13,26 +13,31 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@expo/metro-runtime": "~3.2.3",
-    "@expo/vector-icons": "^14.0.4",
-    "@react-native-async-storage/async-storage": "^1.23.1",
+    "@expo/metro-runtime": "~55.0.10",
+    "@expo/vector-icons": "^15.0.2",
+    "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "11.5.2",
     "@supabase/supabase-js": "^2.105.1",
     "dexie": "^3.2.7",
     "dexie-encrypted": "^2.0.0",
-    "expo": "~51.0.39",
-    "expo-haptics": "~13.0.1",
-    "expo-location": "~17.0.1",
-    "expo-task-manager": "~11.8.2",
-    "react": "18.2.0",
-    "react-dom": "18.2.0",
-    "react-native": "0.74.5",
+    "expo": "^55.0.18",
+    "expo-haptics": "~55.0.14",
+    "expo-location": "~55.1.8",
+    "expo-task-manager": "~55.0.15",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6",
     "react-native-chart-kit": "^6.12.0",
-    "react-native-svg": "15.2.0",
+    "react-native-svg": "15.15.3",
     "react-native-url-polyfill": "^3.0.0",
-    "react-native-web": "~0.19.13"
+    "react-native-web": "~0.21.0"
   },
   "devDependencies": {
-    "@types/react": "~18.2.79",
-    "typescript": "~5.3.3"
+    "@types/react": "~19.2.0",
+    "typescript": "~5.9.2"
+  },
+  "overrides": {
+    "postcss": "8.5.12",
+    "uuid": "14.0.0"
   }
 }
