@@ -717,8 +717,12 @@ export default function App() {
         workoutCompletions,
         cloudSession?.user.email ?? null
       );
-      await exportToGoogleSheets(trimmedEndpoint, payload);
-      Alert.alert('Export sent', 'FORGE data was sent to your Google Sheets endpoint.');
+      const result = await exportToGoogleSheets(trimmedEndpoint, payload);
+      if (result.delivery === 'json' && result.spreadsheetUrl) {
+        Alert.alert('Export sent', `FORGE data was written to Google Sheets.\n\n${result.spreadsheetUrl}`);
+      } else {
+        Alert.alert('Export sent', 'FORGE data was sent to Google Sheets. If the workbook still looks blank, refresh the sheet and check the Meta tab first.');
+      }
     } catch (error) {
       console.error('Failed to export to Google Sheets', error);
       Alert.alert('Export failed', error instanceof Error ? error.message : 'Could not send data to Google Sheets.');

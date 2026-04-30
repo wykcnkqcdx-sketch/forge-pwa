@@ -17,6 +17,14 @@ export type GoogleSheetsExportPayload = {
   };
 };
 
+export type GoogleSheetsExportResult = {
+  delivery: 'opaque' | 'json';
+  ok: boolean;
+  spreadsheetId?: string;
+  spreadsheetUrl?: string;
+  exportedAt?: string;
+};
+
 export function buildGoogleSheetsPayload(
   sessions: TrainingSession[],
   members: SquadMember[],
@@ -163,18 +171,34 @@ export function buildGoogleSheetsPayload(
   };
 }
 
-export async function exportToGoogleSheets(endpointUrl: string, payload: GoogleSheetsExportPayload) {
+export async function exportToGoogleSheets(endpointUrl: string, payload: GoogleSheetsExportPayload): Promise<GoogleSheetsExportResult> {
   const response = await fetch(endpointUrl, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
+      'Content-Type': 'text/plain;charset=utf-8',
     },
+    mode: 'no-cors',
     body: JSON.stringify(payload),
   });
+
+  if (response.type === 'opaque') {
+    return {
+      delivery: 'opaque',
+      ok: true,
+      exportedAt: payload.exportedAt,
+    };
+  }
 
   if (!response.ok) {
     throw new Error(`Google Sheets export failed with status ${response.status}.`);
   }
 
-  return response;
+  const data = await response.json();
+  return {
+    delivery: 'json',
+    ok: Boolean(data?.ok),
+    spreadsheetId: data?.spreadsheetId,
+    spreadsheetUrl: data?.spreadsheetUrl,
+    exportedAt: data?.exportedAt,
+  };
 }
