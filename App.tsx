@@ -343,8 +343,9 @@ export default function App() {
           if (snapshot.sessions.length > 0) setSessions(snapshot.sessions);
           if (snapshot.members.length > 0) setMembers(snapshot.members);
           if (snapshot.workoutCompletions.length > 0) setWorkoutCompletions(snapshot.workoutCompletions);
+          if (snapshot.readinessLogs.length > 0) setReadinessLogs(snapshot.readinessLogs);
         } else {
-          await pushCloudSnapshot(userId, sessions, members, workoutCompletions);
+          await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
         }
 
         if (!cancelled) {
@@ -378,7 +379,7 @@ export default function App() {
     const timer = setTimeout(async () => {
       try {
         setCloudStatus('syncing');
-        await pushCloudSnapshot(userId, sessions, members, workoutCompletions);
+        await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
         setCloudStatus('synced');
       } catch (error) {
         console.error('Failed to sync cloud data', error);
@@ -387,7 +388,7 @@ export default function App() {
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [sessions, members, workoutCompletions, cloudSession?.user?.id, isReady]);
+  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, isReady]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !cloudSession?.user || !isReady) return;
@@ -400,6 +401,7 @@ export default function App() {
         setSessions(snapshot.sessions);
         setMembers(snapshot.members);
         setWorkoutCompletions(snapshot.workoutCompletions);
+        setReadinessLogs(snapshot.readinessLogs);
         setCloudStatus('synced');
       } catch (error) {
         console.error('Failed to refresh realtime snapshot', error);
@@ -411,6 +413,7 @@ export default function App() {
       .channel(`forge-squad-${userId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'squad_members', filter: `user_id=eq.${userId}` }, refreshSnapshot)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_completions', filter: `user_id=eq.${userId}` }, refreshSnapshot)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'readiness_logs', filter: `user_id=eq.${userId}` }, refreshSnapshot)
       .subscribe();
 
     return () => {
@@ -617,12 +620,13 @@ export default function App() {
     try {
       setCloudStatus('syncing');
       const userId = cloudSession.user.id;
-      await pushCloudSnapshot(userId, sessions, members, workoutCompletions);
+      await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
       const snapshot = await fetchCloudSnapshot(userId);
       skipNextRemotePush.current = true;
       setSessions(snapshot.sessions);
       setMembers(snapshot.members);
       setWorkoutCompletions(snapshot.workoutCompletions);
+      setReadinessLogs(snapshot.readinessLogs);
       setCloudStatus('synced');
     } catch (error) {
       console.error('Manual cloud sync failed', error);
@@ -793,6 +797,7 @@ export default function App() {
             sessions={sessions}
             members={members}
             groups={groups}
+            readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
             onSetPin={handleSetPin}
             onWipe={handleManualWipe}
@@ -840,6 +845,11 @@ export default function App() {
             goToAnalytics={() => setActiveMemberTab('portal')}
             deleteSession={deleteSession}
             editSession={editSession}
+            member={activeMember}
+            readinessLogs={readinessLogs}
+            onSubmitReadiness={addReadinessLog}
+            onUpdateMember={updateMember}
+            onCompleteCheckIn={() => setActiveMemberTab('train')}
           />
         );
       default:

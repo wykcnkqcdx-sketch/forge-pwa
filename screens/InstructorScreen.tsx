@@ -7,13 +7,14 @@ import { ProgressBar } from '../components/ProgressBar';
 import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
 import { SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
-import type { WorkoutCompletion } from '../data/domain';
+import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
   sessions: TrainingSession[];
   members: SquadMember[];
   groups: TrainingGroup[];
+  readinessLogs: ReadinessLog[];
   workoutCompletions: WorkoutCompletion[];
   onSetPin: () => void;
   onWipe: () => void;
@@ -39,11 +40,35 @@ function completionTone(type: WorkoutCompletion['completionType']) {
   return colours.green;
 }
 
+function formatReadinessFactor(label: string, log?: ReadinessLog) {
+  switch (label) {
+    case 'Sleep':
+      return log?.sleepHours ? `${log.sleepHours}h` : log?.sleepQuality ? `${log.sleepQuality}/5` : '--';
+    case 'Soreness':
+      return log?.soreness ? `${log.soreness}/5` : '--';
+    case 'Pain':
+      return log?.pain ? `${log.pain}/5` : '--';
+    case 'Hydration':
+      return log?.hydration ?? '--';
+    case 'Mood':
+      return log?.mood ? `${log.mood}/5` : '--';
+    case 'Illness':
+      return log?.illness ? `${log.illness}/5` : '--';
+    case 'Rest HR':
+      return log?.restingHR ? `${log.restingHR}` : '--';
+    case 'HRV':
+      return log?.hrv ? `${log.hrv}` : '--';
+    default:
+      return '--';
+  }
+}
+
 export function InstructorScreen({
   pinEnabled,
   sessions,
   members,
   groups,
+  readinessLogs,
   workoutCompletions,
   onSetPin,
   onWipe,
@@ -106,6 +131,17 @@ export function InstructorScreen({
     () => workoutCompletions.filter((completion) => completion.note?.trim()).slice(0, 6),
     [workoutCompletions]
   );
+  const latestReadinessByMember = useMemo(() => {
+    const mapped = new Map<string, ReadinessLog>();
+    readinessLogs.forEach((log) => {
+      if (!log.memberId) return;
+      const existing = mapped.get(log.memberId);
+      if (!existing || new Date(log.date).getTime() > new Date(existing.date).getTime()) {
+        mapped.set(log.memberId, log);
+      }
+    });
+    return mapped;
+  }, [readinessLogs]);
   const selectedAssignmentMember = members.find((member) => member.id === assignmentMemberId) ?? null;
   const selectedAssignmentGroup = groups.find((group) => group.id === assignmentGroupId) ?? null;
   const cloudTone = cloudStatus === 'synced'
@@ -635,6 +671,7 @@ export function InstructorScreen({
         {members.map((member) => {
           const latestCompletion = latestCompletionByMember.get(member.id);
           const latestTone = latestCompletion ? completionTone(latestCompletion.completionType) : colours.borderSoft;
+          const latestReadiness = latestReadinessByMember.get(member.id);
 
           return (
           <View key={member.id} style={styles.memberCard}>
@@ -659,6 +696,7 @@ export function InstructorScreen({
                     Last sync: {latestCompletion.sessionKind} - {latestCompletion.volume} volume
                   </Text>
                 ) : null}
+                {latestReadiness?.painArea ? <Text style={styles.memberPainArea}>Pain area: {latestReadiness.painArea}{latestReadiness.limitsTraining ? ' - limits training' : ''}</Text> : null}
                 {member.lastWorkoutNote && <Text style={styles.memberNote}>Note: {member.lastWorkoutNote}</Text>}
               </View>
               <View style={styles.memberActions}>
@@ -684,10 +722,11 @@ export function InstructorScreen({
             {['Sleep', 'Soreness', 'Pain', 'Hydration', 'Mood', 'Illness', 'Rest HR', 'HRV'].map(factor => (
               <View key={factor} style={styles.factorItem}>
                 <Text style={styles.factorLabel}>{factor}</Text>
-                <Text style={styles.factorValue}>--</Text>
+                <Text style={styles.factorValue}>{formatReadinessFactor(factor, latestReadiness)}</Text>
               </View>
             ))}
           </View>
+          {latestReadiness ? <Text style={styles.readinessStamp}>Check-in {new Date(latestReadiness.date).toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</Text> : null}
           </View>
         );
         })}
@@ -876,6 +915,7 @@ const styles = StyleSheet.create({
   memberPortalName: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  memberPainArea: { color: colours.red, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberNote: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
   memberActions: {
@@ -897,6 +937,7 @@ const styles = StyleSheet.create({
   factorItem: { flex: 1, minWidth: '22%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 2 },
   factorValue: { color: colours.text, fontSize: 12, fontWeight: '900' },
+  readinessStamp: { color: colours.muted, fontSize: 11, fontWeight: '700', marginTop: 8 },
   groupCard: {
     borderColor: colours.border,
     borderWidth: 1,

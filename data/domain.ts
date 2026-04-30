@@ -21,10 +21,19 @@ export type TrainingSession = {
 export type ReadinessLog = {
   id: string;
   date: string;
+  memberId?: string;
+  memberName?: string;
+  groupId?: string;
+  sleepHours?: number;
   sleepQuality: 1 | 2 | 3 | 4 | 5;
   soreness: 1 | 2 | 3 | 4 | 5;
-  stress: 1 | 2 | 3 | 4 | 5;
+  stress?: 1 | 2 | 3 | 4 | 5;
+  pain?: 1 | 2 | 3 | 4 | 5;
   hydration: 'Poor' | 'Adequate' | 'Optimal';
+  mood?: 1 | 2 | 3 | 4 | 5;
+  illness?: 1 | 2 | 3 | 4 | 5;
+  painArea?: 'Knee' | 'Back' | 'Shoulder' | 'Hip' | 'Ankle' | 'Other';
+  limitsTraining?: boolean;
   restingHR?: number;
   hrv?: number;
 };
