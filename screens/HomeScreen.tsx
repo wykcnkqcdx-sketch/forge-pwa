@@ -47,6 +47,9 @@ function sessionTypeIcon(type: TrainingSession['type']): keyof typeof Ionicons.g
   if (type === 'Strength') return 'barbell-outline';
   if (type === 'Cardio') return 'heart-outline';
   if (type === 'Mobility') return 'body-outline';
+  if (type === 'Resistance') return 'fitness-outline';
+  if (type === 'Run') return 'walk-outline';
+  if (type === 'Workout') return 'fitness-outline';
   return 'flash-outline';
 }
 
@@ -67,16 +70,25 @@ export function HomeScreen({
   goToReadiness?: () => void;
   readinessLogs?: ReadinessLog[];
 }) {
-  const performance = buildPerformanceProfile(sessions);
-  const latestReadiness = readinessLogs[0];
+  const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
+  const latestReadiness = useMemo(() => {
+    const sorted = [...readinessLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const log = sorted[0];
+    if (!log) return undefined;
+    const ageMs = Date.now() - new Date(log.date).getTime();
+    return ageMs < 18 * 60 * 60 * 1000 ? log : undefined;
+  }, [readinessLogs]);
   const domains = useMemo(
     () => buildH2FDomains(sessions, latestReadiness),
     [sessions, latestReadiness],
   );
-  const guidance = buildPrescriptiveGuidance(sessions, 6.25, performance.loadRisk === 'High' ? 'down' : 'flat');
-  const nextAction = nextActionForReadiness(performance);
+  const guidance = useMemo(
+    () => buildPrescriptiveGuidance(sessions, 6.25, performance.loadRisk === 'High' ? 'down' : 'flat'),
+    [sessions, performance.loadRisk],
+  );
+  const nextAction = useMemo(() => nextActionForReadiness(performance), [performance]);
 
-  const loadedKm = sessions
+  const ruckWork = sessions
     .filter((s) => s.type === 'Ruck')
     .reduce((total, s) => total + (s.loadKg ?? 0) * (s.durationMinutes / 60) * 5.2, 0);
 
@@ -87,21 +99,16 @@ export function HomeScreen({
   const acwrLabel = acwrValue > 1.3 ? 'Overreach risk' : acwrValue < 0.8 ? 'Under-trained' : 'Optimal zone';
 
   const today = new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
-  const hasSessionToday = sessions.some((s) => {
-    if (!s.completedAt) return false;
-    const d = new Date(s.completedAt);
-    const now = new Date();
-    return d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  });
+  const todayStr = new Date().toDateString();
+  const hasSessionToday = sessions.some((s) => s.completedAt && new Date(s.completedAt).toDateString() === todayStr);
 
   // 7-day activity strip
   const weeklyLoadSeries = useMemo(() => buildWeeklyLoadSeries(sessions), [sessions]);
   const dayLabels = useMemo(() => {
-    const dayLetters = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const now = new Date();
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
-      return dayLetters[d.getDay()];
+      return String(d.getDate());
     });
   }, []);
   const maxLoad = Math.max(...weeklyLoadSeries, 1);
@@ -259,6 +266,8 @@ export function HomeScreen({
         <View style={styles.actionRow}>
           <Pressable
             style={styles.primaryButton}
+            accessibilityLabel="Start a ruck session"
+            accessibilityRole="button"
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); goToRuck(); }}
           >
             <Ionicons name="footsteps" size={20} color={colours.background} />
@@ -266,6 +275,8 @@ export function HomeScreen({
           </Pressable>
           <Pressable
             style={styles.secondaryButton}
+            accessibilityLabel="View analytics"
+            accessibilityRole="button"
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goToAnalytics(); }}
           >
             <Ionicons name="analytics" size={20} color={colours.cyan} />
@@ -346,24 +357,17 @@ export function HomeScreen({
       <Card accent={colours.cyan}>
         <Text style={styles.sectionTitle}>Loaded Movement</Text>
         <Text style={styles.body}>
-          {Math.round(loadedKm)} kg-km of ruck work logged. Loaded miles accumulate here across all ruck sessions.
+          {Math.round(ruckWork)} kg-km of ruck work across all sessions. Calculated as load × duration × estimated pace.
         </Text>
-        <View style={styles.actionRow}>
-          <Pressable
-            style={styles.primaryButton}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); goToRuck(); }}
-          >
-            <Ionicons name="footsteps" size={20} color={colours.background} />
-            <Text style={styles.primaryButtonText}>Ruck Calculator</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondaryButton}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goToAnalytics(); }}
-          >
-            <Ionicons name="analytics" size={20} color={colours.cyan} />
-            <Text style={styles.secondaryButtonText}>Intel</Text>
-          </Pressable>
-        </View>
+        <Pressable
+          style={[styles.primaryButton, { marginTop: 14 }]}
+          accessibilityLabel="Open ruck calculator"
+          accessibilityRole="button"
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); goToRuck(); }}
+        >
+          <Ionicons name="footsteps" size={20} color={colours.background} />
+          <Text style={styles.primaryButtonText}>Ruck Calculator</Text>
+        </Pressable>
       </Card>
 
       {/* Recent Load */}
