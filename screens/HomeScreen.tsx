@@ -18,31 +18,6 @@ function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
   return colours.red;
 }
 
-function nextActionForReadiness(performance: ReturnType<typeof buildPerformanceProfile>) {
-  if (performance.readinessBand === 'RED' || performance.loadRisk === 'High') {
-    return {
-      title: 'Recovery priority',
-      detail: performance.recoveryFocus,
-      icon: 'bed-outline' as keyof typeof Ionicons.glyphMap,
-      tone: colours.red,
-    };
-  }
-  if (performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate') {
-    return {
-      title: 'Controlled training',
-      detail: 'Cap intensity and check soreness after warm-up',
-      icon: 'speedometer-outline' as keyof typeof Ionicons.glyphMap,
-      tone: colours.amber,
-    };
-  }
-  return {
-    title: 'Build today',
-    detail: 'Good window for quality work',
-    icon: 'flash-outline' as keyof typeof Ionicons.glyphMap,
-    tone: colours.green,
-  };
-}
-
 function sessionTypeIcon(type: TrainingSession['type']): keyof typeof Ionicons.glyphMap {
   if (type === 'Ruck') return 'footsteps-outline';
   if (type === 'Strength') return 'barbell-outline';
@@ -86,8 +61,6 @@ export function HomeScreen({
     () => buildPrescriptiveGuidance(sessions, latestReadiness?.sleepHours ?? 7, performance.loadRisk === 'High' ? 'down' : 'flat'),
     [sessions, latestReadiness?.sleepHours, performance.loadRisk],
   );
-  const nextAction = useMemo(() => nextActionForReadiness(performance), [performance]);
-
   const ruckWork = sessions
     .filter((s) => s.type === 'Ruck')
     .reduce((total, s) => total + (s.loadKg ?? 0) * (s.durationMinutes / 60) * 5.2, 0);
@@ -140,6 +113,8 @@ export function HomeScreen({
       return {
         title: 'Mobility & Recovery',
         detail: '20–30 min · Low intensity · Focus on tissue care',
+        reason: performance.loadRisk === 'High' ? 'High load risk. Bring stress down before another hard block.' : 'Readiness is red. Recovery quality matters most today.',
+        actionLabel: 'Open Recovery',
         icon: 'body-outline' as keyof typeof Ionicons.glyphMap,
         tone: colours.red,
         goTo: goToTrain,
@@ -149,6 +124,8 @@ export function HomeScreen({
       return {
         title: 'Zone 2 Aerobic',
         detail: '40 min · Heart rate 130–145 bpm · Steady effort',
+        reason: 'Readiness is usable, but load needs control. Keep the session aerobic.',
+        actionLabel: 'Start Training',
         icon: 'heart-outline' as keyof typeof Ionicons.glyphMap,
         tone: colours.amber,
         goTo: goToTrain,
@@ -161,6 +138,8 @@ export function HomeScreen({
       return {
         title: 'Ruck Intervals',
         detail: '60 min · 25–30kg load · Varied pace',
+        reason: 'Readiness is green and no ruck is logged this week.',
+        actionLabel: 'Start Ruck',
         icon: 'footsteps-outline' as keyof typeof Ionicons.glyphMap,
         tone: colours.green,
         goTo: goToRuck,
@@ -169,11 +148,28 @@ export function HomeScreen({
     return {
       title: 'Strength Block',
       detail: '45 min · Compound movements · RPE 7–8',
+      reason: 'Readiness is green. Build quality work without adding junk volume.',
+      actionLabel: 'Start Training',
       icon: 'barbell-outline' as keyof typeof Ionicons.glyphMap,
       tone: colours.green,
       goTo: goToTrain,
     };
   }, [performance.readinessBand, performance.loadRisk, sessions, goToTrain, goToRuck]);
+
+  const dailyDecision = useMemo(() => {
+    if (needsReadinessCheckIn && goToReadiness) {
+      return {
+        title: 'Log readiness',
+        detail: 'Fresh check-in unlocks sleep, mood, soreness, and hydration guidance.',
+        reason: latestStoredReadiness ? 'Last readiness check-in is stale.' : 'No readiness check-in is logged yet.',
+        actionLabel: 'Log Readiness',
+        icon: 'body-outline' as keyof typeof Ionicons.glyphMap,
+        tone: colours.amber,
+        goTo: goToReadiness,
+      };
+    }
+    return recommendedSession;
+  }, [goToReadiness, latestStoredReadiness, needsReadinessCheckIn, recommendedSession]);
 
   function domainPressHandler(domainId: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -181,13 +177,9 @@ export function HomeScreen({
     if (domainId === 'sleep' || domainId === 'mental') goToReadiness?.();
   }
 
-  function handlePrimaryAction() {
+  function handleDecisionAction() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (needsReadinessCheckIn && goToReadiness) {
-      goToReadiness();
-      return;
-    }
-    goToRuck();
+    dailyDecision.goTo?.();
   }
 
   return (
@@ -228,21 +220,54 @@ export function HomeScreen({
         })}
       </View>
 
-      {/* Readiness card */}
+      {/* Daily decision */}
       <Card hot>
-        <View style={styles.readinessRow}>
-          <View>
-            <Text style={styles.label}>TODAY BRIEF</Text>
+        <View style={styles.decisionHeader}>
+          <View style={styles.readinessPuck}>
+            <Text style={styles.label}>READY</Text>
             <Text style={[styles.readinessValue, { color: performance.readinessTone }]}>{performance.readiness}</Text>
-          </View>
-          <View style={styles.readinessCopy}>
             <Text style={[styles.statusBand, { color: performance.readinessTone }]}>{performance.readinessBand}</Text>
-            <Text style={styles.body}>{guidance}</Text>
+          </View>
+          <View style={styles.decisionCopy}>
+            <Text style={styles.label}>TODAY'S MOVE</Text>
+            <Text style={[styles.decisionTitle, { color: dailyDecision.tone }]}>{dailyDecision.title}</Text>
+            <Text style={styles.decisionDetail}>{dailyDecision.detail}</Text>
           </View>
         </View>
+
         <ProgressBar value={performance.readiness} colour={performance.readinessTone} />
 
-        {/* Command tiles */}
+        <View style={[styles.reasonPanel, { borderColor: `${dailyDecision.tone}55`, backgroundColor: `${dailyDecision.tone}12` }]}>
+          <View style={[styles.reasonIcon, { backgroundColor: `${dailyDecision.tone}22` }]}>
+            <Ionicons name={dailyDecision.icon} size={20} color={dailyDecision.tone} />
+          </View>
+          <View style={styles.reasonCopy}>
+            <Text style={[styles.reasonTitle, { color: dailyDecision.tone }]}>{dailyDecision.reason}</Text>
+            <Text style={styles.reasonDetail}>{guidance}</Text>
+          </View>
+        </View>
+
+        <View style={styles.actionRow}>
+          <Pressable
+            style={styles.primaryButton}
+            accessibilityLabel={dailyDecision.actionLabel}
+            accessibilityRole="button"
+            onPress={handleDecisionAction}
+          >
+            <Ionicons name={dailyDecision.icon} size={20} color={colours.background} />
+            <Text style={styles.primaryButtonText}>{dailyDecision.actionLabel}</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondaryButton}
+            accessibilityLabel="View analytics"
+            accessibilityRole="button"
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goToAnalytics(); }}
+          >
+            <Ionicons name="analytics" size={20} color={colours.cyan} />
+            <Text style={styles.secondaryButtonText}>Intel</Text>
+          </Pressable>
+        </View>
+
         <View style={styles.commandGrid}>
           <View style={styles.commandTile}>
             <Text style={styles.commandLabel}>LOAD</Text>
@@ -265,39 +290,6 @@ export function HomeScreen({
             <Text style={styles.commandSub}>{performance.highIntensityCount} hard</Text>
           </View>
         </View>
-
-        {/* Next action */}
-        <View style={[styles.nextActionPanel, { borderColor: `${nextAction.tone}66`, backgroundColor: `${nextAction.tone}12` }]}>
-          <View style={[styles.nextActionIcon, { backgroundColor: `${nextAction.tone}22` }]}>
-            <Ionicons name={nextAction.icon} size={22} color={nextAction.tone} />
-          </View>
-          <View style={styles.nextActionCopy}>
-            <Text style={[styles.nextActionTitle, { color: nextAction.tone }]}>{nextAction.title}</Text>
-            <Text style={styles.nextActionDetail}>{nextAction.detail}</Text>
-          </View>
-        </View>
-
-        {/* Action buttons */}
-        <View style={styles.actionRow}>
-          <Pressable
-            style={styles.primaryButton}
-            accessibilityLabel={needsReadinessCheckIn ? 'Log readiness check-in' : 'Start a ruck session'}
-            accessibilityRole="button"
-            onPress={handlePrimaryAction}
-          >
-            <Ionicons name={needsReadinessCheckIn ? 'body' : 'footsteps'} size={20} color={colours.background} />
-            <Text style={styles.primaryButtonText}>{needsReadinessCheckIn ? 'Log Readiness' : 'Start Ruck'}</Text>
-          </Pressable>
-          <Pressable
-            style={styles.secondaryButton}
-            accessibilityLabel="View analytics"
-            accessibilityRole="button"
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goToAnalytics(); }}
-          >
-            <Ionicons name="analytics" size={20} color={colours.cyan} />
-            <Text style={styles.secondaryButtonText}>Intel</Text>
-          </Pressable>
-        </View>
       </Card>
 
       {/* Warning banners */}
@@ -307,26 +299,6 @@ export function HomeScreen({
           <Text style={[styles.warningText, { color: w.tone }]}>{w.text}</Text>
         </View>
       ))}
-
-      {/* Today's recommended session */}
-      <Pressable
-        style={({ pressed }) => [styles.recCard, { borderColor: `${recommendedSession.tone}44`, backgroundColor: `${recommendedSession.tone}0D` }, pressed && { opacity: 0.8 }]}
-        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); recommendedSession.goTo?.(); }}
-      >
-        <View style={styles.recLeft}>
-          <View style={[styles.recIconWrap, { backgroundColor: `${recommendedSession.tone}22` }]}>
-            <Ionicons name={recommendedSession.icon} size={22} color={recommendedSession.tone} />
-          </View>
-          <View style={styles.recCopy}>
-            <Text style={styles.recKicker}>TODAY'S SESSION</Text>
-            <Text style={[styles.recTitle, { color: recommendedSession.tone }]}>{recommendedSession.title}</Text>
-            <Text style={styles.recDetail}>{recommendedSession.detail}</Text>
-          </View>
-        </View>
-        <View style={[styles.recChevron, { borderColor: `${recommendedSession.tone}44` }]}>
-          <Ionicons name="chevron-forward" size={16} color={recommendedSession.tone} />
-        </View>
-      </Pressable>
 
       {/* H2F Domain grid */}
       <View style={styles.domainGrid}>
@@ -463,6 +435,37 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '900',
   },
+  decisionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  readinessPuck: {
+    width: 104,
+    minHeight: 116,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    paddingVertical: 10,
+  },
+  decisionCopy: {
+    flex: 1,
+  },
+  decisionTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  decisionDetail: {
+    color: colours.textSoft,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    marginTop: 4,
+  },
   readinessRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -491,6 +494,36 @@ const styles = StyleSheet.create({
     color: colours.textSoft,
     fontSize: 13,
     lineHeight: 19,
+  },
+  reasonPanel: {
+    minHeight: 76,
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  reasonIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reasonCopy: {
+    flex: 1,
+  },
+  reasonTitle: {
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  reasonDetail: {
+    color: colours.textSoft,
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 4,
   },
   commandGrid: {
     flexDirection: 'row',
@@ -523,36 +556,6 @@ const styles = StyleSheet.create({
     color: colours.textSoft,
     fontSize: 11,
     fontWeight: '800',
-    marginTop: 2,
-  },
-  nextActionPanel: {
-    minHeight: 72,
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  nextActionIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  nextActionCopy: {
-    flex: 1,
-  },
-  nextActionTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  nextActionDetail: {
-    color: colours.textSoft,
-    fontSize: 12,
-    lineHeight: 17,
     marginTop: 2,
   },
   actionRow: {
@@ -775,58 +778,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
-  },
-  // Recommended session card
-  recCard: {
-    borderWidth: 1,
-    borderRadius: 10,
-    padding: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  recLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  recIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-  },
-  recCopy: {
-    flex: 1,
-  },
-  recKicker: {
-    color: colours.muted,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
-    marginBottom: 2,
-  },
-  recTitle: {
-    fontSize: 15,
-    fontWeight: '900',
-  },
-  recDetail: {
-    color: colours.textSoft,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 2,
-  },
-  recChevron: {
-    width: 32,
-    height: 32,
-    borderWidth: 1,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
   },
 });
