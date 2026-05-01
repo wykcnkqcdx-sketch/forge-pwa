@@ -1038,7 +1038,7 @@ export default function App() {
       case 'ruck':
         return <RuckScreen addSession={addSession} />;
       case 'fuel':
-        return <FuelScreen sessions={sessions} />;
+        return <FuelScreen sessions={sessions} readinessLogs={readinessLogs} />;
       case 'analytics':
         return (
           <AnalyticsScreen 
@@ -1115,7 +1115,7 @@ export default function App() {
       case 'ruck':
         return <RuckScreen addSession={addSession} />;
       case 'fuel':
-        return <FuelScreen sessions={memberSessions.length ? memberSessions : sessions} />;
+        return <FuelScreen sessions={memberSessions.length ? memberSessions : sessions} readinessLogs={readinessLogs} />;
       case 'readiness':
         return (
           <ReadinessScreen

@@ -1,13 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours } from '../theme';
-import { fuelProfile, teamMessages, TrainingSession, TeamMessage } from '../data/mockData';
+import { fuelProfile, TrainingSession } from '../data/mockData';
+import type { ReadinessLog } from '../data/domain';
 import { buildPerformanceProfile } from '../lib/performance';
+import { getLatestReadinessLog, isReadinessStale, readinessSleepScore } from '../lib/readiness';
 
 type WeightGoal = 'loss' | 'maintain' | 'gain';
 
@@ -31,15 +33,6 @@ const rpeScale = [
   { range: '5-6', label: 'Steady', guidance: 'Working pace, controlled but focused.' },
   { range: '7-8', label: 'Hard', guidance: 'Threshold intervals, short phrases only.' },
   { range: '9-10', label: 'Max', guidance: 'Very hard efforts, use sparingly.' },
-];
-
-const nextSignals = [
-  'HRV / resting HR',
-  'Soreness flags',
-  'Meal log',
-  'Blood pressure',
-  'Injury notes',
-  'Personal records',
 ];
 
 function clamp(value: number, min: number, max: number) {
@@ -88,18 +81,18 @@ function MetricStepper({
   );
 }
 
-export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
+export function FuelScreen({ sessions, readinessLogs = [] }: { sessions: TrainingSession[]; readinessLogs?: ReadinessLog[] }) {
   const [goal, setGoal] = useState<WeightGoal>('maintain');
   const [bodyWeightKg, setBodyWeightKg] = useState(fuelProfile.bodyWeightKg);
   const [heightCm, setHeightCm] = useState(fuelProfile.heightCm);
   const [age, setAge] = useState(fuelProfile.age);
   const [skinfoldMm, setSkinfoldMm] = useState(fuelProfile.skinfoldMm);
-  const [sleepScore, setSleepScore] = useState(fuelProfile.sleepScore);
   const [hydrationLoggedMl, setHydrationLoggedMl] = useState(fuelProfile.hydrationLoggedMl);
-  const [chatInput, setChatInput] = useState('');
-  const [messages, setMessages] = useState<TeamMessage[]>(teamMessages);
 
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
+  const latestReadiness = useMemo(() => getLatestReadinessLog(readinessLogs), [readinessLogs]);
+  const latestReadinessIsStale = isReadinessStale(latestReadiness);
+  const sleepScore = latestReadinessIsStale ? undefined : readinessSleepScore(latestReadiness);
   const activeGoal = useMemo(() => goals.find((item) => item.id === goal) ?? goals[1], [goal]);
   const bmi = useMemo(() => Math.round((bodyWeightKg / Math.pow(heightCm / 100, 2)) * 10) / 10, [bodyWeightKg, heightCm]);
   const bmiInfo = useMemo(() => getBmiCategory(bmi), [bmi]);
@@ -116,30 +109,12 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
   const fatTarget = useMemo(() => Math.round((calorieTarget * 0.25) / 9), [calorieTarget]);
   const hydrationTargetMl = useMemo(() => Math.round(bodyWeightKg * 35 + Math.min(1200, caloriesUsed / 7)), [bodyWeightKg, caloriesUsed]);
   const hydrationPct = useMemo(() => Math.round((hydrationLoggedMl / hydrationTargetMl) * 100), [hydrationLoggedMl, hydrationTargetMl]);
-  const sleepTone = sleepScore >= 80 ? colours.green : sleepScore >= 65 ? colours.amber : colours.red;
+  const sleepTone = sleepScore === undefined ? colours.muted : sleepScore >= 80 ? colours.green : sleepScore >= 65 ? colours.amber : colours.red;
   const fuelTiming = goal === 'gain'
     ? 'Add a carb/protein meal within 90 minutes after training.'
     : goal === 'loss'
       ? 'Keep protein high and place most carbs around training.'
       : 'Fuel hard sessions, keep normal meals steady on recovery days.';
-
-  function sendMessage() {
-    const trimmed = chatInput.trim();
-    if (!trimmed) return;
-
-    const now = new Date();
-    setMessages((current) => [
-      {
-        id: `msg-${Date.now()}`,
-        author: 'You',
-        group: 'Team',
-        message: trimmed,
-        time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
-      },
-      ...current,
-    ]);
-    setChatInput('');
-  }
 
   return (
     <Screen>
@@ -277,25 +252,32 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
       </Card>
 
       <View style={styles.grid}>
-        <MetricCard icon="moon" label="Sleep Score" value={`${sleepScore}`} sub={sleepScore >= 80 ? 'ready' : 'monitor load'} tone={sleepTone} />
+        <MetricCard
+          icon="moon"
+          label="Sleep Score"
+          value={sleepScore === undefined ? '--' : `${sleepScore}`}
+          sub={latestReadiness?.sleepHours ? `${latestReadiness.sleepHours}h logged` : 'from readiness'}
+          tone={sleepTone}
+        />
         <MetricCard icon="water" label="Hydration" value={`${Math.round(hydrationTargetMl / 100) / 10}L`} sub={`${Math.min(100, hydrationPct)}% logged`} tone={colours.cyan} />
       </View>
 
       <Card>
         <View style={styles.rowBetween}>
           <Text style={styles.cardTitle}>Sleep Score</Text>
-          <View style={styles.stepper}>
-            <Pressable style={styles.stepButton} onPress={() => setSleepScore((value) => clamp(value - 5, 0, 100))}>
-              <Text style={styles.stepText}>-</Text>
-            </Pressable>
-            <Pressable style={styles.stepButton} onPress={() => setSleepScore((value) => clamp(value + 5, 0, 100))}>
-              <Text style={styles.stepText}>+</Text>
-            </Pressable>
-          </View>
+          <Ionicons name="moon" size={22} color={sleepTone} />
         </View>
-        <ProgressBar value={sleepScore} colour={sleepTone} />
+        <ProgressBar value={sleepScore ?? 0} colour={sleepTone} />
         <Text style={styles.guidance}>
-          {sleepScore >= 80 ? 'Good to train as planned.' : sleepScore >= 65 ? 'Keep intensity controlled and extend warm-up.' : 'Prioritise recovery, hydration, and low-intensity work.'}
+          {sleepScore === undefined
+            ? latestReadinessIsStale
+              ? 'Readiness sleep data is stale. Check in today before setting fuel and recovery priority.'
+              : 'Log readiness to calculate sleep guidance from real check-in data.'
+            : sleepScore >= 80
+              ? 'Good to train as planned.'
+              : sleepScore >= 65
+                ? 'Keep intensity controlled and extend warm-up.'
+                : 'Prioritise recovery, hydration, and low-intensity work.'}
         </Text>
       </Card>
 
@@ -314,43 +296,6 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
         </View>
       </Card>
 
-      <Card>
-        <Text style={styles.cardTitle}>Member Chat</Text>
-        <View style={styles.chatComposer}>
-          <TextInput
-            style={styles.chatInput}
-            value={chatInput}
-            onChangeText={setChatInput}
-            placeholder="Message the team"
-            placeholderTextColor={colours.soft}
-          />
-          <Pressable style={styles.sendButton} onPress={sendMessage}>
-            <Ionicons name="send" size={17} color={colours.background} />
-          </Pressable>
-        </View>
-
-        {messages.slice(0, 5).map((message) => (
-          <View key={message.id} style={styles.messageRow}>
-            <View style={styles.messageHeader}>
-              <Text style={styles.messageAuthor}>{message.author}</Text>
-              <Text style={styles.messageMeta}>{message.group} - {message.time}</Text>
-            </View>
-            <Text style={styles.messageText}>{message.message}</Text>
-          </View>
-        ))}
-      </Card>
-
-      <Card>
-        <Text style={styles.cardTitle}>Next Signals To Add</Text>
-        <View style={styles.nextGrid}>
-          {nextSignals.map((signal) => (
-            <View key={signal} style={styles.nextPill}>
-              <Ionicons name="add-circle" size={15} color={colours.cyan} />
-              <Text style={styles.nextText}>{signal}</Text>
-            </View>
-          ))}
-        </View>
-      </Card>
     </Screen>
   );
 }
@@ -444,48 +389,4 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyanDim,
   },
   hydrationButtonText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
-  chatComposer: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  chatInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 12,
-    color: colours.text,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-  },
-  sendButton: {
-    width: 42,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colours.cyan,
-  },
-  messageRow: {
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 12,
-    padding: 11,
-    backgroundColor: 'rgba(0,0,0,0.16)',
-    marginBottom: 9,
-  },
-  messageHeader: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginBottom: 4 },
-  messageAuthor: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  messageMeta: { color: colours.muted, fontSize: 11, fontWeight: '700' },
-  messageText: { color: colours.textSoft, fontSize: 13, lineHeight: 18 },
-  nextGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  nextPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 12,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  nextText: { color: colours.textSoft, fontSize: 12, fontWeight: '800' },
 });

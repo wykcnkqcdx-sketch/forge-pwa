@@ -13,6 +13,26 @@ import { getMapPoints } from '../utils/mapUtils';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
 import { calculateWHtR } from '../lib/h2f';
+import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
+
+function sessionIcon(type: TrainingSession['type']) {
+  switch (type) {
+    case 'Ruck':
+      return 'footsteps-outline';
+    case 'Strength':
+    case 'Resistance':
+      return 'barbell-outline';
+    case 'Cardio':
+      return 'heart-outline';
+    case 'Mobility':
+      return 'body-outline';
+    case 'Run':
+      return 'walk-outline';
+    case 'Workout':
+    default:
+      return 'fitness-outline';
+  }
+}
 
 export function AnalyticsScreen({ 
   sessions,
@@ -39,7 +59,11 @@ export function AnalyticsScreen({
   const screenWidth = Dimensions.get('window').width;
   const [trendDays, setTrendDays] = useState<7 | 28 | 90>(7);
 
-  const latestReadiness = readinessLogs[0];
+  const latestReadiness = useMemo(() => {
+    const log = getLatestReadinessLog(readinessLogs);
+    return isReadinessStale(log) ? undefined : log;
+  }, [readinessLogs]);
+  const latestReadinessIsStale = useMemo(() => isReadinessStale(getLatestReadinessLog(readinessLogs)), [readinessLogs]);
   const [loggingReadiness, setLoggingReadiness] = useState(false);
   const [sleepInput, setSleepInput] = useState('3');
   const [sorenessInput, setSorenessInput] = useState('3');
@@ -66,7 +90,7 @@ export function AnalyticsScreen({
       const avgScore = scores ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
       
       if (trendDays === 7) {
-        labels.push(['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()]);
+        labels.push(d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 1));
         data.push(avgScore);
       } else if (trendDays === 28) {
         if (i % 7 === 0) labels.push(`${d.getDate()}/${d.getMonth() + 1}`);
@@ -280,6 +304,12 @@ export function AnalyticsScreen({
             <Text style={styles.sortBtnText}>LOG TODAY</Text>
           </Pressable>
         </View>
+        {latestReadinessIsStale ? (
+          <View style={styles.staleNotice}>
+            <Ionicons name="warning-outline" size={14} color={colours.amber} />
+            <Text style={styles.staleNoticeText}>Latest check-in is stale. Log today before using these factors.</Text>
+          </View>
+        ) : null}
         <View style={styles.factorGrid}>
           <View style={styles.factorItem}>
             <Text style={styles.factorLabel}>Sleep</Text>
@@ -344,10 +374,10 @@ export function AnalyticsScreen({
               <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
                 <View style={styles.sessionRow}>
                   <View style={styles.sessionIconWrap}>
-                    <Ionicons 
-                      name={session.type === 'Ruck' ? 'footsteps-outline' : 'barbell-outline'} 
-                      size={18} 
-                      color={colours.cyan} 
+                    <Ionicons
+                      name={sessionIcon(session.type)}
+                      size={18}
+                      color={colours.cyan}
                     />
                   </View>
                   <View style={styles.sessionCopy}>
@@ -548,6 +578,8 @@ const styles = StyleSheet.create({
   factorItem: { width: '23%', flexGrow: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
   factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 4 },
   factorValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  staleNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: `${colours.amber}40`, borderRadius: 8, padding: 9, backgroundColor: `${colours.amber}12`, marginBottom: 8 },
+  staleNoticeText: { flex: 1, color: colours.amber, fontSize: 12, fontWeight: '800', lineHeight: 16 },
   medicalDisclaimer: { color: colours.amber, fontSize: 10, fontStyle: 'italic', marginTop: 16, lineHeight: 14 },
   warning: {
     borderColor: 'rgba(253,230,138,0.25)',

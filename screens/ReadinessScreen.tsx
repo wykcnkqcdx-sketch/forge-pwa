@@ -8,6 +8,7 @@ import { getAppleHealthCapability, getAppleHealthPreview } from '../lib/appleHea
 import { colours, touchTarget } from '../theme';
 import { SquadMember } from '../data/mockData';
 import type { ReadinessLog } from '../data/domain';
+import { getLatestReadinessLog, isReadinessCheckedInToday, isReadinessStale } from '../lib/readiness';
 
 function calculateMemberReadiness(check: {
   sleepQuality: number;
@@ -94,7 +95,9 @@ export function ReadinessScreen({
   });
   const [feedback, setFeedback] = useState('');
 
-  const latestLog = readinessLogs.find((log) => log.memberId === member.id) ?? readinessLogs[0];
+  const latestLog = getLatestReadinessLog(readinessLogs, member.id);
+  const checkedInToday = isReadinessCheckedInToday(latestLog);
+  const logIsStale = isReadinessStale(latestLog);
   const appleHealthPreview = getAppleHealthPreview(member);
 
   function submitReadinessReport() {
@@ -189,10 +192,23 @@ export function ReadinessScreen({
         </View>
       </View>
 
+      {/* Already checked in today */}
+      {checkedInToday && latestLog && (
+        <View style={styles.todayBanner}>
+          <Ionicons name="checkmark-circle" size={18} color={colours.green} />
+          <View style={styles.todayCopy}>
+            <Text style={styles.todayTitle}>Checked in today</Text>
+            <Text style={styles.todayDetail}>
+              Sleep {latestLog.sleepHours ?? '--'}h · {latestLog.hydration} hydration · Soreness {latestLog.soreness}/5
+            </Text>
+          </View>
+        </View>
+      )}
+
       {/* Tactical System Check */}
       <Card accent={colours.amber}>
         <Text style={styles.sectionTitle}>Tactical System Check</Text>
-        <Text style={styles.body}>Fast morning check-in. Smart defaults keep this under 30 seconds.</Text>
+        <Text style={styles.body}>{checkedInToday ? 'Already submitted today — update below to override.' : 'Fast morning check-in. Smart defaults keep this under 30 seconds.'}</Text>
 
         <View style={styles.quickCheckRow}>
           <View style={styles.inputGroup}>
@@ -286,14 +302,23 @@ export function ReadinessScreen({
         </View>
 
         {latestLog ? (
-          <Text style={styles.checkInStamp}>
-            Last check-in:{' '}
-            {new Date(latestLog.date).toLocaleDateString(undefined, {
-              weekday: 'short',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+          <View style={styles.checkInStampRow}>
+            <Text style={styles.checkInStamp}>
+              Last check-in:{' '}
+              {new Date(latestLog.date).toLocaleDateString(undefined, {
+                weekday: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })}
+            </Text>
+            {logIsStale && (
+              <View style={styles.staleBadge}>
+                <Ionicons name="warning-outline" size={11} color={colours.amber} />
+                <Text style={styles.staleText}>Stale</Text>
+              </View>
+            )}
+          </View>
         ) : null}
         {feedback ? <Text style={styles.checkInFeedback}>{feedback}</Text> : null}
 
@@ -557,11 +582,45 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
   },
+  todayBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: `${colours.green}40`,
+    borderRadius: 10,
+    padding: 12,
+    backgroundColor: `${colours.green}0D`,
+  },
+  todayCopy: { flex: 1 },
+  todayTitle: { color: colours.green, fontSize: 13, fontWeight: '900' },
+  todayDetail: { color: colours.textSoft, fontSize: 12, marginTop: 2 },
+  checkInStampRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
   checkInStamp: {
     color: colours.muted,
     fontSize: 12,
     fontWeight: '700',
-    marginTop: 12,
+  },
+  staleBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderWidth: 1,
+    borderColor: `${colours.amber}50`,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    backgroundColor: `${colours.amber}12`,
+  },
+  staleText: {
+    color: colours.amber,
+    fontSize: 10,
+    fontWeight: '900',
   },
   checkInFeedback: {
     color: colours.green,
