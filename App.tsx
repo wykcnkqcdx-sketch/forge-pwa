@@ -1100,6 +1100,7 @@ export default function App() {
             goToTrain={() => switchTab('train')}
             goToReadiness={() => switchTab('readiness')}
             readinessLogs={readinessLogs}
+            workoutCompletions={workoutCompletions}
           />
         );
     }
@@ -1136,6 +1137,7 @@ export default function App() {
             goToTrain={() => setActiveMemberTab('train')}
             goToReadiness={() => setActiveMemberTab('readiness')}
             readinessLogs={readinessLogs}
+            workoutCompletions={workoutCompletions}
             secondaryActionLabel="Training"
           />
         );

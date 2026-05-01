@@ -10,7 +10,7 @@ import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { colours, touchTarget } from '../theme';
 import { SquadMember, TrainingSession } from '../data/mockData';
-import type { ReadinessLog } from '../data/domain';
+import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
 function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
   if (status === 'GREEN') return colours.green;
@@ -29,6 +29,11 @@ function sessionTypeIcon(type: TrainingSession['type']): keyof typeof Ionicons.g
   return 'flash-outline';
 }
 
+function isSameLocalDay(dateIso: string | undefined, day: Date) {
+  if (!dateIso) return false;
+  return new Date(dateIso).toDateString() === day.toDateString();
+}
+
 export function HomeScreen({
   sessions,
   goToRuck,
@@ -37,6 +42,7 @@ export function HomeScreen({
   goToTrain,
   goToReadiness,
   readinessLogs = [],
+  workoutCompletions = [],
   member,
   secondaryActionLabel = 'Intel',
 }: {
@@ -47,6 +53,7 @@ export function HomeScreen({
   goToTrain?: () => void;
   goToReadiness?: () => void;
   readinessLogs?: ReadinessLog[];
+  workoutCompletions?: WorkoutCompletion[];
   member?: SquadMember | null;
   secondaryActionLabel?: string;
 }) {
@@ -84,6 +91,19 @@ export function HomeScreen({
   const todayStr = new Date().toDateString();
   const hasSessionToday = sessions.some((s) => s.completedAt && new Date(s.completedAt).toDateString() === todayStr);
   const needsReadinessCheckIn = !latestStoredReadiness || readinessIsStale;
+  const assignedWorkout = member?.assignmentSession;
+  const assignedWorkoutPreview = assignedWorkout?.exercises.slice(0, 4) ?? [];
+  const assignedCompletion = useMemo(() => {
+    const matches = workoutCompletions
+      .filter((completion) => (
+        completion.completionType === 'assigned'
+        && (!member || completion.memberId === member.id)
+        && (!assignedWorkout || completion.assignment === assignedWorkout.title)
+      ))
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+    return matches[0];
+  }, [assignedWorkout, member, workoutCompletions]);
+  const assignedCompletedToday = Boolean(assignedCompletion && isSameLocalDay(assignedCompletion.completedAt, new Date()));
   const checkInStatus = latestStoredReadiness
     ? readinessIsStale
       ? 'Check-in stale'
@@ -208,19 +228,30 @@ export function HomeScreen({
         goTo: goToReadiness,
       };
     }
+    if (assignedCompletedToday && assignedCompletion) {
+      return {
+        title: 'Recover from today',
+        detail: `${assignedCompletion.assignment} completed in ${assignedCompletion.durationMinutes} min.`,
+        reason: `Effort was ${assignedCompletion.effort.toLowerCase()}. Prioritise fuel, hydration, and recovery markers now.`,
+        actionLabel: 'Open Fuel',
+        icon: 'restaurant-outline' as keyof typeof Ionicons.glyphMap,
+        tone: colours.green,
+        goTo: goToFuel,
+      };
+    }
     if (member?.assignmentSession && member.assignmentSession.status !== 'completed' && performance.readinessBand !== 'RED' && performance.loadRisk !== 'High') {
       return {
         title: member.assignmentSession.title,
         detail: member.assignmentSession.coachNote ?? `${member.assignmentSession.type} assigned by coach.`,
         reason: `${checkInStatus}. Assigned session is ready to execute.`,
-        actionLabel: 'Start Training',
+        actionLabel: 'Start Assigned',
         icon: sessionTypeIcon(member.assignmentSession.type),
         tone: performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate' ? colours.amber : colours.green,
         goTo: goToTrain,
       };
     }
     return recommendedSession;
-  }, [checkInStatus, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, performance.readinessBand, recommendedSession]);
+  }, [assignedCompletedToday, assignedCompletion, checkInStatus, goToFuel, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, performance.readinessBand, recommendedSession]);
 
   function domainPressHandler(domainId: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -231,6 +262,22 @@ export function HomeScreen({
   function handleDecisionAction() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     dailyDecision.goTo?.();
+  }
+
+  function handleAssignedWorkoutAction() {
+    if (!assignedWorkout || assignedWorkout.status === 'completed' || assignedCompletedToday) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    goToTrain?.();
+  }
+
+  function handlePostWorkoutFuel() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    goToFuel?.();
+  }
+
+  function handlePostWorkoutReadiness() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    goToReadiness?.();
   }
 
   return (
@@ -360,6 +407,97 @@ export function HomeScreen({
           <Text style={[styles.warningText, { color: w.tone }]}>{w.text}</Text>
         </View>
       ))}
+
+      {assignedWorkout ? (
+        <Card accent={assignedCompletedToday || assignedWorkout.status === 'completed' ? colours.green : colours.amber}>
+          <View style={styles.assignedHeader}>
+            <View style={styles.assignedTitleBlock}>
+              <Text style={styles.label}>ASSIGNED WORKOUT</Text>
+              <Text style={styles.assignedTitle}>{assignedWorkout.title}</Text>
+              <Text style={styles.assignedMeta}>
+                {assignedWorkout.type} - {assignedCompletedToday ? 'completed today' : assignedWorkout.status}
+              </Text>
+            </View>
+            <View style={[styles.assignedStatusBadge, (assignedCompletedToday || assignedWorkout.status === 'completed') && styles.assignedStatusDone]}>
+              <Text style={[styles.assignedStatusText, (assignedCompletedToday || assignedWorkout.status === 'completed') && styles.assignedStatusTextDone]}>
+                {assignedCompletedToday ? 'DONE TODAY' : assignedWorkout.status.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+
+          {assignedCompletedToday && assignedCompletion ? (
+            <View style={styles.completionSummary}>
+              <View style={styles.completionStat}>
+                <Text style={styles.completionLabel}>DURATION</Text>
+                <Text style={styles.completionValue}>{assignedCompletion.durationMinutes} min</Text>
+              </View>
+              <View style={styles.completionStat}>
+                <Text style={styles.completionLabel}>EFFORT</Text>
+                <Text style={styles.completionValue}>{assignedCompletion.effort}</Text>
+              </View>
+            </View>
+          ) : null}
+
+          {!assignedCompletedToday && assignedWorkout.coachNote ? (
+            <Text style={styles.assignedNote}>Coach note: {assignedWorkout.coachNote}</Text>
+          ) : null}
+
+          {!assignedCompletedToday && assignedWorkoutPreview.length ? (
+            <View style={styles.assignedExerciseList}>
+              {assignedWorkoutPreview.map((exercise) => (
+                <View key={exercise.exerciseId} style={styles.assignedExerciseRow}>
+                  <View style={styles.assignedExerciseDot} />
+                  <View style={styles.assignedExerciseCopy}>
+                    <Text style={styles.assignedExerciseName}>{exercise.name}</Text>
+                    <Text style={styles.assignedExerciseDose}>{exercise.dose}</Text>
+                  </View>
+                  {exercise.coachPinned ? <Text style={styles.assignedPinned}>PINNED</Text> : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
+
+          {assignedCompletedToday ? (
+            <View style={styles.postWorkoutActions}>
+              <Pressable
+                style={styles.assignedButton}
+                accessibilityRole="button"
+                accessibilityLabel="Open fuel after completed workout"
+                onPress={handlePostWorkoutFuel}
+              >
+                <Ionicons name="restaurant-outline" size={18} color={colours.background} />
+                <Text style={styles.assignedButtonText}>Open Fuel</Text>
+              </Pressable>
+              <Pressable
+                style={styles.assignedSecondaryButton}
+                accessibilityRole="button"
+                accessibilityLabel="Log recovery readiness after completed workout"
+                onPress={handlePostWorkoutReadiness}
+              >
+                <Ionicons name="body-outline" size={18} color={colours.cyan} />
+                <Text style={styles.assignedSecondaryButtonText}>Log Recovery</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <Pressable
+              style={[styles.assignedButton, assignedWorkout.status === 'completed' && styles.assignedButtonDone]}
+              accessibilityRole="button"
+              accessibilityLabel={assignedWorkout.status === 'completed' ? 'Assigned workout completed' : 'Start assigned workout'}
+              onPress={handleAssignedWorkoutAction}
+              disabled={assignedWorkout.status === 'completed'}
+            >
+              <Ionicons
+                name={assignedWorkout.status === 'completed' ? 'checkmark-circle' : sessionTypeIcon(assignedWorkout.type)}
+                size={18}
+                color={assignedWorkout.status === 'completed' ? colours.green : colours.background}
+              />
+              <Text style={[styles.assignedButtonText, assignedWorkout.status === 'completed' && styles.assignedButtonTextDone]}>
+                {assignedWorkout.status === 'completed' ? 'Completed - recover well' : 'Start Assigned'}
+              </Text>
+            </Pressable>
+          )}
+        </Card>
+      ) : null}
 
       {/* H2F Domain grid */}
       <View style={styles.domainGrid}>
@@ -879,5 +1017,162 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     lineHeight: 17,
+  },
+  assignedHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  assignedTitleBlock: {
+    flex: 1,
+  },
+  assignedTitle: {
+    color: colours.text,
+    fontSize: 20,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  assignedMeta: {
+    color: colours.textSoft,
+    fontSize: 12,
+    fontWeight: '800',
+    marginTop: 3,
+    textTransform: 'capitalize',
+  },
+  assignedStatusBadge: {
+    borderWidth: 1,
+    borderColor: `${colours.amber}50`,
+    borderRadius: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    backgroundColor: `${colours.amber}12`,
+  },
+  assignedStatusDone: {
+    borderColor: `${colours.green}50`,
+    backgroundColor: `${colours.green}12`,
+  },
+  assignedStatusText: {
+    color: colours.amber,
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  assignedStatusTextDone: {
+    color: colours.green,
+  },
+  assignedNote: {
+    color: colours.textSoft,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 12,
+  },
+  completionSummary: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  completionStat: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: `${colours.green}35`,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: `${colours.green}0F`,
+  },
+  completionLabel: {
+    color: colours.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  completionValue: {
+    color: colours.green,
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  assignedExerciseList: {
+    gap: 8,
+    marginTop: 12,
+  },
+  assignedExerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  assignedExerciseDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colours.cyan,
+  },
+  assignedExerciseCopy: {
+    flex: 1,
+  },
+  assignedExerciseName: {
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  assignedExerciseDose: {
+    color: colours.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 2,
+  },
+  assignedPinned: {
+    color: colours.amber,
+    fontSize: 9,
+    fontWeight: '900',
+  },
+  assignedButton: {
+    minHeight: touchTarget,
+    flex: 1,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 14,
+  },
+  assignedButtonDone: {
+    borderWidth: 1,
+    borderColor: `${colours.green}50`,
+    backgroundColor: `${colours.green}12`,
+  },
+  assignedButtonText: {
+    color: colours.background,
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  assignedButtonTextDone: {
+    color: colours.green,
+  },
+  postWorkoutActions: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 14,
+  },
+  assignedSecondaryButton: {
+    minHeight: touchTarget,
+    flex: 1,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  assignedSecondaryButtonText: {
+    color: colours.cyan,
+    fontSize: 14,
+    fontWeight: '900',
   },
 });
