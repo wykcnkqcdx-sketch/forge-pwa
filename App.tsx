@@ -11,7 +11,6 @@ import { TrainScreen } from './screens/TrainScreen';
 import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
-import { MemberScreen } from './screens/MemberScreen';
 import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups, ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from './data/domain';
 import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from './lib/cloud';
@@ -1128,17 +1127,16 @@ export default function App() {
         );
       default:
         return (
-          <MemberScreen
+          <HomeScreen
             member={activeMember}
-            members={members}
-            groups={groups}
-            onUpdateMember={updateMember}
-            onCompleteWorkout={addWorkoutCompletion}
-            onAddSession={addSession}
-            cloudEnabled={isSupabaseConfigured}
-            cloudStatus={cloudStatus}
-            pendingSyncCount={pendingSyncCount}
-            onCloudSync={syncCloudNow}
+            sessions={memberSessions.length ? memberSessions : sessions}
+            goToRuck={() => setActiveMemberTab('ruck')}
+            goToAnalytics={() => setActiveMemberTab('train')}
+            goToFuel={() => setActiveMemberTab('fuel')}
+            goToTrain={() => setActiveMemberTab('train')}
+            goToReadiness={() => setActiveMemberTab('readiness')}
+            readinessLogs={readinessLogs}
+            secondaryActionLabel="Training"
           />
         );
     }

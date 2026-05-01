@@ -9,7 +9,7 @@ import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } fr
 import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { colours, touchTarget } from '../theme';
-import { TrainingSession } from '../data/mockData';
+import { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog } from '../data/domain';
 
 function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
@@ -37,6 +37,8 @@ export function HomeScreen({
   goToTrain,
   goToReadiness,
   readinessLogs = [],
+  member,
+  secondaryActionLabel = 'Intel',
 }: {
   sessions: TrainingSession[];
   goToRuck: () => void;
@@ -45,13 +47,20 @@ export function HomeScreen({
   goToTrain?: () => void;
   goToReadiness?: () => void;
   readinessLogs?: ReadinessLog[];
+  member?: SquadMember | null;
+  secondaryActionLabel?: string;
 }) {
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
+  const displayName = member?.gymName || member?.name;
+  const memberReadinessLogs = useMemo(
+    () => member ? readinessLogs.filter((log) => log.memberId === member.id) : readinessLogs,
+    [member, readinessLogs],
+  );
   const latestReadiness = useMemo(() => {
-    const log = getLatestReadinessLog(readinessLogs);
+    const log = getLatestReadinessLog(memberReadinessLogs, member?.id);
     return isReadinessStale(log) ? undefined : log;
-  }, [readinessLogs]);
-  const latestStoredReadiness = useMemo(() => getLatestReadinessLog(readinessLogs), [readinessLogs]);
+  }, [member?.id, memberReadinessLogs]);
+  const latestStoredReadiness = useMemo(() => getLatestReadinessLog(memberReadinessLogs, member?.id), [member?.id, memberReadinessLogs]);
   const readinessIsStale = isReadinessStale(latestStoredReadiness);
   const domains = useMemo(
     () => buildH2FDomains(sessions, latestReadiness),
@@ -75,6 +84,11 @@ export function HomeScreen({
   const todayStr = new Date().toDateString();
   const hasSessionToday = sessions.some((s) => s.completedAt && new Date(s.completedAt).toDateString() === todayStr);
   const needsReadinessCheckIn = !latestStoredReadiness || readinessIsStale;
+  const checkInStatus = latestStoredReadiness
+    ? readinessIsStale
+      ? 'Check-in stale'
+      : `Checked in ${new Date(latestStoredReadiness.date).toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}`
+    : 'No check-in yet';
 
   // 7-day activity strip
   const weeklyLoadSeries = useMemo(() => buildWeeklyLoadSeries(sessions), [sessions]);
@@ -106,6 +120,32 @@ export function HomeScreen({
     }
     return list;
   }, [performance.monotony, latestReadiness, latestStoredReadiness, readinessIsStale]);
+
+  const recoveryBlockers = useMemo(() => {
+    const blockers = [
+      {
+        label: 'Sleep',
+        value: latestReadiness?.sleepHours !== undefined ? `${latestReadiness.sleepHours}h` : '--',
+        flagged: latestReadiness?.sleepHours !== undefined ? latestReadiness.sleepHours < 6 : needsReadinessCheckIn,
+      },
+      {
+        label: 'Soreness',
+        value: latestReadiness?.soreness ? `${latestReadiness.soreness}/5` : '--',
+        flagged: (latestReadiness?.soreness ?? 0) >= 4,
+      },
+      {
+        label: 'Hydration',
+        value: latestReadiness?.hydration ?? '--',
+        flagged: latestReadiness?.hydration === 'Poor',
+      },
+      {
+        label: 'Stress',
+        value: latestReadiness?.stress ? `${latestReadiness.stress}/5` : '--',
+        flagged: (latestReadiness?.stress ?? 0) >= 4,
+      },
+    ];
+    return blockers;
+  }, [latestReadiness, needsReadinessCheckIn]);
 
   // Recommended session
   const recommendedSession = useMemo(() => {
@@ -168,8 +208,19 @@ export function HomeScreen({
         goTo: goToReadiness,
       };
     }
+    if (member?.assignmentSession && member.assignmentSession.status !== 'completed' && performance.readinessBand !== 'RED' && performance.loadRisk !== 'High') {
+      return {
+        title: member.assignmentSession.title,
+        detail: member.assignmentSession.coachNote ?? `${member.assignmentSession.type} assigned by coach.`,
+        reason: `${checkInStatus}. Assigned session is ready to execute.`,
+        actionLabel: 'Start Training',
+        icon: sessionTypeIcon(member.assignmentSession.type),
+        tone: performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate' ? colours.amber : colours.green,
+        goTo: goToTrain,
+      };
+    }
     return recommendedSession;
-  }, [goToReadiness, latestStoredReadiness, needsReadinessCheckIn, recommendedSession]);
+  }, [checkInStatus, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, performance.readinessBand, recommendedSession]);
 
   function domainPressHandler(domainId: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -188,7 +239,7 @@ export function HomeScreen({
       <View style={styles.header}>
         <View>
           <Text style={styles.kicker}>{today.toUpperCase()}</Text>
-          <Text style={styles.title}>Tactical Readiness</Text>
+          <Text style={styles.title}>{displayName ? `${displayName}'s Today` : 'Tactical Readiness'}</Text>
           {!hasSessionToday && (
             <Text style={styles.noCheckIn}>No training logged today</Text>
           )}
@@ -232,6 +283,7 @@ export function HomeScreen({
             <Text style={styles.label}>TODAY'S MOVE</Text>
             <Text style={[styles.decisionTitle, { color: dailyDecision.tone }]}>{dailyDecision.title}</Text>
             <Text style={styles.decisionDetail}>{dailyDecision.detail}</Text>
+            <Text style={styles.checkInStamp}>{checkInStatus}</Text>
           </View>
         </View>
 
@@ -264,8 +316,17 @@ export function HomeScreen({
             onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goToAnalytics(); }}
           >
             <Ionicons name="analytics" size={20} color={colours.cyan} />
-            <Text style={styles.secondaryButtonText}>Intel</Text>
+            <Text style={styles.secondaryButtonText}>{secondaryActionLabel}</Text>
           </Pressable>
+        </View>
+
+        <View style={styles.blockerGrid}>
+          {recoveryBlockers.map((item) => (
+            <View key={item.label} style={[styles.blockerTile, item.flagged && styles.blockerTileFlagged]}>
+              <Text style={styles.blockerLabel}>{item.label}</Text>
+              <Text style={[styles.blockerValue, item.flagged && styles.blockerValueFlagged]}>{item.value}</Text>
+            </View>
+          ))}
         </View>
 
         <View style={styles.commandGrid}>
@@ -466,6 +527,12 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: 4,
   },
+  checkInStamp: {
+    color: colours.muted,
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 8,
+  },
   readinessRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -562,6 +629,40 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 10,
     marginTop: 14,
+  },
+  blockerGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  blockerTile: {
+    width: '48%',
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    padding: 9,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  blockerTileFlagged: {
+    borderColor: `${colours.amber}55`,
+    backgroundColor: `${colours.amber}10`,
+  },
+  blockerLabel: {
+    color: colours.muted,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  blockerValue: {
+    color: colours.text,
+    fontSize: 14,
+    fontWeight: '900',
+    marginTop: 3,
+  },
+  blockerValueFlagged: {
+    color: colours.amber,
   },
   primaryButton: {
     minHeight: touchTarget,
