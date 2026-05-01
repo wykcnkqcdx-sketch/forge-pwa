@@ -7,6 +7,7 @@ import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } from '../lib/performance';
 import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
+import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession } from '../data/mockData';
 import type { ReadinessLog } from '../data/domain';
@@ -72,19 +73,18 @@ export function HomeScreen({
 }) {
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
   const latestReadiness = useMemo(() => {
-    const sorted = [...readinessLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    const log = sorted[0];
-    if (!log) return undefined;
-    const ageMs = Date.now() - new Date(log.date).getTime();
-    return ageMs < 18 * 60 * 60 * 1000 ? log : undefined;
+    const log = getLatestReadinessLog(readinessLogs);
+    return isReadinessStale(log) ? undefined : log;
   }, [readinessLogs]);
+  const latestStoredReadiness = useMemo(() => getLatestReadinessLog(readinessLogs), [readinessLogs]);
+  const readinessIsStale = isReadinessStale(latestStoredReadiness);
   const domains = useMemo(
     () => buildH2FDomains(sessions, latestReadiness),
     [sessions, latestReadiness],
   );
   const guidance = useMemo(
-    () => buildPrescriptiveGuidance(sessions, 6.25, performance.loadRisk === 'High' ? 'down' : 'flat'),
-    [sessions, performance.loadRisk],
+    () => buildPrescriptiveGuidance(sessions, latestReadiness?.sleepHours ?? 7, performance.loadRisk === 'High' ? 'down' : 'flat'),
+    [sessions, latestReadiness?.sleepHours, performance.loadRisk],
   );
   const nextAction = useMemo(() => nextActionForReadiness(performance), [performance]);
 
@@ -101,6 +101,7 @@ export function HomeScreen({
   const today = new Date().toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   const todayStr = new Date().toDateString();
   const hasSessionToday = sessions.some((s) => s.completedAt && new Date(s.completedAt).toDateString() === todayStr);
+  const needsReadinessCheckIn = !latestStoredReadiness || readinessIsStale;
 
   // 7-day activity strip
   const weeklyLoadSeries = useMemo(() => buildWeeklyLoadSeries(sessions), [sessions]);
@@ -108,7 +109,7 @@ export function HomeScreen({
     const now = new Date();
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (6 - i));
-      return String(d.getDate());
+      return d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 1);
     });
   }, []);
   const maxLoad = Math.max(...weeklyLoadSeries, 1);
@@ -116,6 +117,11 @@ export function HomeScreen({
   // Warning banners
   const warnings = useMemo(() => {
     const list: { tone: string; icon: keyof typeof Ionicons.glyphMap; text: string }[] = [];
+    if (!latestStoredReadiness) {
+      list.push({ tone: colours.amber, icon: 'body-outline', text: 'No readiness check-in yet - log today to unlock sleep and recovery guidance' });
+    } else if (readinessIsStale) {
+      list.push({ tone: colours.amber, icon: 'time-outline', text: 'Readiness check-in is stale - log today before acting on recovery signals' });
+    }
     if (performance.monotony > 2.0) {
       list.push({ tone: colours.amber, icon: 'warning-outline', text: `Monotony elevated (${performance.monotony.toFixed(1)}) — vary training type` });
     }
@@ -126,7 +132,7 @@ export function HomeScreen({
       list.push({ tone: colours.red, icon: 'water-outline', text: 'Hydration poor — address before training' });
     }
     return list;
-  }, [performance.monotony, latestReadiness]);
+  }, [performance.monotony, latestReadiness, latestStoredReadiness, readinessIsStale]);
 
   // Recommended session
   const recommendedSession = useMemo(() => {
@@ -173,6 +179,15 @@ export function HomeScreen({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (domainId === 'nutrition') goToFuel?.();
     if (domainId === 'sleep' || domainId === 'mental') goToReadiness?.();
+  }
+
+  function handlePrimaryAction() {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (needsReadinessCheckIn && goToReadiness) {
+      goToReadiness();
+      return;
+    }
+    goToRuck();
   }
 
   return (
@@ -266,12 +281,12 @@ export function HomeScreen({
         <View style={styles.actionRow}>
           <Pressable
             style={styles.primaryButton}
-            accessibilityLabel="Start a ruck session"
+            accessibilityLabel={needsReadinessCheckIn ? 'Log readiness check-in' : 'Start a ruck session'}
             accessibilityRole="button"
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); goToRuck(); }}
+            onPress={handlePrimaryAction}
           >
-            <Ionicons name="footsteps" size={20} color={colours.background} />
-            <Text style={styles.primaryButtonText}>Start Ruck</Text>
+            <Ionicons name={needsReadinessCheckIn ? 'body' : 'footsteps'} size={20} color={colours.background} />
+            <Text style={styles.primaryButtonText}>{needsReadinessCheckIn ? 'Log Readiness' : 'Start Ruck'}</Text>
           </Pressable>
           <Pressable
             style={styles.secondaryButton}
@@ -357,7 +372,7 @@ export function HomeScreen({
       <Card accent={colours.cyan}>
         <Text style={styles.sectionTitle}>Loaded Movement</Text>
         <Text style={styles.body}>
-          {Math.round(ruckWork)} kg-km of ruck work across all sessions. Calculated as load × duration × estimated pace.
+          {Math.round(ruckWork)} estimated loaded exposure across all ruck sessions. Calculated from load, duration, and assumed field pace.
         </Text>
         <Pressable
           style={[styles.primaryButton, { marginTop: 14 }]}
