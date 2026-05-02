@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
@@ -46,6 +46,52 @@ function formatElapsed(seconds: number) {
 function routeDistanceKm(points: TrackPoint[] | undefined) {
   if (!points || points.length < 2) return 0;
   return points.slice(1).reduce((total, point, index) => total + distanceBetween(points[index], point), 0);
+}
+
+function formatDuration(minutes: number) {
+  const hrs = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  if (hrs <= 0) return `${mins} min`;
+  return `${hrs}h ${String(mins).padStart(2, '0')}m`;
+}
+
+function buildRuckAar(session: TrainingSession) {
+  const mission = session.ruckMission;
+  const distanceKm = routeDistanceKm(session.routePoints);
+  const actualPace = distanceKm > 0 ? session.durationMinutes / distanceKm : 0;
+  const lines = [
+    'RUCK AAR',
+    session.title,
+    `Distance: ${distanceKm.toFixed(2)}km`,
+    `Duration: ${formatDuration(session.durationMinutes)}`,
+    `Load: ${session.loadKg ?? 0}kg`,
+    `Pace: ${actualPace > 0 ? actualPace.toFixed(1) : '--'} min/km`,
+  ];
+
+  if (mission) {
+    const targetPace = mission.targetMinutes / Math.max(0.1, mission.targetDistanceKm);
+    lines.push(
+      `Target: ${mission.targetDistanceKm.toFixed(1)}km in ${formatDuration(mission.targetMinutes)}`,
+      `Target pace: ${targetPace.toFixed(1)} min/km`,
+      `Result: ${session.durationMinutes <= mission.targetMinutes ? 'On target' : 'Missed target'}`
+    );
+
+    if (mission.plannedCheckpoints.length > 0) {
+      lines.push('', 'Checkpoints:');
+      mission.plannedCheckpoints.forEach((checkpoint, index) => {
+        lines.push(`${index + 1}. ${checkpoint.label} - ${checkpoint.status.toUpperCase()} - ${formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs')}`);
+      });
+    }
+
+    if (mission.splits && mission.splits.length > 0) {
+      lines.push('', 'Splits:');
+      mission.splits.forEach((split) => {
+        lines.push(`KM ${split.km} - ${formatElapsed(split.splitSeconds)} (${formatElapsed(split.elapsedSeconds)} total)`);
+      });
+    }
+  }
+
+  return lines.join('\n');
 }
 
 export function AnalyticsScreen({ 
@@ -220,6 +266,27 @@ export function AnalyticsScreen({
 
     editSession(editingSession.id, { score: newScore, durationMinutes: newDuration });
     setEditingSession(null);
+  }
+
+  async function copyRuckAar(session: TrainingSession) {
+    const text = buildRuckAar(session);
+    const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
+
+    try {
+      if (!clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await clipboard.writeText(text);
+      Alert.alert('AAR copied', 'Ruck summary copied to clipboard.');
+    } catch {
+      Alert.alert('Copy unavailable', text);
+    }
+  }
+
+  async function shareRuckAar(session: TrainingSession) {
+    try {
+      await Share.share({ message: buildRuckAar(session) });
+    } catch {
+      Alert.alert('Share unavailable', 'Unable to open the share sheet on this device.');
+    }
   }
 
   function saveReadiness() {
@@ -496,6 +563,17 @@ export function AnalyticsScreen({
                               <Text style={styles.ruckDetailValue}>{session.loadKg ?? 0}kg</Text>
                               <Text style={styles.ruckReviewLabel}>LOAD</Text>
                             </View>
+                          </View>
+
+                          <View style={styles.aarActions}>
+                            <Pressable style={styles.aarButton} onPress={() => copyRuckAar(session)}>
+                              <Ionicons name="copy-outline" size={15} color={colours.background} />
+                              <Text style={styles.aarButtonText}>Copy AAR</Text>
+                            </Pressable>
+                            <Pressable style={styles.aarButton} onPress={() => shareRuckAar(session)}>
+                              <Ionicons name="share-outline" size={15} color={colours.background} />
+                              <Text style={styles.aarButtonText}>Share</Text>
+                            </Pressable>
                           </View>
 
                           {session.ruckMission.plannedCheckpoints.length > 0 && (
@@ -831,6 +909,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   ruckDetailValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  aarActions: { flexDirection: 'row', gap: 8 },
+  aarButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  aarButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
   ruckSection: {
     borderRadius: 8,
     borderWidth: 1,
