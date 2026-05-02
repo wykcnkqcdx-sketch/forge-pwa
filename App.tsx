@@ -72,7 +72,7 @@ export default function App() {
   // ── Core hooks ────────────────────────────────────────────────────────────
   const { showToast, toastMessage, toastAnim } = useToast();
 
-const store = useLocalStore();
+  const store = useLocalStore();
   const { sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, googleSheetsEndpoint, isReady, hasSeenOnboarding } = store;
 
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
@@ -508,10 +508,6 @@ const store = useLocalStore();
   }
 
   // ── Render gates ──────────────────────────────────────────────────────────
-  if (!store.hasSeenOnboarding) {
-    return <OnboardingScreen />;
-  }
-
   if (!isReady || !cloud.authReady) {
     return (
       <View style={styles.lockScreen}>
@@ -523,6 +519,10 @@ const store = useLocalStore();
         </View>
       </View>
     );
+  }
+
+  if (!hasSeenOnboarding) {
+    return <OnboardingScreen />;
   }
 
   if (isSupabaseConfigured && !cloud.cloudSession) {
