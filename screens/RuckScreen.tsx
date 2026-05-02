@@ -208,7 +208,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
   const firstMapPoint = mapPoints[0];
   const lastMapPoint = mapPoints[mapPoints.length - 1];
-  const showExpandedMap = isTracking || mapExpanded;
+  const hasActiveGpsSession = startTime != null;
+  const showExpandedMap = hasActiveGpsSession || mapExpanded;
   const displayBearing = routeBearing ?? activeHeading;
   const displayHeading = activeHeading ?? routeBearing;
   const gpsQuality = useMemo(() => {
@@ -651,13 +652,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         </View>
 
         <Pressable
-          style={[styles.expandMapButton, showExpandedMap && styles.expandMapButtonActive, isTracking && styles.expandMapButtonLocked]}
+          style={[styles.expandMapButton, showExpandedMap && styles.expandMapButtonActive, hasActiveGpsSession && styles.expandMapButtonLocked]}
           onPress={() => setMapExpanded((current) => !current)}
-          disabled={isTracking}
+          disabled={hasActiveGpsSession}
         >
           <Ionicons name={showExpandedMap ? 'contract' : 'expand'} size={17} color={showExpandedMap ? colours.background : colours.cyan} />
           <Text style={[styles.expandMapButtonText, showExpandedMap && styles.expandMapButtonTextActive]}>
-            {isTracking ? 'Field map active' : showExpandedMap ? 'Compact map' : 'Field map'}
+            {hasActiveGpsSession ? 'Field map active' : showExpandedMap ? 'Compact map' : 'Field map'}
           </Text>
         </Pressable>
 
