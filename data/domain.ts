@@ -10,6 +10,7 @@ export type RuckCheckpoint = TrackPoint & {
   id: string;
   label: string;
   source: 'current' | 'manual';
+  status: 'planned' | 'reached' | 'skipped';
 };
 
 export type RuckSplit = {

@@ -193,6 +193,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [plannedCheckpoints, setPlannedCheckpoints] = useState<RuckCheckpoint[]>([]);
   const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
   const [checkpointCoordinateInput, setCheckpointCoordinateInput] = useState('');
+  const [checkpointLabelInput, setCheckpointLabelInput] = useState('');
+  const [checkpointBulkInput, setCheckpointBulkInput] = useState('');
   const [planRestored, setPlanRestored] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -329,7 +331,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           setTargetMinutes(plan.targetMinutes);
           setCheckpointIntervalKm(plan.checkpointIntervalKm);
           setCheckpointIndex(plan.checkpointIndex);
-          setPlannedCheckpoints(plan.plannedCheckpoints);
+          setPlannedCheckpoints(plan.plannedCheckpoints.map((checkpoint) => ({
+            ...checkpoint,
+            status: checkpoint.status ?? 'planned',
+          })));
           setSelectedCheckpointId(plan.selectedCheckpointId);
         }
 
@@ -363,6 +368,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     }
     restoreSession();
   }, []);
+
+  useEffect(() => {
+    setCheckpointLabelInput(selectedCheckpoint?.label ?? '');
+  }, [selectedCheckpoint?.id, selectedCheckpoint?.label]);
 
   useEffect(() => {
     Location.watchHeadingAsync((heading) => {
@@ -597,9 +606,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
   function addCheckpoint(point: Pick<TrackPoint, 'latitude' | 'longitude' | 'altitude' | 'accuracy'>, source: RuckCheckpoint['source']) {
     const checkpoint: RuckCheckpoint = {
-      id: `cp-${Date.now()}`,
+      id: `cp-${Date.now()}-${plannedCheckpoints.length + 1}`,
       label: `CP ${plannedCheckpoints.length + 1}`,
       source,
+      status: 'planned',
       latitude: point.latitude,
       longitude: point.longitude,
       altitude: point.altitude ?? null,
@@ -608,6 +618,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     };
     setPlannedCheckpoints((current) => [...current, checkpoint]);
     setSelectedCheckpointId(checkpoint.id);
+  }
+
+  function updateSelectedCheckpoint(updates: Partial<RuckCheckpoint>) {
+    if (!selectedCheckpoint) return;
+    setPlannedCheckpoints((current) => current.map((checkpoint) => (
+      checkpoint.id === selectedCheckpoint.id ? { ...checkpoint, ...updates } : checkpoint
+    )));
   }
 
   function addCheckpointHere() {
@@ -627,6 +644,96 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
     addCheckpoint({ ...parsed, altitude: null, accuracy: null }, 'manual');
     setCheckpointCoordinateInput('');
+  }
+
+  function updateSelectedCheckpointFromInput() {
+    if (!selectedCheckpoint) return;
+    const parsed = parseCoordinate(checkpointCoordinateInput, coordinateFormat);
+    if (!parsed) {
+      Alert.alert('Coordinate not recognised', 'Use LAT/LON, DMS, UTM, or MGRS. Example: 29U 682123E 5912345N or 29U PV 82123 12345.');
+      return;
+    }
+
+    updateSelectedCheckpoint({
+      ...parsed,
+      source: 'manual',
+      altitude: null,
+      accuracy: null,
+      timestamp: Date.now(),
+    });
+    setCheckpointCoordinateInput('');
+  }
+
+  function updateSelectedCheckpointHere() {
+    if (!selectedCheckpoint) return;
+    if (!currentPoint) {
+      Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before moving the checkpoint here.');
+      return;
+    }
+
+    updateSelectedCheckpoint({
+      latitude: currentPoint.latitude,
+      longitude: currentPoint.longitude,
+      altitude: currentPoint.altitude,
+      accuracy: currentPoint.accuracy,
+      timestamp: Date.now(),
+      source: 'current',
+    });
+  }
+
+  function saveSelectedCheckpointLabel() {
+    if (!selectedCheckpoint) return;
+    const label = checkpointLabelInput.trim();
+    updateSelectedCheckpoint({ label: label || selectedCheckpoint.label });
+  }
+
+  function setSelectedCheckpointStatus(status: RuckCheckpoint['status']) {
+    updateSelectedCheckpoint({ status });
+  }
+
+  function importCheckpoints() {
+    const lines = checkpointBulkInput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) return;
+
+    const imported: RuckCheckpoint[] = [];
+    const failed: string[] = [];
+
+    lines.forEach((line, index) => {
+      const [maybeLabel, maybeCoordinate] = line.includes(':')
+        ? line.split(/:(.+)/).map((part) => part.trim())
+        : ['', line];
+      const parsed = parseCoordinate(maybeCoordinate || line);
+      if (!parsed) {
+        failed.push(line);
+        return;
+      }
+
+      imported.push({
+        id: `cp-${Date.now()}-${plannedCheckpoints.length + index + 1}`,
+        label: maybeLabel || `CP ${plannedCheckpoints.length + imported.length + 1}`,
+        source: 'manual',
+        status: 'planned',
+        latitude: parsed.latitude,
+        longitude: parsed.longitude,
+        altitude: null,
+        accuracy: null,
+        timestamp: Date.now(),
+      });
+    });
+
+    if (imported.length > 0) {
+      setPlannedCheckpoints((current) => [...current, ...imported]);
+      setSelectedCheckpointId(imported[0].id);
+      setCheckpointBulkInput('');
+    }
+
+    if (failed.length > 0) {
+      Alert.alert('Some checkpoints were skipped', `${failed.length} line(s) could not be parsed.`);
+    }
   }
 
   function clearSelectedCheckpoint() {
@@ -682,6 +789,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
     addSession(session);
     Alert.alert('Ruck saved', 'Your ruck session has been added to your training log.');
+  }
+
+  function checkpointTone(checkpoint: RuckCheckpoint) {
+    if (selectedCheckpoint?.id === checkpoint.id) return colours.amber;
+    if (checkpoint.status === 'reached') return colours.green;
+    if (checkpoint.status === 'skipped') return colours.red;
+    return colours.cyan;
   }
 
   return (
@@ -808,7 +922,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                     cx={checkpoint.x}
                     cy={checkpoint.y}
                     r={selectedCheckpoint?.id === checkpoint.id ? 10 : 8}
-                    fill={selectedCheckpoint?.id === checkpoint.id ? colours.amber : colours.cyan}
+                    fill={checkpointTone(checkpoint)}
                     stroke="rgba(7,17,30,0.86)"
                     strokeWidth={2}
                   />
@@ -1066,13 +1180,50 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             <Ionicons name="add" size={18} color={colours.background} />
           </Pressable>
         </View>
+        <View style={styles.checkpointActions}>
+          <Pressable style={styles.clearCheckpointButton} onPress={updateSelectedCheckpointFromInput} disabled={!selectedCheckpoint}>
+            <Text style={styles.clearCheckpointText}>Move to grid</Text>
+          </Pressable>
+          <Pressable style={styles.clearCheckpointButton} onPress={updateSelectedCheckpointHere} disabled={!selectedCheckpoint}>
+            <Text style={styles.clearCheckpointText}>Move here</Text>
+          </Pressable>
+        </View>
 
         {selectedCheckpoint ? (
           <>
+            <View style={styles.coordinateEntry}>
+              <TextInput
+                value={checkpointLabelInput}
+                onChangeText={setCheckpointLabelInput}
+                placeholder="Checkpoint label"
+                placeholderTextColor={colours.soft}
+                autoCapitalize="words"
+                style={styles.coordinateInput}
+              />
+              <Pressable style={styles.coordinateAddButton} onPress={saveSelectedCheckpointLabel}>
+                <Ionicons name="checkmark" size={18} color={colours.background} />
+              </Pressable>
+            </View>
+
+            <View style={styles.statusRow}>
+              {(['planned', 'reached', 'skipped'] as const).map((statusOption) => {
+                const selected = selectedCheckpoint.status === statusOption;
+                return (
+                  <Pressable
+                    key={statusOption}
+                    style={[styles.statusButton, selected && styles.statusButtonActive]}
+                    onPress={() => setSelectedCheckpointStatus(statusOption)}
+                  >
+                    <Text style={[styles.statusButtonText, selected && styles.statusButtonTextActive]}>{statusOption.toUpperCase()}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
             <View style={styles.navGrid}>
               <View style={styles.navItem}>
                 <Text style={styles.navValue}>{selectedCheckpoint.label}</Text>
-                <Text style={styles.navLabel}>{selectedCheckpoint.source === 'current' ? 'GPS checkpoint' : 'Manual checkpoint'}</Text>
+                <Text style={styles.navLabel}>{selectedCheckpoint.status} | {selectedCheckpoint.source === 'current' ? 'GPS checkpoint' : 'Manual checkpoint'}</Text>
               </View>
               <View style={styles.navItem}>
                 <Text style={styles.navValue}>{selectedCheckpointDistanceKm == null ? '--' : `${selectedCheckpointDistanceKm.toFixed(2)}km`}</Text>
@@ -1117,6 +1268,21 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         ) : (
           <Text style={styles.navGuide}>Use the active coordinate format selector above the map. LAT/LON, DMS, UTM, and MGRS are accepted.</Text>
         )}
+
+        <TextInput
+          value={checkpointBulkInput}
+          onChangeText={setCheckpointBulkInput}
+          placeholder={'Bulk import, one per line\nRV: 29U PV 82123 12345\nBridge: 29U 682123E 5912345N'}
+          placeholderTextColor={colours.soft}
+          autoCapitalize="characters"
+          autoCorrect={false}
+          multiline
+          style={styles.bulkInput}
+        />
+        <Pressable style={styles.importButton} onPress={importCheckpoints}>
+          <Ionicons name="download" size={16} color={colours.background} />
+          <Text style={styles.checkpointButtonText}>Import checkpoints</Text>
+        </Pressable>
       </Card>
 
       <Card>
@@ -1676,6 +1842,53 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  bulkInput: {
+    minHeight: 96,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    marginTop: 12,
+    textAlignVertical: 'top',
+  },
+  importButton: {
+    minHeight: 42,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 10,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  statusButton: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  statusButtonActive: {
+    borderColor: `${colours.green}88`,
+    backgroundColor: 'rgba(167,201,87,0.16)',
+  },
+  statusButtonText: { color: colours.muted, fontSize: 10, fontWeight: '900' },
+  statusButtonTextActive: { color: colours.green },
   checkpointList: {
     flexDirection: 'row',
     flexWrap: 'wrap',
