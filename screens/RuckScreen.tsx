@@ -68,6 +68,7 @@ const CHECKPOINT_ARRIVAL_RADIUS_METERS = 50;
 const BEARING_CAUTION_DEGREES = 20;
 const BEARING_OFF_DEGREES = 45;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
+type FinishMode = 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
 
 type TrackingState = {
   status: TrackingStatus;
@@ -202,6 +203,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [checkpointCoordinateInput, setCheckpointCoordinateInput] = useState('');
   const [checkpointLabelInput, setCheckpointLabelInput] = useState('');
   const [checkpointBulkInput, setCheckpointBulkInput] = useState('');
+  const [finishMode, setFinishMode] = useState<FinishMode>('target');
   const [planRestored, setPlanRestored] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -316,6 +318,24 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const arrivalCheckpoint = nearestCheckpoint && nearestCheckpoint.distanceKm * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS
     ? nearestCheckpoint.checkpoint
     : null;
+  const finishCheckpoint = finishMode === 'selectedCheckpoint'
+    ? selectedCheckpoint
+    : finishMode === 'finalCheckpoint'
+      ? plannedCheckpoints[plannedCheckpoints.length - 1] ?? null
+      : null;
+  const finishDistanceRemainingKm = finishCheckpoint && currentPoint
+    ? Math.max(0, distanceBetween(currentPoint, finishCheckpoint))
+    : targetRemainingKm;
+  const finishEtaMinutes = currentDistance > 0.02 && elapsedSeconds > 0
+    ? finishDistanceRemainingKm * (elapsedSeconds / 60 / currentDistance)
+    : finishDistanceRemainingKm * targetPace;
+  const finishTargetRemainingMinutes = Math.max(0, targetMinutes - elapsedSeconds / 60);
+  const finishRequiredPace = finishDistanceRemainingKm > 0.02
+    ? finishTargetRemainingMinutes / finishDistanceRemainingKm
+    : 0;
+  const finishProjectedTotalMinutes = elapsedSeconds / 60 + finishEtaMinutes;
+  const finishOnTarget = finishProjectedTotalMinutes <= targetMinutes;
+  const finishLabel = finishCheckpoint?.label ?? `${targetDistanceKm.toFixed(1)}km target`;
   const splits = useMemo<RuckSplit[]>(() => {
     if (routePoints.length < 2) return [];
 
@@ -1067,6 +1087,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                   {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
                 </Text>
               </View>
+              <View style={styles.finishStrip} pointerEvents="none">
+                <Text style={styles.finishStripText}>FINISH {finishDistanceRemainingKm.toFixed(1)}km</Text>
+                <Text style={styles.finishStripText}>REQ {finishRequiredPace > 0 ? `${finishRequiredPace.toFixed(1)}/km` : '--'}</Text>
+                <Text style={[styles.finishStripText, { color: finishOnTarget ? colours.green : colours.amber }]}>
+                  {finishOnTarget ? 'ON TARGET' : 'AT RISK'}
+                </Text>
+              </View>
               <View style={[styles.bearingGuidanceStrip, { borderColor: `${bearingGuidance.tone}66`, backgroundColor: `${bearingGuidance.tone}18` }]} pointerEvents="none">
                 <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
                 <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
@@ -1201,6 +1228,48 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           <View style={styles.navItem}>
             <Text style={styles.navValue}>{targetProjectedMinutes == null ? '--' : formatDuration(targetProjectedMinutes)}</Text>
             <Text style={styles.navLabel}>Projected finish</Text>
+          </View>
+        </View>
+
+        <View style={styles.finishModeRow}>
+          {([
+            ['target', 'Target'],
+            ['finalCheckpoint', 'Final CP'],
+            ['selectedCheckpoint', 'Selected CP'],
+          ] as const).map(([mode, label]) => {
+            const selected = finishMode === mode;
+            return (
+              <Pressable
+                key={mode}
+                style={[styles.finishModeButton, selected && styles.finishModeButtonActive]}
+                onPress={() => setFinishMode(mode)}
+              >
+                <Text style={[styles.finishModeText, selected && styles.finishModeTextActive]}>{label}</Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <View style={[styles.finishPanel, { borderColor: `${finishOnTarget ? colours.green : colours.amber}55`, backgroundColor: `${finishOnTarget ? colours.green : colours.amber}12` }]}>
+          <View>
+            <Text style={[styles.finishPanelTitle, { color: finishOnTarget ? colours.green : colours.amber }]}>
+              {finishOnTarget ? 'Finish on target' : 'Finish at risk'}
+            </Text>
+            <Text style={styles.finishPanelDetail}>{finishLabel}</Text>
+          </View>
+          <View style={styles.finishPanelMetrics}>
+            <View style={styles.finishMetric}>
+              <Text style={styles.finishMetricValue}>{finishDistanceRemainingKm.toFixed(1)}km</Text>
+              <Text style={styles.finishMetricLabel}>LEFT</Text>
+            </View>
+            <View style={styles.finishMetric}>
+              <Text style={styles.finishMetricValue}>{formatDuration(finishEtaMinutes)}</Text>
+              <Text style={styles.finishMetricLabel}>ETA</Text>
+            </View>
+            <View style={styles.finishMetric}>
+              <Text style={styles.finishMetricValue}>{finishRequiredPace > 0 ? finishRequiredPace.toFixed(1) : '--'}</Text>
+              <Text style={styles.finishMetricLabel}>REQ /KM</Text>
+            </View>
           </View>
         </View>
       </Card>
@@ -1803,7 +1872,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 10,
     right: 10,
-    bottom: 122,
+    bottom: 162,
     minHeight: 34,
     borderRadius: 8,
     borderWidth: 1,
@@ -1815,6 +1884,23 @@ const styles = StyleSheet.create({
   },
   bearingGuidanceLabel: { fontSize: 11, fontWeight: '900' },
   bearingGuidanceDetail: { color: colours.text, fontSize: 10, fontWeight: '800', flex: 1, textAlign: 'right' },
+  finishStrip: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 122,
+    minHeight: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(4,8,15,0.74)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  finishStripText: { color: colours.text, fontSize: 10, fontWeight: '900' },
   expandMapButton: {
     minHeight: 40,
     marginTop: 10,
@@ -1915,6 +2001,51 @@ const styles = StyleSheet.create({
   splitKm: { color: colours.text, fontSize: 12, fontWeight: '900', width: 52 },
   splitValue: { color: colours.cyan, fontSize: 15, fontWeight: '900', flex: 1, textAlign: 'center' },
   splitMeta: { color: colours.muted, fontSize: 11, fontWeight: '800', width: 84, textAlign: 'right' },
+  finishModeRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  finishModeButton: {
+    flex: 1,
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  finishModeButtonActive: {
+    borderColor: `${colours.cyan}88`,
+    backgroundColor: colours.cyanDim,
+  },
+  finishModeText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  finishModeTextActive: { color: colours.cyan },
+  finishPanel: {
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    padding: 12,
+    gap: 10,
+  },
+  finishPanelTitle: { fontSize: 14, fontWeight: '900' },
+  finishPanelDetail: { color: colours.textSoft, fontSize: 12, fontWeight: '800', marginTop: 2 },
+  finishPanelMetrics: { flexDirection: 'row', gap: 8 },
+  finishMetric: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  finishMetricValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  finishMetricLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
   checkpointButton: {
     minHeight: 40,
     borderRadius: 8,
