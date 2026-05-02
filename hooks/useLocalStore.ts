@@ -23,6 +23,7 @@ export function useLocalStore() {
   const [workoutCompletions, setWorkoutCompletions] = useState<WorkoutCompletion[]>([]);
   const [googleSheetsEndpoint, setGoogleSheetsEndpoint] = useState('');
   const [savedPin, setSavedPin] = useState<string | null>(null);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -56,6 +57,9 @@ export function useLocalStore() {
 
         const storedPin = await secureGetItem('forge:pin');
         if (storedPin) setSavedPin(storedPin);
+
+        const storedOnboarding = await secureGetItem('forge:has_seen_onboarding');
+        if (storedOnboarding === 'true') setHasSeenOnboarding(true);
       } catch (error) {
         console.error('Failed to load local data', error);
       } finally {
@@ -76,7 +80,11 @@ export function useLocalStore() {
     if (!isReady) return;
     if (savedPin === null) secureRemoveItem('forge:pin');
     else secureSetItem('forge:pin', savedPin);
-  }, [savedPin, isReady]);
+
+    if (hasSeenOnboarding !== undefined) {
+      secureSetItem('forge:has_seen_onboarding', hasSeenOnboarding ? 'true' : 'false');
+    }
+  }, [savedPin, hasSeenOnboarding, isReady]);
 
   return {
     isReady,
@@ -88,5 +96,6 @@ export function useLocalStore() {
     workoutCompletions, setWorkoutCompletions,
     googleSheetsEndpoint, setGoogleSheetsEndpoint,
     savedPin, setSavedPin,
+    hasSeenOnboarding, setHasSeenOnboarding,
   };
 }

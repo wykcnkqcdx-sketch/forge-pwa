@@ -8,7 +8,8 @@ import { AnalyticsScreen } from './screens/AnalyticsScreen';
 import { RuckScreen } from './screens/RuckScreen';
 import { TrainScreen } from './screens/TrainScreen';
 import { FuelScreen } from './screens/FuelScreen';
-import { InstructorScreen } from './screens/InstructorScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
+import { OnboardingScreen } from './screens/OnboardingScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
 import { trainingGroups } from './data/mockData';
@@ -22,7 +23,7 @@ import { useLocalStore } from './hooks/useLocalStore';
 import { useCloudSync } from './hooks/useCloudSync';
 import { usePinLock } from './hooks/usePinLock';
 
-type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor' | 'readiness';
+type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'settings' | 'readiness';
 type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
 
 type PendingMemberInvite = {
@@ -51,7 +52,7 @@ const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap
   { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
   { id: 'fuel',       label: 'Fuel',    icon: 'restaurant-outline', iconActive: 'restaurant' },
   { id: 'analytics',  label: 'Intel',   icon: 'analytics-outline',  iconActive: 'analytics' },
-  { id: 'instructor', label: 'Coach',   icon: 'people-outline',     iconActive: 'people' },
+  { id: 'settings', label: 'Settings', icon: 'settings-outline', iconActive: 'settings' },
 ];
 
 const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -71,8 +72,8 @@ export default function App() {
   // ── Core hooks ────────────────────────────────────────────────────────────
   const { showToast, toastMessage, toastAnim } = useToast();
 
-  const store = useLocalStore();
-  const { sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, googleSheetsEndpoint, isReady } = store;
+const store = useLocalStore();
+  const { sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, googleSheetsEndpoint, isReady, hasSeenOnboarding } = store;
 
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const cloud = useCloudSync({
@@ -421,9 +422,9 @@ export default function App() {
             onCompleteCheckIn={() => switchTab('home')}
           />
         );
-      case 'instructor':
+      case 'settings':
         return (
-          <InstructorScreen
+          <SettingsScreen
             pinEnabled={Boolean(store.savedPin)}
             sessions={sessions}
             members={members}
@@ -507,6 +508,10 @@ export default function App() {
   }
 
   // ── Render gates ──────────────────────────────────────────────────────────
+  if (!store.hasSeenOnboarding) {
+    return <OnboardingScreen />;
+  }
+
   if (!isReady || !cloud.authReady) {
     return (
       <View style={styles.lockScreen}>

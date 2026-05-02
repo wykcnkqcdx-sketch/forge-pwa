@@ -49,6 +49,22 @@ describe('initial data load', () => {
     expect(result.current.savedPin).toBe('5678');
   });
 
+  it('loads hasSeenOnboarding from storage on mount', async () => {
+    mockGet.mockImplementation((key: string) =>
+      key === 'forge:has_seen_onboarding' ? Promise.resolve('true') : Promise.resolve(null)
+    );
+    const { result } = renderHook(() => useLocalStore());
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+    expect(result.current.hasSeenOnboarding).toBe(true);
+  });
+
+  it('defaults hasSeenOnboarding to false when no storage value', async () => {
+    mockGet.mockResolvedValue(null);
+    const { result } = renderHook(() => useLocalStore());
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+    expect(result.current.hasSeenOnboarding).toBe(false);
+  });
+
   it('keeps default data when storage has nothing', async () => {
     const { result } = renderHook(() => useLocalStore());
     await waitFor(() => expect(result.current.isReady).toBe(true));
