@@ -31,7 +31,7 @@ import {
   secureDestroyLocalData,
 } from './secureStorage';
 
-const mockAsyncStorage = AsyncStorage as {
+const mockAsyncStorage = AsyncStorage as unknown as {
   getItem: ReturnType<typeof vi.fn>;
   setItem: ReturnType<typeof vi.fn>;
   removeItem: ReturnType<typeof vi.fn>;
@@ -101,7 +101,7 @@ describe('secureMultiRemove', () => {
     await secureSetItem('z', '3');
     await secureMultiRemove(['x', 'z']);
     expect(await secureGetItem('x')).toBeNull();
-    expect(await secureGetItem('y')).toBe('3'); // untouched
+    expect(await secureGetItem('y')).toBe('2'); // untouched
     expect(await secureGetItem('z')).toBeNull();
   });
 
