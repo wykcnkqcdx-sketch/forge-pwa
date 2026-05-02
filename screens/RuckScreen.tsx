@@ -9,11 +9,12 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
+import type { RuckCheckpoint, RuckMissionPlan, RuckSplit } from '../data/domain';
 import { distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, evaluateRoutePoint, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
 import { CoordinateFormat, coordinateFormatOptions, formatCoordinate, parseCoordinate } from '../utils/coordinates';
 import { buildVisibleTiles, getMercatorRoutePoints, MapLayerKey, mapLayerOptions, MapViewport } from '../utils/mapTiles';
-import { appendActiveRoutePoints, clearActiveRoute, loadActiveRoute, replaceActiveRoute, resetActiveRoute } from '../lib/ruckRouteStore';
+import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadActiveRoute, loadActiveRuckPlan, replaceActiveRoute, resetActiveRoute, saveActiveRuckPlan } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
 
 function formatElapsed(seconds: number) {
@@ -69,18 +70,6 @@ type TrackingState = {
   startTime: Date | null;
   rejectedPointCount: number;
   lastRejectedReason: string | null;
-};
-
-type RuckSplit = {
-  km: number;
-  elapsedSeconds: number;
-  splitSeconds: number;
-};
-
-type PlannedCheckpoint = TrackPoint & {
-  id: string;
-  label: string;
-  source: 'current' | 'manual';
 };
 
 type TrackingAction =
@@ -201,9 +190,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [targetMinutes, setTargetMinutes] = useState(105);
   const [checkpointIntervalKm, setCheckpointIntervalKm] = useState(2);
   const [checkpointIndex, setCheckpointIndex] = useState(0);
-  const [plannedCheckpoints, setPlannedCheckpoints] = useState<PlannedCheckpoint[]>([]);
+  const [plannedCheckpoints, setPlannedCheckpoints] = useState<RuckCheckpoint[]>([]);
   const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
   const [checkpointCoordinateInput, setCheckpointCoordinateInput] = useState('');
+  const [planRestored, setPlanRestored] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -332,6 +322,17 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     async function restoreSession() {
       try {
         const points = await loadActiveRoute();
+        const plan = await loadActiveRuckPlan();
+
+        if (plan) {
+          setTargetDistanceKm(plan.targetDistanceKm);
+          setTargetMinutes(plan.targetMinutes);
+          setCheckpointIntervalKm(plan.checkpointIntervalKm);
+          setCheckpointIndex(plan.checkpointIndex);
+          setPlannedCheckpoints(plan.plannedCheckpoints);
+          setSelectedCheckpointId(plan.selectedCheckpointId);
+        }
+
         if (points.length > 0) {
           const sanitized = sanitizeRoutePoints(points);
 
@@ -356,6 +357,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         }
       } catch (e) {
         console.error('Failed to restore ruck session', e);
+      } finally {
+        setPlanRestored(true);
       }
     }
     restoreSession();
@@ -390,6 +393,23 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       console.error('Failed to persist filtered ruck route', error);
     });
   }, [routePoints, startTime]);
+
+  useEffect(() => {
+    if (!planRestored) return;
+
+    const plan: RuckMissionPlan = {
+      targetDistanceKm,
+      targetMinutes,
+      checkpointIntervalKm,
+      checkpointIndex,
+      plannedCheckpoints,
+      selectedCheckpointId,
+    };
+
+    saveActiveRuckPlan(plan).catch((error) => {
+      console.error('Failed to persist active ruck plan', error);
+    });
+  }, [checkpointIndex, checkpointIntervalKm, planRestored, plannedCheckpoints, selectedCheckpointId, targetDistanceKm, targetMinutes]);
 
   useEffect(() => {
     if (!isTracking || !startTime) return undefined;
@@ -495,6 +515,15 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     stopTracking();
 
     const duration = Math.max(1, (new Date().getTime() - startTime.getTime()) / (1000 * 60)); // minutes
+    const ruckMission: RuckMissionPlan = {
+      targetDistanceKm,
+      targetMinutes,
+      checkpointIntervalKm,
+      checkpointIndex,
+      plannedCheckpoints,
+      selectedCheckpointId,
+      splits,
+    };
     const session: TrainingSession = {
       id: Date.now().toString(),
       type: 'Ruck',
@@ -504,20 +533,27 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
       routePoints: routePoints.length > 0 ? routePoints : undefined,
+      ruckMission,
       completedAt: new Date().toISOString(),
     };
     addSession(session);
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
     dispatchTracking({ type: 'reset' });
     setCheckpointIndex(0);
+    setPlannedCheckpoints([]);
+    setSelectedCheckpointId(null);
     clearActiveRoute();
+    clearActiveRuckPlan();
   };
 
   const discardTrackedRuck = () => {
     stopTracking();
     dispatchTracking({ type: 'reset' });
     setCheckpointIndex(0);
+    setPlannedCheckpoints([]);
+    setSelectedCheckpointId(null);
     clearActiveRoute();
+    clearActiveRuckPlan();
   };
 
   const speedKph = useMemo(() => Math.max(3.2, Math.min(7.2, 60 / (7.4 + weight / 25))), [weight]);
@@ -559,8 +595,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCheckpointIndex((current) => Math.max(0, current - 1));
   }
 
-  function addCheckpoint(point: Pick<TrackPoint, 'latitude' | 'longitude' | 'altitude' | 'accuracy'>, source: PlannedCheckpoint['source']) {
-    const checkpoint: PlannedCheckpoint = {
+  function addCheckpoint(point: Pick<TrackPoint, 'latitude' | 'longitude' | 'altitude' | 'accuracy'>, source: RuckCheckpoint['source']) {
+    const checkpoint: RuckCheckpoint = {
       id: `cp-${Date.now()}`,
       label: `CP ${plannedCheckpoints.length + 1}`,
       source,

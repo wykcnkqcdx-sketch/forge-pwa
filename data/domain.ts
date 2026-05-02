@@ -6,6 +6,28 @@ export type TrackPoint = {
   timestamp: number;
 };
 
+export type RuckCheckpoint = TrackPoint & {
+  id: string;
+  label: string;
+  source: 'current' | 'manual';
+};
+
+export type RuckSplit = {
+  km: number;
+  elapsedSeconds: number;
+  splitSeconds: number;
+};
+
+export type RuckMissionPlan = {
+  targetDistanceKm: number;
+  targetMinutes: number;
+  checkpointIntervalKm: number;
+  checkpointIndex: number;
+  plannedCheckpoints: RuckCheckpoint[];
+  selectedCheckpointId: string | null;
+  splits?: RuckSplit[];
+};
+
 export type TrainingSession = {
   id: string;
   type: 'Ruck' | 'Strength' | 'Resistance' | 'Cardio' | 'Workout' | 'Run' | 'Mobility';
@@ -15,6 +37,7 @@ export type TrainingSession = {
   rpe: number;
   loadKg?: number;
   routePoints?: TrackPoint[];
+  ruckMission?: RuckMissionPlan;
   completedAt?: string;
   updatedAt?: string;
 };

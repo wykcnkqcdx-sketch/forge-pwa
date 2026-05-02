@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import type { TrackPoint } from '../data/domain';
+import type { RuckMissionPlan, TrackPoint } from '../data/domain';
 
 const DATABASE_NAME = 'forge-ruck-route.db';
 
@@ -9,6 +9,10 @@ type RoutePointRow = {
   altitude: number | null;
   accuracy: number | null;
   timestamp: number;
+};
+
+type ActivePlanRow = {
+  plan_json: string;
 };
 
 let dbPromise: Promise<SQLite.SQLiteDatabase> | null = null;
@@ -29,6 +33,10 @@ async function getDb() {
         );
         CREATE INDEX IF NOT EXISTS active_ruck_route_timestamp_idx
         ON active_ruck_route (timestamp);
+        CREATE TABLE IF NOT EXISTS active_ruck_plan (
+          id integer primary key check (id = 1),
+          plan_json text not null
+        );
       `);
       return db;
     })();
@@ -85,4 +93,30 @@ export async function loadActiveRoute(): Promise<TrackPoint[]> {
 export async function clearActiveRoute() {
   const db = await getDb();
   await db.runAsync('DELETE FROM active_ruck_route');
+}
+
+export async function saveActiveRuckPlan(plan: RuckMissionPlan) {
+  const db = await getDb();
+  await db.runAsync(
+    'INSERT OR REPLACE INTO active_ruck_plan (id, plan_json) VALUES (1, ?)',
+    JSON.stringify(plan)
+  );
+}
+
+export async function loadActiveRuckPlan(): Promise<RuckMissionPlan | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<ActivePlanRow>('SELECT plan_json FROM active_ruck_plan WHERE id = 1');
+  if (!row) return null;
+
+  try {
+    return JSON.parse(row.plan_json) as RuckMissionPlan;
+  } catch {
+    await clearActiveRuckPlan();
+    return null;
+  }
+}
+
+export async function clearActiveRuckPlan() {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM active_ruck_plan');
 }

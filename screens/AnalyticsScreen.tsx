@@ -410,6 +410,27 @@ export function AnalyticsScreen({
                     ))}
                   </View>
                 )}
+
+                {session.ruckMission && (
+                  <View style={styles.ruckReview}>
+                    <View style={styles.ruckReviewItem}>
+                      <Text style={styles.ruckReviewValue}>{session.ruckMission.targetDistanceKm.toFixed(1)}km</Text>
+                      <Text style={styles.ruckReviewLabel}>TARGET</Text>
+                    </View>
+                    <View style={styles.ruckReviewItem}>
+                      <Text style={styles.ruckReviewValue}>{session.ruckMission.plannedCheckpoints.length}</Text>
+                      <Text style={styles.ruckReviewLabel}>CHECKPOINTS</Text>
+                    </View>
+                    <View style={styles.ruckReviewItem}>
+                      <Text style={styles.ruckReviewValue}>{session.ruckMission.splits?.length ?? 0}</Text>
+                      <Text style={styles.ruckReviewLabel}>SPLITS</Text>
+                    </View>
+                    <View style={styles.ruckReviewItem}>
+                      <Text style={styles.ruckReviewValue}>{(session.ruckMission.targetMinutes / Math.max(0.1, session.ruckMission.targetDistanceKm)).toFixed(1)}</Text>
+                      <Text style={styles.ruckReviewLabel}>MIN/KM</Text>
+                    </View>
+                  </View>
+                )}
               </View>
             ))}
 
@@ -669,6 +690,27 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyan,
     opacity: 0.8,
   },
+  ruckReview: {
+    flexDirection: 'row',
+    gap: 8,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  ruckReviewItem: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  ruckReviewValue: { color: colours.cyan, fontSize: 13, fontWeight: '900' },
+  ruckReviewLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
   modalOverlay: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.62)' },
   modalPanel: { borderWidth: 1, borderColor: colours.border, borderRadius: 20, padding: 18, backgroundColor: colours.surface },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
