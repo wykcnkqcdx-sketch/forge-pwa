@@ -1,9 +1,9 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image } from 'react-native';
+import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import Svg, { Circle, Polyline } from 'react-native-svg';
+import Svg, { Circle, Polyline, Text as SvgText } from 'react-native-svg';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -11,7 +11,7 @@ import { colours, touchTarget } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, evaluateRoutePoint, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
-import { CoordinateFormat, coordinateFormatOptions, formatCoordinate } from '../utils/coordinates';
+import { CoordinateFormat, coordinateFormatOptions, formatCoordinate, parseCoordinate } from '../utils/coordinates';
 import { buildVisibleTiles, getMercatorRoutePoints, MapLayerKey, mapLayerOptions, MapViewport } from '../utils/mapTiles';
 import { appendActiveRoutePoints, clearActiveRoute, loadActiveRoute, replaceActiveRoute, resetActiveRoute } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
@@ -75,6 +75,12 @@ type RuckSplit = {
   km: number;
   elapsedSeconds: number;
   splitSeconds: number;
+};
+
+type PlannedCheckpoint = TrackPoint & {
+  id: string;
+  label: string;
+  source: 'current' | 'manual';
 };
 
 type TrackingAction =
@@ -195,6 +201,9 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [targetMinutes, setTargetMinutes] = useState(105);
   const [checkpointIntervalKm, setCheckpointIntervalKm] = useState(2);
   const [checkpointIndex, setCheckpointIndex] = useState(0);
+  const [plannedCheckpoints, setPlannedCheckpoints] = useState<PlannedCheckpoint[]>([]);
+  const [selectedCheckpointId, setSelectedCheckpointId] = useState<string | null>(null);
+  const [checkpointCoordinateInput, setCheckpointCoordinateInput] = useState('');
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -215,6 +224,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const mapPoints = useMemo(
     () => getMercatorRoutePoints(displayRoutePoints, currentPoint, mapViewport),
     [currentPoint, displayRoutePoints, mapViewport]
+  );
+  const checkpointMapPoints = useMemo(
+    () => getMercatorRoutePoints(plannedCheckpoints, currentPoint, mapViewport),
+    [currentPoint, mapViewport, plannedCheckpoints]
   );
   const mapTiles = useMemo(
     () => buildVisibleTiles(currentPoint, mapViewport, mapLayer),
@@ -254,6 +267,12 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const checkpointStatus = checkpointIndex >= checkpointCount
     ? 'All checkpoints complete'
     : `CP ${nextCheckpointIndex}/${checkpointCount}`;
+  const selectedCheckpoint = plannedCheckpoints.find((checkpoint) => checkpoint.id === selectedCheckpointId) ?? plannedCheckpoints[0] ?? null;
+  const selectedCheckpointDistanceKm = currentPoint && selectedCheckpoint ? distanceBetween(currentPoint, selectedCheckpoint) : null;
+  const selectedCheckpointBearing = currentPoint && selectedCheckpoint ? Math.round(bearingBetween(currentPoint, selectedCheckpoint)) : null;
+  const selectedCheckpointEtaMinutes = selectedCheckpointDistanceKm == null
+    ? null
+    : selectedCheckpointDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
   const splits = useMemo<RuckSplit[]>(() => {
     if (routePoints.length < 2) return [];
 
@@ -536,6 +555,46 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCheckpointIndex((current) => Math.min(checkpointCount, current + 1));
   }
 
+  function addCheckpoint(point: Pick<TrackPoint, 'latitude' | 'longitude' | 'altitude' | 'accuracy'>, source: PlannedCheckpoint['source']) {
+    const checkpoint: PlannedCheckpoint = {
+      id: `cp-${Date.now()}`,
+      label: `CP ${plannedCheckpoints.length + 1}`,
+      source,
+      latitude: point.latitude,
+      longitude: point.longitude,
+      altitude: point.altitude ?? null,
+      accuracy: point.accuracy ?? null,
+      timestamp: Date.now(),
+    };
+    setPlannedCheckpoints((current) => [...current, checkpoint]);
+    setSelectedCheckpointId(checkpoint.id);
+  }
+
+  function addCheckpointHere() {
+    if (!currentPoint) {
+      Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before adding a checkpoint here.');
+      return;
+    }
+    addCheckpoint(currentPoint, 'current');
+  }
+
+  function addCheckpointFromInput() {
+    const parsed = parseCoordinate(checkpointCoordinateInput, coordinateFormat);
+    if (!parsed) {
+      Alert.alert('Coordinate not recognised', 'Use LAT/LON, DMS, UTM, or MGRS. Example: 29U 682123E 5912345N or 29U PV 82123 12345.');
+      return;
+    }
+
+    addCheckpoint({ ...parsed, altitude: null, accuracy: null }, 'manual');
+    setCheckpointCoordinateInput('');
+  }
+
+  function clearSelectedCheckpoint() {
+    if (!selectedCheckpoint) return;
+    setPlannedCheckpoints((current) => current.filter((checkpoint) => checkpoint.id !== selectedCheckpoint.id));
+    setSelectedCheckpointId(null);
+  }
+
   function changeWeight(amount: number) {
     setWeight((current) => Math.min(35, Math.max(5, current + amount)));
   }
@@ -690,6 +749,28 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                   strokeWidth={2}
                 />
               )}
+              {checkpointMapPoints.map((checkpoint, index) => (
+                <React.Fragment key={checkpoint.id}>
+                  <Circle
+                    cx={checkpoint.x}
+                    cy={checkpoint.y}
+                    r={selectedCheckpoint?.id === checkpoint.id ? 10 : 8}
+                    fill={selectedCheckpoint?.id === checkpoint.id ? colours.amber : colours.cyan}
+                    stroke="rgba(7,17,30,0.86)"
+                    strokeWidth={2}
+                  />
+                  <SvgText
+                    x={checkpoint.x}
+                    y={checkpoint.y + 3}
+                    textAnchor="middle"
+                    fontSize="9"
+                    fontWeight="900"
+                    fill={colours.background}
+                  >
+                    {index + 1}
+                  </SvgText>
+                </React.Fragment>
+              ))}
             </Svg>
           )}
           <View style={styles.crosshair} pointerEvents="none">
@@ -740,8 +821,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               </View>
               <View style={styles.mapMissionStrip} pointerEvents="none">
                 <Text style={styles.mapMissionText}>{formatSignedMinutes(targetDeltaMinutes)}</Text>
-                <Text style={styles.mapMissionText}>{checkpointStatus}</Text>
-                <Text style={styles.mapMissionText}>{checkpointRemainingKm.toFixed(1)}km to CP</Text>
+                <Text style={styles.mapMissionText}>{selectedCheckpoint?.label ?? checkpointStatus}</Text>
+                <Text style={styles.mapMissionText}>
+                  {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
+                </Text>
               </View>
             </>
           )}
@@ -901,6 +984,77 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               </View>
             ))}
           </View>
+        )}
+      </Card>
+
+      <Card>
+        <View style={styles.navHeader}>
+          <View>
+            <Text style={styles.cardTitle}>Checkpoint Planner</Text>
+            <Text style={styles.muted}>{plannedCheckpoints.length > 0 ? `${plannedCheckpoints.length} mapped` : 'Add current GPS or enter grid'}</Text>
+          </View>
+          <Pressable style={styles.checkpointButton} onPress={addCheckpointHere}>
+            <Ionicons name="locate" size={16} color={colours.background} />
+            <Text style={styles.checkpointButtonText}>Here</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.coordinateEntry}>
+          <TextInput
+            value={checkpointCoordinateInput}
+            onChangeText={setCheckpointCoordinateInput}
+            placeholder={coordinateFormat === 'mgrs' ? '29U PV 82123 12345' : coordinateFormat === 'utm' ? '29U 682123E 5912345N' : '53.34981, -6.26031'}
+            placeholderTextColor={colours.soft}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            style={styles.coordinateInput}
+          />
+          <Pressable style={styles.coordinateAddButton} onPress={addCheckpointFromInput}>
+            <Ionicons name="add" size={18} color={colours.background} />
+          </Pressable>
+        </View>
+
+        {selectedCheckpoint ? (
+          <>
+            <View style={styles.navGrid}>
+              <View style={styles.navItem}>
+                <Text style={styles.navValue}>{selectedCheckpoint.label}</Text>
+                <Text style={styles.navLabel}>{selectedCheckpoint.source === 'current' ? 'GPS checkpoint' : 'Manual checkpoint'}</Text>
+              </View>
+              <View style={styles.navItem}>
+                <Text style={styles.navValue}>{selectedCheckpointDistanceKm == null ? '--' : `${selectedCheckpointDistanceKm.toFixed(2)}km`}</Text>
+                <Text style={styles.navLabel}>Distance to CP</Text>
+              </View>
+              <View style={styles.navItem}>
+                <Text style={styles.navValue}>{selectedCheckpointBearing == null ? '--' : formatHeading(selectedCheckpointBearing)}</Text>
+                <Text style={styles.navLabel}>Bearing to CP</Text>
+              </View>
+              <View style={styles.navItem}>
+                <Text style={styles.navValue}>{selectedCheckpointEtaMinutes == null ? '--' : formatDuration(selectedCheckpointEtaMinutes)}</Text>
+                <Text style={styles.navLabel}>ETA to CP</Text>
+              </View>
+            </View>
+            <Text style={styles.coordinateText}>{formatCoordinate(selectedCheckpoint.latitude, selectedCheckpoint.longitude, coordinateFormat)}</Text>
+            <View style={styles.checkpointList}>
+              {plannedCheckpoints.map((checkpoint) => {
+                const selected = selectedCheckpoint.id === checkpoint.id;
+                return (
+                  <Pressable
+                    key={checkpoint.id}
+                    style={[styles.checkpointPill, selected && styles.checkpointPillActive]}
+                    onPress={() => setSelectedCheckpointId(checkpoint.id)}
+                  >
+                    <Text style={[styles.checkpointPillText, selected && styles.checkpointPillTextActive]}>{checkpoint.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            <Pressable style={styles.clearCheckpointButton} onPress={clearSelectedCheckpoint}>
+              <Text style={styles.clearCheckpointText}>Remove selected checkpoint</Text>
+            </Pressable>
+          </>
+        ) : (
+          <Text style={styles.navGuide}>Use the active coordinate format selector above the map. LAT/LON, DMS, UTM, and MGRS are accepted.</Text>
         )}
       </Card>
 
@@ -1428,6 +1582,65 @@ const styles = StyleSheet.create({
   },
   checkpointButtonDisabled: { opacity: 0.5 },
   checkpointButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
+  coordinateEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  coordinateInput: {
+    flex: 1,
+    minHeight: touchTarget,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    color: colours.text,
+    fontSize: 14,
+    fontWeight: '800',
+    paddingHorizontal: 12,
+  },
+  coordinateAddButton: {
+    width: touchTarget,
+    height: touchTarget,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkpointList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  checkpointPill: {
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  checkpointPillActive: {
+    borderColor: `${colours.amber}88`,
+    backgroundColor: 'rgba(215,168,75,0.18)',
+  },
+  checkpointPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  checkpointPillTextActive: { color: colours.amber },
+  clearCheckpointButton: {
+    minHeight: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  clearCheckpointText: { color: colours.muted, fontSize: 12, fontWeight: '900' },
   score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },

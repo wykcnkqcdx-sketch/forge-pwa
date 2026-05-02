@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatCoordinate, toUtm } from './coordinates';
+import { formatCoordinate, parseCoordinate, toUtm } from './coordinates';
 
 describe('coordinate formatting', () => {
   it('formats decimal latitude and longitude', () => {
@@ -24,5 +24,36 @@ describe('coordinate formatting', () => {
 
   it('formats MGRS with zone, square, easting, and northing groups', () => {
     expect(formatCoordinate(53.349805, -6.26031, 'mgrs')).toMatch(/^29U [A-Z]{2} \d{5} \d{5}$/);
+  });
+
+  it('parses decimal latitude and longitude', () => {
+    expect(parseCoordinate('53.349805, -6.26031', 'latlon')).toEqual({
+      latitude: 53.349805,
+      longitude: -6.26031,
+    });
+  });
+
+  it('parses UTM coordinates back near the original point', () => {
+    const utm = formatCoordinate(53.349805, -6.26031, 'utm');
+    const parsed = parseCoordinate(utm, 'utm');
+
+    expect(parsed?.latitude).toBeCloseTo(53.349805, 4);
+    expect(parsed?.longitude).toBeCloseTo(-6.26031, 4);
+  });
+
+  it('parses MGRS coordinates back near the original point', () => {
+    const mgrs = formatCoordinate(53.349805, -6.26031, 'mgrs');
+    const parsed = parseCoordinate(mgrs, 'mgrs');
+
+    expect(parsed?.latitude).toBeCloseTo(53.349805, 3);
+    expect(parsed?.longitude).toBeCloseTo(-6.26031, 3);
+  });
+
+  it('parses DMS coordinates back near the original point', () => {
+    const dms = formatCoordinate(53.349805, -6.26031, 'dms');
+    const parsed = parseCoordinate(dms, 'dms');
+
+    expect(parsed?.latitude).toBeCloseTo(53.349805, 4);
+    expect(parsed?.longitude).toBeCloseTo(-6.26031, 4);
   });
 });

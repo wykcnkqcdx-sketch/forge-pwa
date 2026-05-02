@@ -102,7 +102,7 @@ export function buildVisibleTiles(center: TrackPoint | undefined, viewport: MapV
   return tiles;
 }
 
-export function getMercatorRoutePoints(points: TrackPoint[], center: TrackPoint | undefined, viewport: MapViewport, zoom = 15) {
+export function getMercatorRoutePoints<T extends TrackPoint>(points: T[], center: TrackPoint | undefined, viewport: MapViewport, zoom = 15) {
   if (!center || viewport.width <= 0 || viewport.height <= 0) return [];
 
   const centerPixel = latLonToWorldPixel(center.latitude, center.longitude, zoom);
