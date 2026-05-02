@@ -178,6 +178,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [mapLayer, setMapLayer] = useState<MapLayerKey>('topo');
   const [mapViewport, setMapViewport] = useState<MapViewport>({ width: 0, height: 0 });
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
+  const [mapExpanded, setMapExpanded] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -207,6 +208,9 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
   const firstMapPoint = mapPoints[0];
   const lastMapPoint = mapPoints[mapPoints.length - 1];
+  const showExpandedMap = isTracking || mapExpanded;
+  const displayBearing = routeBearing ?? activeHeading;
+  const displayHeading = activeHeading ?? routeBearing;
   const gpsQuality = useMemo(() => {
     if (!currentPoint) return { label: 'IDLE', tone: colours.muted, detail: 'awaiting fix' };
     if (currentPoint.accuracy == null) return { label: 'GOOD', tone: colours.green, detail: 'accuracy unknown' };
@@ -530,7 +534,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         </View>
 
         <View
-          style={styles.mapStage}
+          style={[styles.mapStage, showExpandedMap && styles.mapStageExpanded]}
           onLayout={(event) => {
             const { width, height } = event.nativeEvent.layout;
             setMapViewport((current) => (
@@ -597,10 +601,65 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             <View style={styles.crosshairHorizontal} />
             <View style={styles.crosshairVertical} />
           </View>
+          {showExpandedMap && (
+            <>
+              <View style={styles.mapGridOverlay} pointerEvents="none">
+                <Text style={styles.mapOverlayLabel}>GRID</Text>
+                <Text style={styles.mapOverlayValue}>{currentCoordinate ?? 'Awaiting fix'}</Text>
+              </View>
+              <View style={styles.mapCompassOverlay} pointerEvents="none">
+                <Animated.View
+                  style={{
+                    transform: [
+                      {
+                        rotate: rotationAnim.interpolate({
+                          inputRange: [0, 360],
+                          outputRange: ['0deg', '360deg'],
+                        }),
+                      },
+                    ],
+                  }}
+                >
+                  <Ionicons name="navigate" size={22} color={colours.background} />
+                </Animated.View>
+                <Text style={styles.mapCompassValue}>{displayHeading == null ? '---' : formatHeading(displayHeading)}</Text>
+                <Text style={styles.mapCompassLabel}>{displayHeading == null ? 'HDG' : cardinalDirection(displayHeading)}</Text>
+              </View>
+              <View style={styles.mapTelemetry} pointerEvents="none">
+                <View style={styles.mapTelemetryItem}>
+                  <Text style={styles.mapTelemetryValue}>{currentDistance.toFixed(2)}</Text>
+                  <Text style={styles.mapTelemetryLabel}>KM</Text>
+                </View>
+                <View style={styles.mapTelemetryItem}>
+                  <Text style={styles.mapTelemetryValue}>{activePace}</Text>
+                  <Text style={styles.mapTelemetryLabel}>MIN/KM</Text>
+                </View>
+                <View style={styles.mapTelemetryItem}>
+                  <Text style={styles.mapTelemetryValue}>{displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
+                  <Text style={styles.mapTelemetryLabel}>BRG</Text>
+                </View>
+                <View style={styles.mapTelemetryItem}>
+                  <Text style={styles.mapTelemetryValue}>{currentAltitude == null ? '--' : `${currentAltitude}`}</Text>
+                  <Text style={styles.mapTelemetryLabel}>ALT M</Text>
+                </View>
+              </View>
+            </>
+          )}
           {mapTiles.length > 0 && (
             <Text style={styles.mapAttribution}>{activeMapLayer.attribution}</Text>
           )}
         </View>
+
+        <Pressable
+          style={[styles.expandMapButton, showExpandedMap && styles.expandMapButtonActive, isTracking && styles.expandMapButtonLocked]}
+          onPress={() => setMapExpanded((current) => !current)}
+          disabled={isTracking}
+        >
+          <Ionicons name={showExpandedMap ? 'contract' : 'expand'} size={17} color={showExpandedMap ? colours.background : colours.cyan} />
+          <Text style={[styles.expandMapButtonText, showExpandedMap && styles.expandMapButtonTextActive]}>
+            {isTracking ? 'Field map active' : showExpandedMap ? 'Compact map' : 'Field map'}
+          </Text>
+        </Pressable>
 
         <View style={styles.liveStats}>
           <View style={styles.liveStat}>
@@ -610,6 +669,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           <View style={styles.liveStat}>
             <Text style={styles.liveValue}>{formatElapsed(elapsedSeconds)}</Text>
             <Text style={styles.liveLabel}>TIME</Text>
+          </View>
+          <View style={styles.liveStat}>
+            <Text style={styles.liveValue}>{displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
+            <Text style={styles.liveLabel}>BRG</Text>
           </View>
           <View style={styles.liveStat}>
             <Text style={styles.liveValue}>{activePace}</Text>
@@ -899,6 +962,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(4,8,15,0.72)',
     position: 'relative',
   },
+  mapStageExpanded: {
+    height: 360,
+  },
   mapShade: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(4,8,15,0.16)',
@@ -948,6 +1014,75 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
+  mapGridOverlay: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    right: 88,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.16)',
+    backgroundColor: 'rgba(4,8,15,0.72)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  mapOverlayLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1.4 },
+  mapOverlayValue: { color: colours.text, fontSize: 12, fontWeight: '900', marginTop: 2 },
+  mapCompassOverlay: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.cyan,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.44)',
+  },
+  mapCompassValue: { color: colours.background, fontSize: 10, fontWeight: '900', marginTop: 1 },
+  mapCompassLabel: { color: 'rgba(7,17,30,0.72)', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  mapTelemetry: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 26,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  mapTelemetryItem: {
+    flex: 1,
+    minHeight: 48,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 8,
+    backgroundColor: 'rgba(4,8,15,0.74)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  mapTelemetryValue: { color: colours.text, fontSize: 14, fontWeight: '900' },
+  mapTelemetryLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1, marginTop: 2 },
+  expandMapButton: {
+    minHeight: 40,
+    marginTop: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  expandMapButtonActive: {
+    borderColor: `${colours.cyan}66`,
+    backgroundColor: colours.cyan,
+  },
+  expandMapButtonLocked: { opacity: 0.92 },
+  expandMapButtonText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
+  expandMapButtonTextActive: { color: colours.background },
   liveStats: { flexDirection: 'row', gap: 8, marginTop: 12 },
   liveStat: {
     flex: 1,
