@@ -117,7 +117,7 @@ function ensureSupabase() {
 }
 
 function toInFilter(ids: string[]) {
-  return `(${ids.map((id) => `"${id.replace(/"/g, '\\"')}"`).join(',')})`;
+  return `(${ids.join(',')})`;
 }
 
 function resolveUpdatedAt(value: string | undefined, fallback?: string) {

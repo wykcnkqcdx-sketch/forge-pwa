@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import type { Session } from '@supabase/supabase-js';
@@ -71,6 +71,15 @@ const COACH_SELF: import('./data/mockData').SquadMember = {
   load: 0,
 };
 
+function safeJsonParse<T>(json: string, key: string): T | null {
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    console.error(`Corrupted stored data for "${key}", falling back to defaults`);
+    return null;
+  }
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
@@ -137,6 +146,7 @@ export default function App() {
       if (isBrowserOffline()) offlineSyncPending.current = true;
     } catch (error) {
       console.error('Failed to enqueue offline mutation', error);
+      showToast('Save failed — change may not sync');
     }
   }, [cloudSession?.user, isBrowserOffline, refreshPendingSyncCount]);
 
@@ -353,22 +363,28 @@ export default function App() {
     async function loadData() {
       try {
         const storedSessions = await secureGetItem('forge:sessions');
-        if (storedSessions) setSessions(JSON.parse(storedSessions));
+        const parsedSessions = storedSessions ? safeJsonParse<TrainingSession[]>(storedSessions, 'forge:sessions') : null;
+        if (parsedSessions) setSessions(parsedSessions);
 
         const storedMembers = await secureGetItem('forge:members');
-        if (storedMembers) setMembers(JSON.parse(storedMembers));
+        const parsedMembers = storedMembers ? safeJsonParse<SquadMember[]>(storedMembers, 'forge:members') : null;
+        if (parsedMembers) setMembers(parsedMembers);
 
         const storedGroups = await secureGetItem('forge:groups');
-        if (storedGroups) setGroups(JSON.parse(storedGroups));
+        const parsedGroups = storedGroups ? safeJsonParse<TrainingGroup[]>(storedGroups, 'forge:groups') : null;
+        if (parsedGroups) setGroups(parsedGroups);
 
         const storedProgrammeTemplates = await secureGetItem('forge:programme_templates');
-        if (storedProgrammeTemplates) setProgrammeTemplates(JSON.parse(storedProgrammeTemplates));
+        const parsedTemplates = storedProgrammeTemplates ? safeJsonParse<ProgrammeTemplate[]>(storedProgrammeTemplates, 'forge:programme_templates') : null;
+        if (parsedTemplates) setProgrammeTemplates(parsedTemplates);
 
         const storedReadiness = await secureGetItem('forge:readiness_logs');
-        if (storedReadiness) setReadinessLogs(JSON.parse(storedReadiness));
+        const parsedReadiness = storedReadiness ? safeJsonParse<ReadinessLog[]>(storedReadiness, 'forge:readiness_logs') : null;
+        if (parsedReadiness) setReadinessLogs(parsedReadiness);
 
         const storedCompletions = await secureGetItem('forge:workout_completions');
-        if (storedCompletions) setWorkoutCompletions(JSON.parse(storedCompletions));
+        const parsedCompletions = storedCompletions ? safeJsonParse<WorkoutCompletion[]>(storedCompletions, 'forge:workout_completions') : null;
+        if (parsedCompletions) setWorkoutCompletions(parsedCompletions);
 
         const storedGoogleSheetsEndpoint = await secureGetItem('forge:google_sheets_endpoint');
         if (storedGoogleSheetsEndpoint) setGoogleSheetsEndpoint(storedGoogleSheetsEndpoint);
@@ -486,6 +502,7 @@ export default function App() {
         if (!cancelled) {
           cloudHydrated.current = true;
           setCloudStatus('error');
+          showToast('Cloud sync failed — working offline');
         }
       }
     }
@@ -768,23 +785,6 @@ export default function App() {
     const updatedLog = { ...log, updatedAt: new Date().toISOString() };
     setReadinessLogs((current) => [updatedLog, ...current]);
     enqueueCloudMutation({ type: 'upsert_readiness_log', payload: updatedLog });
-  }
-
-  function addWorkoutCompletion(completion: WorkoutCompletion) {
-    const updatedCompletion = { ...completion, updatedAt: new Date().toISOString() };
-    setWorkoutCompletions((current) => [updatedCompletion, ...current]);
-    enqueueCloudMutation({ type: 'upsert_workout_completion', payload: updatedCompletion });
-  }
-
-  function openCoachView() {
-    setActiveMemberId(null);
-    setActiveMemberTab('portal');
-    setActiveTab('instructor');
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('member');
-      window.history.replaceState({}, '', url.toString());
-    }
   }
 
   async function signInWithEmail(email: string, password: string) {
@@ -1519,7 +1519,7 @@ const styles = StyleSheet.create({
   hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 },
   pinErrorText: { color: colours.red, fontSize: 12, fontWeight: '700', minHeight: 16 },
   pinSetupOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
     zIndex: 20,
     justifyContent: 'center',
     padding: 20,
