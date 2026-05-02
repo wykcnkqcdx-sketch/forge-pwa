@@ -32,6 +32,12 @@ function formatDuration(minutes: number) {
   return `${hrs}h ${String(mins).padStart(2, '0')}m`;
 }
 
+function formatSignedMinutes(minutes: number) {
+  const rounded = Math.round(minutes);
+  if (rounded === 0) return 'On time';
+  return `${Math.abs(rounded)} min ${rounded > 0 ? 'behind' : 'ahead'}`;
+}
+
 function cardinalDirection(degrees: number) {
   const labels = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   return labels[Math.round(degrees / 45) % labels.length];
@@ -63,6 +69,12 @@ type TrackingState = {
   startTime: Date | null;
   rejectedPointCount: number;
   lastRejectedReason: string | null;
+};
+
+type RuckSplit = {
+  km: number;
+  elapsedSeconds: number;
+  splitSeconds: number;
 };
 
 type TrackingAction =
@@ -179,6 +191,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [mapViewport, setMapViewport] = useState<MapViewport>({ width: 0, height: 0 });
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [targetDistanceKm, setTargetDistanceKm] = useState(8);
+  const [targetMinutes, setTargetMinutes] = useState(105);
+  const [checkpointIntervalKm, setCheckpointIntervalKm] = useState(2);
+  const [checkpointIndex, setCheckpointIndex] = useState(0);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const rotationAnim = useRef(new Animated.Value(0)).current;
@@ -218,6 +234,59 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     if (currentPoint.accuracy <= WEAK_ACCURACY_METERS) return { label: 'GOOD', tone: colours.green, detail: `+/-${Math.round(currentPoint.accuracy)}m` };
     return { label: 'WEAK', tone: colours.amber, detail: `+/-${Math.round(currentPoint.accuracy)}m` };
   }, [currentPoint]);
+  const targetPace = useMemo(() => targetMinutes / Math.max(0.1, targetDistanceKm), [targetDistanceKm, targetMinutes]);
+  const targetPaceLabel = `${targetPace.toFixed(1)}/km`;
+  const targetProjectedMinutes = currentDistance > 0.02 && elapsedSeconds > 0
+    ? (elapsedSeconds / 60 / currentDistance) * targetDistanceKm
+    : null;
+  const targetDeltaMinutes = currentDistance > 0.02 ? elapsedSeconds / 60 - currentDistance * targetPace : 0;
+  const targetRemainingKm = Math.max(0, targetDistanceKm - currentDistance);
+  const targetEtaMinutes = currentDistance > 0.02 && elapsedSeconds > 0
+    ? targetRemainingKm * (elapsedSeconds / 60 / currentDistance)
+    : targetRemainingKm * targetPace;
+  const checkpointCount = Math.max(1, Math.ceil(targetDistanceKm / checkpointIntervalKm));
+  const nextCheckpointIndex = Math.min(checkpointCount, checkpointIndex + 1);
+  const nextCheckpointKm = Math.min(targetDistanceKm, nextCheckpointIndex * checkpointIntervalKm);
+  const checkpointRemainingKm = Math.max(0, nextCheckpointKm - currentDistance);
+  const checkpointEtaMinutes = currentDistance > 0.02 && elapsedSeconds > 0
+    ? checkpointRemainingKm * (elapsedSeconds / 60 / currentDistance)
+    : checkpointRemainingKm * targetPace;
+  const checkpointStatus = checkpointIndex >= checkpointCount
+    ? 'All checkpoints complete'
+    : `CP ${nextCheckpointIndex}/${checkpointCount}`;
+  const splits = useMemo<RuckSplit[]>(() => {
+    if (routePoints.length < 2) return [];
+
+    const completed: RuckSplit[] = [];
+    let cumulativeKm = 0;
+    let nextKm = 1;
+    let previousElapsed = 0;
+    const firstTimestamp = routePoints[0].timestamp;
+
+    for (let i = 1; i < routePoints.length; i += 1) {
+      const start = routePoints[i - 1];
+      const end = routePoints[i];
+      const segmentKm = distanceBetween(start, end);
+      const segmentStartKm = cumulativeKm;
+      cumulativeKm += segmentKm;
+
+      while (cumulativeKm >= nextKm) {
+        const ratio = segmentKm > 0 ? (nextKm - segmentStartKm) / segmentKm : 1;
+        const timestamp = start.timestamp + (end.timestamp - start.timestamp) * Math.max(0, Math.min(1, ratio));
+        const elapsedForSplit = Math.max(0, Math.round((timestamp - firstTimestamp) / 1000));
+        completed.push({
+          km: nextKm,
+          elapsedSeconds: elapsedForSplit,
+          splitSeconds: elapsedForSplit - previousElapsed,
+        });
+        previousElapsed = elapsedForSplit;
+        nextKm += 1;
+      }
+    }
+
+    return completed;
+  }, [routePoints]);
+  const latestSplit = splits[splits.length - 1] ?? null;
 
   const recordLocation = useCallback((location: Location.LocationObject) => {
     const nextPoint = toTrackPoint(location);
@@ -326,6 +395,11 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     return () => subscription.remove();
   }, [isTracking, recordLocation]);
 
+  useEffect(() => {
+    const reachedIndex = Math.min(checkpointCount, Math.floor(currentDistance / checkpointIntervalKm));
+    setCheckpointIndex((current) => Math.max(current, reachedIndex));
+  }, [checkpointCount, checkpointIntervalKm, currentDistance]);
+
   const stopTracking = async () => {
     dispatchTracking({ type: 'stopped' });
     foregroundLocationSubscription.current?.remove();
@@ -416,12 +490,14 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     addSession(session);
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
     dispatchTracking({ type: 'reset' });
+    setCheckpointIndex(0);
     clearActiveRoute();
   };
 
   const discardTrackedRuck = () => {
     stopTracking();
     dispatchTracking({ type: 'reset' });
+    setCheckpointIndex(0);
     clearActiveRoute();
   };
 
@@ -441,6 +517,24 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     [weight, distance, plannedAscentM]
   );
   const activePace = currentDistance > 0.02 ? (elapsedSeconds / 60 / currentDistance).toFixed(1) : '--';
+
+  function changeTargetDistance(amount: number) {
+    setTargetDistanceKm((current) => Math.round(Math.min(40, Math.max(1, current + amount)) * 10) / 10);
+    setCheckpointIndex(0);
+  }
+
+  function changeTargetMinutes(amount: number) {
+    setTargetMinutes((current) => Math.min(360, Math.max(20, current + amount)));
+  }
+
+  function changeCheckpointInterval(amount: number) {
+    setCheckpointIntervalKm((current) => Math.round(Math.min(10, Math.max(0.5, current + amount)) * 10) / 10);
+    setCheckpointIndex(0);
+  }
+
+  function markCheckpointReached() {
+    setCheckpointIndex((current) => Math.min(checkpointCount, current + 1));
+  }
 
   function changeWeight(amount: number) {
     setWeight((current) => Math.min(35, Math.max(5, current + amount)));
@@ -644,6 +738,11 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                   <Text style={styles.mapTelemetryLabel}>ALT M</Text>
                 </View>
               </View>
+              <View style={styles.mapMissionStrip} pointerEvents="none">
+                <Text style={styles.mapMissionText}>{formatSignedMinutes(targetDeltaMinutes)}</Text>
+                <Text style={styles.mapMissionText}>{checkpointStatus}</Text>
+                <Text style={styles.mapMissionText}>{checkpointRemainingKm.toFixed(1)}km to CP</Text>
+              </View>
             </>
           )}
           {mapTiles.length > 0 && (
@@ -718,6 +817,141 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           </Pressable>
         )}
       </View>
+
+      <Card>
+        <View style={styles.navHeader}>
+          <View>
+            <Text style={styles.cardTitle}>Mission Pace</Text>
+            <Text style={styles.muted}>Target, splits, checkpoints</Text>
+          </View>
+          <View style={[styles.signalBadge, { borderColor: `${targetDeltaMinutes <= 0 ? colours.green : colours.amber}55`, backgroundColor: `${targetDeltaMinutes <= 0 ? colours.green : colours.amber}14` }]}>
+            <Text style={[styles.signalText, { color: targetDeltaMinutes <= 0 ? colours.green : colours.amber }]}>
+              {currentDistance > 0.02 ? formatSignedMinutes(targetDeltaMinutes).toUpperCase() : 'READY'}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Target Distance</Text>
+          <View style={styles.buttons}>
+            <Pressable style={styles.smallButton} onPress={() => changeTargetDistance(-0.5)}>
+              <Text style={styles.smallButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.controlValue}>{targetDistanceKm.toFixed(1)}km</Text>
+            <Pressable style={styles.smallButton} onPress={() => changeTargetDistance(0.5)}>
+              <Text style={styles.smallButtonText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Target Time</Text>
+          <View style={styles.buttons}>
+            <Pressable style={styles.smallButton} onPress={() => changeTargetMinutes(-5)}>
+              <Text style={styles.smallButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.controlValue}>{formatDuration(targetMinutes)}</Text>
+            <Pressable style={styles.smallButton} onPress={() => changeTargetMinutes(5)}>
+              <Text style={styles.smallButtonText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.navGrid}>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{targetPaceLabel}</Text>
+            <Text style={styles.navLabel}>Target pace</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{targetRemainingKm.toFixed(1)}km</Text>
+            <Text style={styles.navLabel}>Remaining</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{formatDuration(targetEtaMinutes)}</Text>
+            <Text style={styles.navLabel}>ETA at current pace</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{targetProjectedMinutes == null ? '--' : formatDuration(targetProjectedMinutes)}</Text>
+            <Text style={styles.navLabel}>Projected finish</Text>
+          </View>
+        </View>
+      </Card>
+
+      <Card>
+        <View style={styles.navHeader}>
+          <View>
+            <Text style={styles.cardTitle}>1km Splits</Text>
+            <Text style={styles.muted}>{splits.length > 0 ? `${splits.length} completed` : 'Auto records while GPS moves'}</Text>
+          </View>
+          <View style={styles.splitBadge}>
+            <Text style={styles.splitBadgeValue}>{latestSplit ? `${Math.round(latestSplit.splitSeconds / 60)}m` : '--'}</Text>
+            <Text style={styles.splitBadgeLabel}>LAST</Text>
+          </View>
+        </View>
+
+        {splits.length === 0 ? (
+          <Text style={styles.navGuide}>Your first split appears when the tracked route reaches 1km.</Text>
+        ) : (
+          <View style={styles.splitList}>
+            {splits.slice(-5).map((split) => (
+              <View key={split.km} style={styles.splitRow}>
+                <Text style={styles.splitKm}>KM {split.km}</Text>
+                <Text style={styles.splitValue}>{formatElapsed(split.splitSeconds)}</Text>
+                <Text style={styles.splitMeta}>{formatElapsed(split.elapsedSeconds)} total</Text>
+              </View>
+            ))}
+          </View>
+        )}
+      </Card>
+
+      <Card>
+        <View style={styles.navHeader}>
+          <View>
+            <Text style={styles.cardTitle}>Checkpoint Mode</Text>
+            <Text style={styles.muted}>{checkpointStatus}</Text>
+          </View>
+          <Pressable
+            style={[styles.checkpointButton, checkpointIndex >= checkpointCount && styles.checkpointButtonDisabled]}
+            onPress={markCheckpointReached}
+            disabled={checkpointIndex >= checkpointCount}
+          >
+            <Ionicons name="flag" size={16} color={colours.background} />
+            <Text style={styles.checkpointButtonText}>Mark</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.controlRow}>
+          <Text style={styles.controlLabel}>Checkpoint Every</Text>
+          <View style={styles.buttons}>
+            <Pressable style={styles.smallButton} onPress={() => changeCheckpointInterval(-0.5)}>
+              <Text style={styles.smallButtonText}>-</Text>
+            </Pressable>
+            <Text style={styles.controlValue}>{checkpointIntervalKm.toFixed(1)}km</Text>
+            <Pressable style={styles.smallButton} onPress={() => changeCheckpointInterval(0.5)}>
+              <Text style={styles.smallButtonText}>+</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.navGrid}>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{nextCheckpointKm.toFixed(1)}km</Text>
+            <Text style={styles.navLabel}>Next checkpoint</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{checkpointRemainingKm.toFixed(1)}km</Text>
+            <Text style={styles.navLabel}>Distance to CP</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{formatDuration(checkpointEtaMinutes)}</Text>
+            <Text style={styles.navLabel}>ETA to CP</Text>
+          </View>
+          <View style={styles.navItem}>
+            <Text style={styles.navValue}>{displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
+            <Text style={styles.navLabel}>Current bearing</Text>
+          </View>
+        </View>
+      </Card>
 
       <View style={styles.grid}>
         <MetricCard icon="barbell" label="Pack" value={`${weight}kg`} sub="ruck load" />
@@ -1065,6 +1299,23 @@ const styles = StyleSheet.create({
   },
   mapTelemetryValue: { color: colours.text, fontSize: 14, fontWeight: '900' },
   mapTelemetryLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1, marginTop: 2 },
+  mapMissionStrip: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 82,
+    minHeight: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+    backgroundColor: 'rgba(4,8,15,0.72)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  mapMissionText: { color: colours.text, fontSize: 10, fontWeight: '900' },
   expandMapButton: {
     minHeight: 40,
     marginTop: 10,
@@ -1136,6 +1387,47 @@ const styles = StyleSheet.create({
   navValue: { color: colours.cyan, fontSize: 17, fontWeight: '900' },
   navLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', marginTop: 3 },
   navGuide: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 12 },
+  splitBadge: {
+    minWidth: 58,
+    minHeight: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  splitBadgeValue: { color: colours.cyan, fontSize: 15, fontWeight: '900' },
+  splitBadgeLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  splitList: { marginTop: 12, gap: 8 },
+  splitRow: {
+    minHeight: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 10,
+  },
+  splitKm: { color: colours.text, fontSize: 12, fontWeight: '900', width: 52 },
+  splitValue: { color: colours.cyan, fontSize: 15, fontWeight: '900', flex: 1, textAlign: 'center' },
+  splitMeta: { color: colours.muted, fontSize: 11, fontWeight: '800', width: 84, textAlign: 'right' },
+  checkpointButton: {
+    minHeight: 40,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+  },
+  checkpointButtonDisabled: { opacity: 0.5 },
+  checkpointButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
   score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
