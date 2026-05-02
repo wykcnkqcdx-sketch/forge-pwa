@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, TrackPoint, WorkoutCompletion } from '../data/domain';
 import { supabase } from './supabase';
@@ -8,91 +9,113 @@ const MIN_SYNCED_ROUTE_DISTANCE_METERS = 8;
 const MIN_SYNCED_ROUTE_INTERVAL_MS = 5000;
 const ROUTE_SIMPLIFICATION_TOLERANCE_METERS = 10;
 
-type RemoteTrainingSessionRow = {
-  id: string;
-  user_id: string;
-  type: TrainingSession['type'];
-  title: string;
-  score: number;
-  duration_minutes: number;
-  rpe: number;
-  load_kg: number | null;
-  route_points: TrainingSession['routePoints'] | null;
-  completed_at: string | null;
-  updated_at: string | null;
-};
+// ── Zod schemas — single source of truth for Supabase row shapes ──────────────
+// Catches schema drift (renamed columns, type changes) at the API boundary
+// before it can silently corrupt local state.
 
-type RemoteSquadMemberRow = {
-  id: string;
-  user_id: string;
-  name: string;
-  gym_name: string | null;
-  email: string | null;
-  group_id: string;
-  readiness: number;
-  compliance: number;
-  risk: SquadMember['risk'];
-  load: number;
-  invite_status: SquadMember['inviteStatus'] | null;
-  assignment: string | null;
-  pinned_exercise_ids: string[] | null;
-  ghost_mode: boolean | null;
-  streak_days: number | null;
-  weekly_volume: number | null;
-  last_workout_title: string | null;
-  last_workout_at: string | null;
-  last_workout_note: string | null;
-  hype_count: number | null;
-  device_sync_provider: SquadMember['deviceSyncProvider'] | null;
-  device_sync_status: SquadMember['deviceSyncStatus'] | null;
-  device_connected_at: string | null;
-  device_last_sync_at: string | null;
-  imported_sleep_hours: number | null;
-  imported_resting_hr: number | null;
-  imported_hrv: number | null;
-  assignment_session: SquadMember['assignmentSession'] | null;
-  updated_at: string | null;
-};
+const TrackPointSchema = z.object({
+  latitude: z.number(),
+  longitude: z.number(),
+  altitude: z.number().nullable(),
+  accuracy: z.number().nullable(),
+  timestamp: z.number(),
+});
 
-type RemoteWorkoutCompletionRow = {
-  id: string;
-  user_id: string;
-  member_id: string;
-  member_name: string;
-  group_id: string;
-  completion_type: WorkoutCompletion['completionType'];
-  session_kind: WorkoutCompletion['sessionKind'];
-  assignment: string;
-  effort: WorkoutCompletion['effort'];
-  duration_minutes: number;
-  note: string | null;
-  volume: number;
-  exercises: WorkoutCompletion['exercises'] | null;
-  completed_at: string;
-  updated_at: string | null;
-};
+const RemoteSessionSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  type: z.enum(['Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Run', 'Mobility']),
+  title: z.string(),
+  score: z.number(),
+  duration_minutes: z.number(),
+  rpe: z.number(),
+  load_kg: z.number().nullable(),
+  route_points: z.array(TrackPointSchema).nullable(),
+  completed_at: z.string().nullable(),
+  updated_at: z.string().nullable(),
+});
+type RemoteTrainingSessionRow = z.infer<typeof RemoteSessionSchema>;
 
-type RemoteReadinessLogRow = {
-  id: string;
-  user_id: string;
-  member_id: string | null;
-  member_name: string | null;
-  group_id: string | null;
-  logged_at: string;
-  sleep_hours: number | null;
-  sleep_quality: number;
-  soreness: number;
-  stress: number | null;
-  pain: number | null;
-  hydration: ReadinessLog['hydration'];
-  mood: number | null;
-  illness: number | null;
-  pain_area: ReadinessLog['painArea'] | null;
-  limits_training: boolean | null;
-  resting_hr: number | null;
-  hrv: number | null;
-  updated_at: string | null;
-};
+const RemoteMemberSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  name: z.string(),
+  gym_name: z.string().nullable(),
+  email: z.string().nullable(),
+  group_id: z.string(),
+  readiness: z.number(),
+  compliance: z.number(),
+  risk: z.enum(['Low', 'Medium', 'High']),
+  load: z.number(),
+  invite_status: z.enum(['Manual', 'Invited', 'Joined']).nullable(),
+  assignment: z.string().nullable(),
+  pinned_exercise_ids: z.array(z.string()).nullable(),
+  ghost_mode: z.boolean().nullable(),
+  streak_days: z.number().nullable(),
+  weekly_volume: z.number().nullable(),
+  last_workout_title: z.string().nullable(),
+  last_workout_at: z.string().nullable(),
+  last_workout_note: z.string().nullable(),
+  hype_count: z.number().nullable(),
+  device_sync_provider: z.enum(['Apple Health']).nullable(),
+  device_sync_status: z.enum(['Disconnected', 'Ready', 'Connected', 'Unsupported']).nullable(),
+  device_connected_at: z.string().nullable(),
+  device_last_sync_at: z.string().nullable(),
+  imported_sleep_hours: z.number().nullable(),
+  imported_resting_hr: z.number().nullable(),
+  imported_hrv: z.number().nullable(),
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  assignment_session: z.any(),
+  updated_at: z.string().nullable(),
+});
+type RemoteSquadMemberRow = z.infer<typeof RemoteMemberSchema>;
+
+const RemoteCompletionSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  member_id: z.string(),
+  member_name: z.string(),
+  group_id: z.string(),
+  completion_type: z.enum(['assigned', 'quick_log', 'ad_hoc']),
+  session_kind: z.enum(['Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Run', 'Mobility']),
+  assignment: z.string(),
+  effort: z.enum(['Too Easy', 'About Right', 'Too Hard']),
+  duration_minutes: z.number(),
+  note: z.string().nullable(),
+  volume: z.number(),
+  exercises: z.array(z.object({
+    name: z.string(),
+    sets: z.number().optional(),
+    reps: z.number().optional(),
+    loadKg: z.number().optional(),
+  })).nullable(),
+  completed_at: z.string(),
+  updated_at: z.string().nullable(),
+});
+type RemoteWorkoutCompletionRow = z.infer<typeof RemoteCompletionSchema>;
+
+const RemoteReadinessSchema = z.object({
+  id: z.string(),
+  user_id: z.string(),
+  member_id: z.string().nullable(),
+  member_name: z.string().nullable(),
+  group_id: z.string().nullable(),
+  logged_at: z.string(),
+  sleep_hours: z.number().nullable(),
+  sleep_quality: z.number(),
+  soreness: z.number(),
+  stress: z.number().nullable(),
+  pain: z.number().nullable(),
+  hydration: z.enum(['Poor', 'Adequate', 'Optimal']),
+  mood: z.number().nullable(),
+  illness: z.number().nullable(),
+  pain_area: z.enum(['Knee', 'Back', 'Shoulder', 'Hip', 'Ankle', 'Other']).nullable(),
+  limits_training: z.boolean().nullable(),
+  resting_hr: z.number().nullable(),
+  hrv: z.number().nullable(),
+  updated_at: z.string().nullable(),
+});
+type RemoteReadinessLogRow = z.infer<typeof RemoteReadinessSchema>;
 
 type CloudSnapshot = {
   sessions: TrainingSession[];
@@ -474,10 +497,10 @@ export async function fetchCloudSnapshot(userId: string): Promise<CloudSnapshot>
   if (readinessResponse.error) throw readinessResponse.error;
 
   return {
-    sessions: (sessionResponse.data as RemoteTrainingSessionRow[]).map(fromRemoteSession),
-    members: (memberResponse.data as RemoteSquadMemberRow[]).map(fromRemoteMember),
-    workoutCompletions: (completionResponse.data as RemoteWorkoutCompletionRow[]).map(fromRemoteCompletion),
-    readinessLogs: (readinessResponse.data as RemoteReadinessLogRow[]).map(fromRemoteReadiness),
+    sessions: z.array(RemoteSessionSchema).parse(sessionResponse.data).map(fromRemoteSession),
+    members: z.array(RemoteMemberSchema).parse(memberResponse.data).map(fromRemoteMember),
+    workoutCompletions: z.array(RemoteCompletionSchema).parse(completionResponse.data).map(fromRemoteCompletion),
+    readinessLogs: z.array(RemoteReadinessSchema).parse(readinessResponse.data).map(fromRemoteReadiness),
   };
 }
 
