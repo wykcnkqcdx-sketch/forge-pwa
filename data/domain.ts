@@ -24,6 +24,7 @@ export type RuckMissionPlan = {
   targetMinutes: number;
   checkpointIntervalKm: number;
   checkpointIndex: number;
+  finishMode?: 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
   plannedCheckpoints: RuckCheckpoint[];
   selectedCheckpointId: string | null;
   splits?: RuckSplit[];

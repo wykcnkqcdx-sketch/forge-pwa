@@ -70,6 +70,60 @@ const BEARING_OFF_DEGREES = 45;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 type FinishMode = 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
 
+type RuckTemplate = {
+  id: string;
+  label: string;
+  detail: string;
+  targetDistanceKm: number;
+  targetMinutes: number;
+  checkpointIntervalKm: number;
+  finishMode: FinishMode;
+  checkpointLabels: string[];
+};
+
+const ruckTemplates: RuckTemplate[] = [
+  {
+    id: 'assessment',
+    label: 'Fitness Assessment',
+    detail: '12 mile / 19.3km standard',
+    targetDistanceKm: 19.3,
+    targetMinutes: 180,
+    checkpointIntervalKm: 4.8,
+    finishMode: 'target',
+    checkpointLabels: ['Start', '3 Mile', '6 Mile', '9 Mile', 'Finish'],
+  },
+  {
+    id: 'navigation',
+    label: 'Navigation Practice',
+    detail: 'checkpoint-led route',
+    targetDistanceKm: 8,
+    targetMinutes: 120,
+    checkpointIntervalKm: 2,
+    finishMode: 'finalCheckpoint',
+    checkpointLabels: ['Start', 'CP 1', 'CP 2', 'CP 3', 'Finish'],
+  },
+  {
+    id: 'loaded',
+    label: 'Loaded Training',
+    detail: 'pace and split focused',
+    targetDistanceKm: 8,
+    targetMinutes: 105,
+    checkpointIntervalKm: 2,
+    finishMode: 'target',
+    checkpointLabels: [],
+  },
+  {
+    id: 'patrol',
+    label: 'Patrol Route',
+    detail: 'RV and finish control',
+    targetDistanceKm: 10,
+    targetMinutes: 150,
+    checkpointIntervalKm: 2.5,
+    finishMode: 'finalCheckpoint',
+    checkpointLabels: ['Start', 'RV 1', 'RV 2', 'RV 3', 'Finish'],
+  },
+];
+
 type TrackingState = {
   status: TrackingStatus;
   currentDistance: number;
@@ -204,6 +258,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [checkpointLabelInput, setCheckpointLabelInput] = useState('');
   const [checkpointBulkInput, setCheckpointBulkInput] = useState('');
   const [finishMode, setFinishMode] = useState<FinishMode>('target');
+  const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [planRestored, setPlanRestored] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -402,6 +457,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           setTargetMinutes(plan.targetMinutes);
           setCheckpointIntervalKm(plan.checkpointIntervalKm);
           setCheckpointIndex(plan.checkpointIndex);
+          setFinishMode(plan.finishMode ?? 'target');
           setPlannedCheckpoints(plan.plannedCheckpoints.map((checkpoint) => ({
             ...checkpoint,
             status: checkpoint.status ?? 'planned',
@@ -482,6 +538,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       targetMinutes,
       checkpointIntervalKm,
       checkpointIndex,
+      finishMode,
       plannedCheckpoints,
       selectedCheckpointId,
     };
@@ -489,7 +546,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     saveActiveRuckPlan(plan).catch((error) => {
       console.error('Failed to persist active ruck plan', error);
     });
-  }, [checkpointIndex, checkpointIntervalKm, planRestored, plannedCheckpoints, selectedCheckpointId, targetDistanceKm, targetMinutes]);
+  }, [checkpointIndex, checkpointIntervalKm, finishMode, planRestored, plannedCheckpoints, selectedCheckpointId, targetDistanceKm, targetMinutes]);
 
   useEffect(() => {
     if (!isTracking || !startTime) return undefined;
@@ -623,6 +680,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       targetMinutes,
       checkpointIntervalKm,
       checkpointIndex,
+      finishMode,
       plannedCheckpoints,
       selectedCheckpointId,
       splits,
@@ -688,6 +746,22 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   function changeCheckpointInterval(amount: number) {
     setCheckpointIntervalKm((current) => Math.round(Math.min(10, Math.max(0.5, current + amount)) * 10) / 10);
     setCheckpointIndex(0);
+  }
+
+  function applyTemplate(template: RuckTemplate) {
+    setActiveTemplateId(template.id);
+    setTargetDistanceKm(template.targetDistanceKm);
+    setTargetMinutes(template.targetMinutes);
+    setCheckpointIntervalKm(template.checkpointIntervalKm);
+    setCheckpointIndex(0);
+    setFinishMode(template.finishMode);
+
+    if (template.checkpointLabels.length > 0) {
+      setPlannedCheckpoints((current) => current.map((checkpoint, index) => ({
+        ...checkpoint,
+        label: template.checkpointLabels[index] ?? checkpoint.label,
+      })));
+    }
   }
 
   function markCheckpointReached() {
@@ -1184,6 +1258,22 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               {currentDistance > 0.02 ? formatSignedMinutes(targetDeltaMinutes).toUpperCase() : 'READY'}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.templateGrid}>
+          {ruckTemplates.map((template) => {
+            const selected = activeTemplateId === template.id;
+            return (
+              <Pressable
+                key={template.id}
+                style={[styles.templateButton, selected && styles.templateButtonActive]}
+                onPress={() => applyTemplate(template)}
+              >
+                <Text style={[styles.templateTitle, selected && styles.templateTitleActive]}>{template.label}</Text>
+                <Text style={styles.templateDetail}>{template.detail}</Text>
+              </Pressable>
+            );
+          })}
         </View>
 
         <View style={styles.controlRow}>
@@ -1851,6 +1941,32 @@ const styles = StyleSheet.create({
   },
   mapTelemetryValue: { color: colours.text, fontSize: 14, fontWeight: '900' },
   mapTelemetryLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1, marginTop: 2 },
+  templateGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  templateButton: {
+    width: '48%',
+    flexGrow: 1,
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  templateButtonActive: {
+    borderColor: `${colours.cyan}88`,
+    backgroundColor: colours.cyanDim,
+  },
+  templateTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
+  templateTitleActive: { color: colours.cyan },
+  templateDetail: { color: colours.muted, fontSize: 10, fontWeight: '800', marginTop: 3 },
   mapMissionStrip: {
     position: 'absolute',
     left: 10,
