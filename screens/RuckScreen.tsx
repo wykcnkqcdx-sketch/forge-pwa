@@ -16,6 +16,7 @@ import { CoordinateFormat, coordinateFormatOptions, formatCoordinate, parseCoord
 import { buildVisibleTiles, getMercatorRoutePoints, MapLayerKey, mapLayerOptions, MapViewport } from '../utils/mapTiles';
 import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadActiveRoute, loadActiveRuckPlan, replaceActiveRoute, resetActiveRoute, saveActiveRuckPlan } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
+import { secureGetItem, secureSetItem } from '../lib/secureStorage';
 
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
@@ -79,6 +80,8 @@ type RuckTemplate = {
   checkpointIntervalKm: number;
   finishMode: FinishMode;
   checkpointLabels: string[];
+  checkpoints?: RuckCheckpoint[];
+  custom?: boolean;
 };
 
 const ruckTemplates: RuckTemplate[] = [
@@ -123,6 +126,8 @@ const ruckTemplates: RuckTemplate[] = [
     checkpointLabels: ['Start', 'RV 1', 'RV 2', 'RV 3', 'Finish'],
   },
 ];
+
+const CUSTOM_RUCK_TEMPLATES_KEY = 'forge:ruck_templates';
 
 type TrackingState = {
   status: TrackingStatus;
@@ -259,6 +264,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [checkpointBulkInput, setCheckpointBulkInput] = useState('');
   const [finishMode, setFinishMode] = useState<FinishMode>('target');
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
+  const [customTemplates, setCustomTemplates] = useState<RuckTemplate[]>([]);
+  const [templateNameInput, setTemplateNameInput] = useState('');
   const [planRestored, setPlanRestored] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
@@ -268,6 +275,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const { currentDistance, elapsedSeconds, routePoints, startTime, status, rejectedPointCount, lastRejectedReason } = trackingState;
   const isTracking = status === 'tracking';
   const isStarting = status === 'starting';
+  const allRuckTemplates = useMemo(() => [...ruckTemplates, ...customTemplates], [customTemplates]);
 
   const currentPoint = routePoints[routePoints.length - 1];
   const currentCoordinate = currentPoint
@@ -459,6 +467,14 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       try {
         const points = await loadActiveRoute();
         const plan = await loadActiveRuckPlan();
+        const storedTemplates = await secureGetItem(CUSTOM_RUCK_TEMPLATES_KEY);
+        if (storedTemplates) {
+          try {
+            setCustomTemplates(JSON.parse(storedTemplates) as RuckTemplate[]);
+          } catch {
+            console.error('Failed to parse custom ruck templates');
+          }
+        }
 
         if (plan) {
           setTargetDistanceKm(plan.targetDistanceKm);
@@ -503,6 +519,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     }
     restoreSession();
   }, []);
+
+  useEffect(() => {
+    if (!planRestored) return;
+    secureSetItem(CUSTOM_RUCK_TEMPLATES_KEY, JSON.stringify(customTemplates)).catch((error) => {
+      console.error('Failed to persist custom ruck templates', error);
+    });
+  }, [customTemplates, planRestored]);
 
   useEffect(() => {
     setCheckpointLabelInput(selectedCheckpoint?.label ?? '');
@@ -764,6 +787,19 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCheckpointIndex(0);
     setFinishMode(template.finishMode);
 
+    if (template.checkpoints) {
+      const createdAt = Date.now();
+      const checkpoints = template.checkpoints.map((checkpoint, index) => ({
+        ...checkpoint,
+        id: `cp-custom-${template.id}-${createdAt}-${index}`,
+        status: 'planned' as const,
+        timestamp: createdAt,
+      }));
+      setPlannedCheckpoints(checkpoints);
+      setSelectedCheckpointId(checkpoints[0]?.id ?? null);
+      return;
+    }
+
     if (template.checkpointLabels.length > 0) {
       const createdAt = Date.now();
       const templateCheckpoints: RuckCheckpoint[] = template.checkpointLabels.map((label, index) => ({
@@ -790,6 +826,49 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       });
       setSelectedCheckpointId((current) => current ?? templateCheckpoints[0]?.id ?? null);
     }
+  }
+
+  function saveCustomTemplate() {
+    const label = templateNameInput.trim() || `Custom Route ${customTemplates.length + 1}`;
+    const id = `custom-${Date.now()}`;
+    const template: RuckTemplate = {
+      id,
+      label,
+      detail: `${targetDistanceKm.toFixed(1)}km | ${plannedCheckpoints.length} CP`,
+      targetDistanceKm,
+      targetMinutes,
+      checkpointIntervalKm,
+      finishMode,
+      checkpointLabels: plannedCheckpoints.map((checkpoint) => checkpoint.label),
+      checkpoints: plannedCheckpoints.map((checkpoint, index) => ({
+        ...checkpoint,
+        id: `template-${id}-${index}`,
+        status: 'planned',
+      })),
+      custom: true,
+    };
+
+    setCustomTemplates((current) => [...current, template]);
+    setTemplateNameInput('');
+    setActiveTemplateId(id);
+  }
+
+  function deleteCustomTemplate(templateId: string) {
+    Alert.alert(
+      'Delete Template',
+      'Remove this saved route card template?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => {
+            setCustomTemplates((current) => current.filter((template) => template.id !== templateId));
+            setActiveTemplateId((current) => current === templateId ? null : current);
+          },
+        },
+      ]
+    );
   }
 
   function markCheckpointReached() {
@@ -1289,7 +1368,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         </View>
 
         <View style={styles.templateGrid}>
-          {ruckTemplates.map((template) => {
+          {allRuckTemplates.map((template) => {
             const selected = activeTemplateId === template.id;
             return (
               <Pressable
@@ -1297,11 +1376,30 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                 style={[styles.templateButton, selected && styles.templateButtonActive]}
                 onPress={() => applyTemplate(template)}
               >
+                {template.custom && (
+                  <Pressable style={styles.templateDelete} onPress={() => deleteCustomTemplate(template.id)}>
+                    <Ionicons name="close" size={13} color={colours.text} />
+                  </Pressable>
+                )}
                 <Text style={[styles.templateTitle, selected && styles.templateTitleActive]}>{template.label}</Text>
                 <Text style={styles.templateDetail}>{template.detail}</Text>
               </Pressable>
             );
           })}
+        </View>
+
+        <View style={styles.templateSaveRow}>
+          <TextInput
+            value={templateNameInput}
+            onChangeText={setTemplateNameInput}
+            placeholder="Template name"
+            placeholderTextColor={colours.soft}
+            style={styles.templateNameInput}
+          />
+          <Pressable style={styles.templateSaveButton} onPress={saveCustomTemplate}>
+            <Ionicons name="save" size={16} color={colours.background} />
+            <Text style={styles.templateSaveText}>Save</Text>
+          </Pressable>
         </View>
 
         <View style={styles.controlRow}>
@@ -1991,6 +2089,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 10,
     paddingVertical: 8,
+    position: 'relative',
   },
   templateButtonActive: {
     borderColor: `${colours.cyan}88`,
@@ -1999,6 +2098,47 @@ const styles = StyleSheet.create({
   templateTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
   templateTitleActive: { color: colours.cyan },
   templateDetail: { color: colours.muted, fontSize: 10, fontWeight: '800', marginTop: 3 },
+  templateDelete: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.10)',
+  },
+  templateSaveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  templateNameInput: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '800',
+    paddingHorizontal: 12,
+  },
+  templateSaveButton: {
+    minHeight: 44,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+  },
+  templateSaveText: { color: colours.background, fontSize: 12, fontWeight: '900' },
   mapMissionStrip: {
     position: 'absolute',
     left: 10,
