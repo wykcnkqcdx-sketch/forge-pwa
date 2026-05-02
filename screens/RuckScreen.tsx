@@ -555,6 +555,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCheckpointIndex((current) => Math.min(checkpointCount, current + 1));
   }
 
+  function undoCheckpointMark() {
+    setCheckpointIndex((current) => Math.max(0, current - 1));
+  }
+
   function addCheckpoint(point: Pick<TrackPoint, 'latitude' | 'longitude' | 'altitude' | 'accuracy'>, source: PlannedCheckpoint['source']) {
     const checkpoint: PlannedCheckpoint = {
       id: `cp-${Date.now()}`,
@@ -592,6 +596,19 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   function clearSelectedCheckpoint() {
     if (!selectedCheckpoint) return;
     setPlannedCheckpoints((current) => current.filter((checkpoint) => checkpoint.id !== selectedCheckpoint.id));
+    setSelectedCheckpointId(null);
+  }
+
+  function undoLastCheckpoint() {
+    setPlannedCheckpoints((current) => {
+      const next = current.slice(0, -1);
+      setSelectedCheckpointId(next[next.length - 1]?.id ?? null);
+      return next;
+    });
+  }
+
+  function clearAllCheckpoints() {
+    setPlannedCheckpoints([]);
     setSelectedCheckpointId(null);
   }
 
@@ -1049,9 +1066,17 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                 );
               })}
             </View>
-            <Pressable style={styles.clearCheckpointButton} onPress={clearSelectedCheckpoint}>
-              <Text style={styles.clearCheckpointText}>Remove selected checkpoint</Text>
-            </Pressable>
+            <View style={styles.checkpointActions}>
+              <Pressable style={styles.clearCheckpointButton} onPress={clearSelectedCheckpoint}>
+                <Text style={styles.clearCheckpointText}>Remove selected</Text>
+              </Pressable>
+              <Pressable style={styles.clearCheckpointButton} onPress={undoLastCheckpoint}>
+                <Text style={styles.clearCheckpointText}>Undo last</Text>
+              </Pressable>
+              <Pressable style={styles.clearCheckpointButton} onPress={clearAllCheckpoints}>
+                <Text style={styles.clearCheckpointText}>Clear all</Text>
+              </Pressable>
+            </View>
           </>
         ) : (
           <Text style={styles.navGuide}>Use the active coordinate format selector above the map. LAT/LON, DMS, UTM, and MGRS are accepted.</Text>
@@ -1071,6 +1096,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           >
             <Ionicons name="flag" size={16} color={colours.background} />
             <Text style={styles.checkpointButtonText}>Mark</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.undoMarkButton, checkpointIndex <= 0 && styles.checkpointButtonDisabled]}
+            onPress={undoCheckpointMark}
+            disabled={checkpointIndex <= 0}
+          >
+            <Ionicons name="arrow-undo" size={16} color={colours.text} />
           </Pressable>
         </View>
 
@@ -1630,17 +1662,33 @@ const styles = StyleSheet.create({
   },
   checkpointPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
   checkpointPillTextActive: { color: colours.amber },
+  checkpointActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
   clearCheckpointButton: {
     minHeight: 40,
+    flex: 1,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: colours.borderSoft,
     backgroundColor: 'rgba(255,255,255,0.04)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    paddingHorizontal: 8,
   },
   clearCheckpointText: { color: colours.muted, fontSize: 12, fontWeight: '900' },
+  undoMarkButton: {
+    minHeight: 40,
+    width: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
