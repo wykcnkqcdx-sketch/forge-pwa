@@ -48,6 +48,10 @@ function formatHeading(degrees: number) {
   return `${String(Math.round(degrees)).padStart(3, '0')}deg`;
 }
 
+function headingDifferenceDegrees(current: number, target: number) {
+  return ((target - current + 540) % 360) - 180;
+}
+
 function toTrackPoint(location: Location.LocationObject): TrackPoint {
   return {
     latitude: location.coords.latitude,
@@ -61,6 +65,8 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 const LOCATION_TASK_NAME = 'background-location-task';
 const supportsBackgroundLocation = Platform.OS !== 'web';
 const CHECKPOINT_ARRIVAL_RADIUS_METERS = 50;
+const BEARING_CAUTION_DEGREES = 20;
+const BEARING_OFF_DEGREES = 45;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 
 type TrackingState = {
@@ -267,6 +273,35 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const selectedCheckpointEtaMinutes = selectedCheckpointDistanceKm == null
     ? null
     : selectedCheckpointDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
+  const bearingGuidance = useMemo(() => {
+    if (!selectedCheckpoint || selectedCheckpointBearing == null) {
+      return { label: 'NO CP', detail: 'select checkpoint', tone: colours.muted };
+    }
+    if (selectedCheckpointDistanceKm != null && selectedCheckpointDistanceKm * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS) {
+      return { label: 'ARRIVED', detail: selectedCheckpoint.label, tone: colours.green };
+    }
+    if (activeHeading == null) {
+      return { label: 'NO HDG', detail: 'compass standby', tone: colours.muted };
+    }
+
+    const delta = headingDifferenceDegrees(activeHeading, selectedCheckpointBearing);
+    const absoluteDelta = Math.abs(delta);
+    if (absoluteDelta <= BEARING_CAUTION_DEGREES) {
+      return { label: 'ON BEARING', detail: `${formatHeading(selectedCheckpointBearing)} to ${selectedCheckpoint.label}`, tone: colours.green };
+    }
+    if (absoluteDelta <= BEARING_OFF_DEGREES) {
+      return {
+        label: delta > 0 ? 'CHECK RIGHT' : 'CHECK LEFT',
+        detail: `${Math.round(absoluteDelta)}deg off ${formatHeading(selectedCheckpointBearing)}`,
+        tone: colours.amber,
+      };
+    }
+    return {
+      label: 'OFF BEARING',
+      detail: `${Math.round(absoluteDelta)}deg off ${formatHeading(selectedCheckpointBearing)}`,
+      tone: colours.red,
+    };
+  }, [activeHeading, selectedCheckpoint, selectedCheckpointBearing, selectedCheckpointDistanceKm]);
   const nearestCheckpoint = useMemo(() => {
     if (!currentPoint || plannedCheckpoints.length === 0) return null;
 
@@ -1032,6 +1067,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                   {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
                 </Text>
               </View>
+              <View style={[styles.bearingGuidanceStrip, { borderColor: `${bearingGuidance.tone}66`, backgroundColor: `${bearingGuidance.tone}18` }]} pointerEvents="none">
+                <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
+                <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
+              </View>
             </>
           )}
           {mapTiles.length > 0 && (
@@ -1209,6 +1248,17 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             <Ionicons name="locate" size={16} color={colours.background} />
             <Text style={styles.checkpointButtonText}>Here</Text>
           </Pressable>
+        </View>
+
+        <View style={[styles.bearingPanel, { borderColor: `${bearingGuidance.tone}55`, backgroundColor: `${bearingGuidance.tone}12` }]}>
+          <View>
+            <Text style={[styles.bearingPanelTitle, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
+            <Text style={styles.bearingPanelDetail}>{bearingGuidance.detail}</Text>
+          </View>
+          <View style={styles.bearingPanelMetric}>
+            <Text style={styles.bearingPanelValue}>{selectedCheckpointBearing == null ? '--' : formatHeading(selectedCheckpointBearing)}</Text>
+            <Text style={styles.bearingPanelLabel}>TO CP</Text>
+          </View>
         </View>
 
         <View style={styles.coordinateEntry}>
@@ -1749,6 +1799,22 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   mapMissionText: { color: colours.text, fontSize: 10, fontWeight: '900' },
+  bearingGuidanceStrip: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 122,
+    minHeight: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 10,
+  },
+  bearingGuidanceLabel: { fontSize: 11, fontWeight: '900' },
+  bearingGuidanceDetail: { color: colours.text, fontSize: 10, fontWeight: '800', flex: 1, textAlign: 'right' },
   expandMapButton: {
     minHeight: 40,
     marginTop: 10,
@@ -1861,6 +1927,23 @@ const styles = StyleSheet.create({
   },
   checkpointButtonDisabled: { opacity: 0.5 },
   checkpointButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
+  bearingPanel: {
+    minHeight: 58,
+    borderRadius: 8,
+    borderWidth: 1,
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  bearingPanelTitle: { fontSize: 13, fontWeight: '900' },
+  bearingPanelDetail: { color: colours.textSoft, fontSize: 12, fontWeight: '800', marginTop: 2 },
+  bearingPanelMetric: { alignItems: 'flex-end' },
+  bearingPanelValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
+  bearingPanelLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
   coordinateEntry: {
     flexDirection: 'row',
     alignItems: 'center',
