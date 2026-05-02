@@ -698,8 +698,26 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     }
   };
 
-  const startTracking = async () => {
+  const startTracking = async (overrideReadiness = false) => {
     if (isTracking || isStarting) return;
+
+    if (!overrideReadiness && routeReadinessChecks.blockingIssues > 0) {
+      const issues = routeReadinessChecks.checks
+        .filter((check) => !check.ready)
+        .map((check) => `${check.label}: ${check.value}`)
+        .join('\n');
+
+      Alert.alert(
+        'Check route plan',
+        issues,
+        [
+          { text: 'Review Plan', style: 'cancel' },
+          { text: 'Start Anyway', style: 'destructive', onPress: () => startTracking(true) },
+        ]
+      );
+      return;
+    }
+
     dispatchTracking({ type: 'start_requested' });
 
     try {
@@ -1397,7 +1415,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         ) : (
           <Pressable
             style={[styles.trackButton, isStarting && styles.trackButtonDisabled]}
-            onPress={startTracking}
+            onPress={() => startTracking()}
             disabled={isStarting}
           >
             <Ionicons name={isStarting ? 'sync' : 'play'} size={20} color={colours.background} />
