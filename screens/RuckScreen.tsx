@@ -407,6 +407,58 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const finishProjectedTotalMinutes = elapsedSeconds / 60 + finishEtaMinutes;
   const finishOnTarget = finishProjectedTotalMinutes <= targetMinutes;
   const finishLabel = finishCheckpoint?.label ?? `${targetDistanceKm.toFixed(1)}km target`;
+  const missingGridCount = plannedCheckpoints.length - placedCheckpoints.length;
+  const loadRatio = weight / Math.max(1, bodyMassKg);
+  const routeReadinessChecks = useMemo(() => {
+    const targetPaceRisk = targetPace < 8.5;
+    const finishMissing = finishMode === 'finalCheckpoint' && !finishCheckpoint;
+    const selectedFinishMissing = finishMode === 'selectedCheckpoint' && !selectedCheckpointPoint;
+    const checks = [
+      {
+        label: 'Checkpoint grids',
+        value: missingGridCount === 0 ? 'Ready' : `${missingGridCount} need grid`,
+        tone: missingGridCount === 0 ? colours.green : colours.amber,
+        ready: missingGridCount === 0,
+      },
+      {
+        label: 'Finish setup',
+        value: finishMissing ? 'Final CP missing' : selectedFinishMissing ? 'Selected CP missing' : 'Ready',
+        tone: finishMissing || selectedFinishMissing ? colours.amber : colours.green,
+        ready: !finishMissing && !selectedFinishMissing,
+      },
+      {
+        label: 'Target pace',
+        value: targetPaceRisk ? `${targetPace.toFixed(1)}/km aggressive` : `${targetPace.toFixed(1)}/km`,
+        tone: targetPaceRisk ? colours.amber : colours.green,
+        ready: !targetPaceRisk,
+      },
+      {
+        label: 'Load ratio',
+        value: `${Math.round(loadRatio * 100)}% body mass`,
+        tone: loadRatio >= 0.3 ? colours.red : loadRatio >= 0.25 ? colours.amber : colours.green,
+        ready: loadRatio < 0.3,
+      },
+      {
+        label: 'GPS fix',
+        value: currentPoint ? gpsQuality.detail : 'Awaiting fix',
+        tone: currentPoint ? gpsQuality.tone : colours.amber,
+        ready: !!currentPoint,
+      },
+      {
+        label: 'Background',
+        value: supportsBackgroundLocation ? 'Native ready' : 'Web tab only',
+        tone: supportsBackgroundLocation ? colours.green : colours.amber,
+        ready: supportsBackgroundLocation,
+      },
+    ];
+    const blockingIssues = checks.filter((check) => !check.ready).length;
+    return {
+      checks,
+      status: blockingIssues === 0 ? 'READY' : 'CHECK PLAN',
+      tone: blockingIssues === 0 ? colours.green : blockingIssues >= 3 ? colours.red : colours.amber,
+      blockingIssues,
+    };
+  }, [bodyMassKg, currentPoint, finishCheckpoint, finishMode, gpsQuality.detail, gpsQuality.tone, loadRatio, missingGridCount, selectedCheckpointPoint, targetPace, weight]);
   const splits = useMemo<RuckSplit[]>(() => {
     if (routePoints.length < 2) return [];
 
@@ -1493,6 +1545,28 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       <Card>
         <View style={styles.navHeader}>
           <View>
+            <Text style={styles.cardTitle}>Route Readiness</Text>
+            <Text style={styles.muted}>{routeReadinessChecks.blockingIssues === 0 ? 'Plan checks clear' : `${routeReadinessChecks.blockingIssues} item(s) need attention`}</Text>
+          </View>
+          <View style={[styles.readinessBadge, { borderColor: `${routeReadinessChecks.tone}66`, backgroundColor: `${routeReadinessChecks.tone}14` }]}>
+            <Text style={[styles.readinessBadgeText, { color: routeReadinessChecks.tone }]}>{routeReadinessChecks.status}</Text>
+          </View>
+        </View>
+
+        <View style={styles.readinessList}>
+          {routeReadinessChecks.checks.map((check) => (
+            <View key={check.label} style={styles.readinessRow}>
+              <View style={[styles.readinessDot, { backgroundColor: check.tone }]} />
+              <Text style={styles.readinessLabel}>{check.label}</Text>
+              <Text style={[styles.readinessValue, { color: check.tone }]}>{check.value}</Text>
+            </View>
+          ))}
+        </View>
+      </Card>
+
+      <Card>
+        <View style={styles.navHeader}>
+          <View>
             <Text style={styles.cardTitle}>1km Splits</Text>
             <Text style={styles.muted}>{splits.length > 0 ? `${splits.length} completed` : 'Auto records while GPS moves'}</Text>
           </View>
@@ -2334,6 +2408,35 @@ const styles = StyleSheet.create({
   },
   finishMetricValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
   finishMetricLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
+  readinessBadge: {
+    minHeight: 34,
+    borderRadius: 999,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+  },
+  readinessBadgeText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
+  readinessList: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginTop: 12,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+  },
+  readinessRow: {
+    minHeight: 42,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+  },
+  readinessDot: { width: 8, height: 8, borderRadius: 4 },
+  readinessLabel: { color: colours.text, fontSize: 12, fontWeight: '900', flex: 1 },
+  readinessValue: { fontSize: 11, fontWeight: '900', textAlign: 'right' },
   checkpointButton: {
     minHeight: 40,
     borderRadius: 8,
