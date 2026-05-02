@@ -282,9 +282,15 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     () => getMercatorRoutePoints(displayRoutePoints, currentPoint, mapViewport),
     [currentPoint, displayRoutePoints, mapViewport]
   );
+  const placedCheckpoints = useMemo(
+    () => plannedCheckpoints.filter((checkpoint): checkpoint is RuckCheckpoint & TrackPoint => (
+      checkpoint.latitude != null && checkpoint.longitude != null
+    )),
+    [plannedCheckpoints]
+  );
   const checkpointMapPoints = useMemo(
-    () => getMercatorRoutePoints(plannedCheckpoints, currentPoint, mapViewport),
-    [currentPoint, mapViewport, plannedCheckpoints]
+    () => getMercatorRoutePoints(placedCheckpoints, currentPoint, mapViewport),
+    [currentPoint, mapViewport, placedCheckpoints]
   );
   const mapTiles = useMemo(
     () => buildVisibleTiles(currentPoint, mapViewport, mapLayer),
@@ -325,8 +331,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     ? 'All checkpoints complete'
     : `CP ${nextCheckpointIndex}/${checkpointCount}`;
   const selectedCheckpoint = plannedCheckpoints.find((checkpoint) => checkpoint.id === selectedCheckpointId) ?? plannedCheckpoints[0] ?? null;
-  const selectedCheckpointDistanceKm = currentPoint && selectedCheckpoint ? distanceBetween(currentPoint, selectedCheckpoint) : null;
-  const selectedCheckpointBearing = currentPoint && selectedCheckpoint ? Math.round(bearingBetween(currentPoint, selectedCheckpoint)) : null;
+  const selectedCheckpointPlaced = selectedCheckpoint?.latitude != null && selectedCheckpoint.longitude != null;
+  const selectedCheckpointPoint = selectedCheckpointPlaced ? selectedCheckpoint as RuckCheckpoint & TrackPoint : null;
+  const selectedCheckpointDistanceKm = currentPoint && selectedCheckpointPoint ? distanceBetween(currentPoint, selectedCheckpointPoint) : null;
+  const selectedCheckpointBearing = currentPoint && selectedCheckpointPoint ? Math.round(bearingBetween(currentPoint, selectedCheckpointPoint)) : null;
   const selectedCheckpointEtaMinutes = selectedCheckpointDistanceKm == null
     ? null
     : selectedCheckpointDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
@@ -362,21 +370,21 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const nearestCheckpoint = useMemo(() => {
     if (!currentPoint || plannedCheckpoints.length === 0) return null;
 
-    return plannedCheckpoints
+    return placedCheckpoints
       .filter((checkpoint) => checkpoint.status !== 'skipped')
       .map((checkpoint) => ({
         checkpoint,
         distanceKm: distanceBetween(currentPoint, checkpoint),
       }))
       .sort((a, b) => a.distanceKm - b.distanceKm)[0] ?? null;
-  }, [currentPoint, plannedCheckpoints]);
+  }, [currentPoint, placedCheckpoints]);
   const arrivalCheckpoint = nearestCheckpoint && nearestCheckpoint.distanceKm * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS
     ? nearestCheckpoint.checkpoint
     : null;
   const finishCheckpoint = finishMode === 'selectedCheckpoint'
-    ? selectedCheckpoint
+    ? selectedCheckpointPoint
     : finishMode === 'finalCheckpoint'
-      ? plannedCheckpoints[plannedCheckpoints.length - 1] ?? null
+      ? [...placedCheckpoints].reverse()[0] ?? null
       : null;
   const finishDistanceRemainingKm = finishCheckpoint && currentPoint
     ? Math.max(0, distanceBetween(currentPoint, finishCheckpoint))
@@ -579,7 +587,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   useEffect(() => {
     if (!currentPoint || plannedCheckpoints.length === 0) return;
 
-    const arrived = plannedCheckpoints.filter((checkpoint) => (
+    const arrived = placedCheckpoints.filter((checkpoint) => (
       checkpoint.status === 'planned' &&
       distanceBetween(currentPoint, checkpoint) * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS
     ));
@@ -597,7 +605,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     if (firstNewArrival) {
       setSelectedCheckpointId(firstNewArrival.id);
     }
-  }, [currentPoint, plannedCheckpoints]);
+  }, [currentPoint, placedCheckpoints]);
 
   const stopTracking = async () => {
     dispatchTracking({ type: 'stopped' });
@@ -757,10 +765,30 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setFinishMode(template.finishMode);
 
     if (template.checkpointLabels.length > 0) {
-      setPlannedCheckpoints((current) => current.map((checkpoint, index) => ({
-        ...checkpoint,
-        label: template.checkpointLabels[index] ?? checkpoint.label,
-      })));
+      const createdAt = Date.now();
+      const templateCheckpoints: RuckCheckpoint[] = template.checkpointLabels.map((label, index) => ({
+        id: `cp-template-${template.id}-${createdAt}-${index}`,
+        label,
+        source: 'manual',
+        status: 'planned',
+        latitude: null,
+        longitude: null,
+        altitude: null,
+        accuracy: null,
+        timestamp: createdAt,
+      }));
+
+      setPlannedCheckpoints((current) => {
+        if (current.length > 0) {
+          return current.map((checkpoint, index) => ({
+            ...checkpoint,
+            label: template.checkpointLabels[index] ?? checkpoint.label,
+          }));
+        }
+
+        return templateCheckpoints;
+      });
+      setSelectedCheckpointId((current) => current ?? templateCheckpoints[0]?.id ?? null);
     }
   }
 
@@ -1492,7 +1520,11 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                 <Text style={styles.navLabel}>ETA to CP</Text>
               </View>
             </View>
-            <Text style={styles.coordinateText}>{formatCoordinate(selectedCheckpoint.latitude, selectedCheckpoint.longitude, coordinateFormat)}</Text>
+            <Text style={styles.coordinateText}>
+              {selectedCheckpointPoint
+                ? formatCoordinate(selectedCheckpointPoint.latitude, selectedCheckpointPoint.longitude, coordinateFormat)
+                : 'NEEDS GRID'}
+            </Text>
             <View style={styles.checkpointList}>
               {plannedCheckpoints.map((checkpoint) => {
                 const selected = selectedCheckpoint.id === checkpoint.id;

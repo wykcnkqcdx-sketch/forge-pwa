@@ -79,7 +79,10 @@ function buildRuckAar(session: TrainingSession) {
     if (mission.plannedCheckpoints.length > 0) {
       lines.push('', 'Checkpoints:');
       mission.plannedCheckpoints.forEach((checkpoint, index) => {
-        lines.push(`${index + 1}. ${checkpoint.label} - ${checkpoint.status.toUpperCase()} - ${formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs')}`);
+        const coordinate = checkpoint.latitude == null || checkpoint.longitude == null
+          ? 'NEEDS GRID'
+          : formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs');
+        lines.push(`${index + 1}. ${checkpoint.label} - ${checkpoint.status.toUpperCase()} - ${coordinate}`);
       });
     }
 
@@ -584,7 +587,11 @@ export function AnalyticsScreen({
                                   <View style={[styles.statusDot, { backgroundColor: checkpoint.status === 'reached' ? colours.green : checkpoint.status === 'skipped' ? colours.red : colours.cyan }]} />
                                   <View style={styles.ruckCheckpointCopy}>
                                     <Text style={styles.ruckCheckpointTitle}>{index + 1}. {checkpoint.label}</Text>
-                                    <Text style={styles.ruckCheckpointCoord}>{formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs')}</Text>
+                                    <Text style={styles.ruckCheckpointCoord}>
+                                      {checkpoint.latitude == null || checkpoint.longitude == null
+                                        ? 'NEEDS GRID'
+                                        : formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs')}
+                                    </Text>
                                   </View>
                                   <Text style={styles.ruckCheckpointStatus}>{checkpoint.status.toUpperCase()}</Text>
                                 </View>

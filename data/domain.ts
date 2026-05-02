@@ -6,11 +6,16 @@ export type TrackPoint = {
   timestamp: number;
 };
 
-export type RuckCheckpoint = TrackPoint & {
+export type RuckCheckpoint = {
   id: string;
   label: string;
   source: 'current' | 'manual';
   status: 'planned' | 'reached' | 'skipped';
+  latitude: number | null;
+  longitude: number | null;
+  altitude: number | null;
+  accuracy: number | null;
+  timestamp: number;
 };
 
 export type RuckSplit = {
