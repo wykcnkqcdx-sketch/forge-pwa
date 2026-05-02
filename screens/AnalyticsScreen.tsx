@@ -9,7 +9,8 @@ import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { ReadinessLog } from '../data/domain';
-import { getMapPoints } from '../utils/mapUtils';
+import { formatCoordinate } from '../utils/coordinates';
+import { distanceBetween, getMapPoints } from '../utils/mapUtils';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
 import { calculateWHtR } from '../lib/h2f';
@@ -32,6 +33,19 @@ function sessionIcon(type: TrainingSession['type']) {
     default:
       return 'fitness-outline';
   }
+}
+
+function formatElapsed(seconds: number) {
+  const hrs = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  if (hrs > 0) return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  return `${mins}:${String(secs).padStart(2, '0')}`;
+}
+
+function routeDistanceKm(points: TrackPoint[] | undefined) {
+  if (!points || points.length < 2) return 0;
+  return points.slice(1).reduce((total, point, index) => total + distanceBetween(points[index], point), 0);
 }
 
 export function AnalyticsScreen({ 
@@ -127,6 +141,7 @@ export function AnalyticsScreen({
   const [filterType, setFilterType] = useState<TrainingSession['type'] | 'All'>('All');
   const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
   const [displayLimit, setDisplayLimit] = useState(10);
+  const [expandedRuckId, setExpandedRuckId] = useState<string | null>(null);
 
   useEffect(() => {
     setDisplayLimit(10);
@@ -411,26 +426,111 @@ export function AnalyticsScreen({
                   </View>
                 )}
 
-                {session.ruckMission && (
-                  <View style={styles.ruckReview}>
-                    <View style={styles.ruckReviewItem}>
-                      <Text style={styles.ruckReviewValue}>{session.ruckMission.targetDistanceKm.toFixed(1)}km</Text>
-                      <Text style={styles.ruckReviewLabel}>TARGET</Text>
-                    </View>
-                    <View style={styles.ruckReviewItem}>
-                      <Text style={styles.ruckReviewValue}>{session.ruckMission.plannedCheckpoints.length}</Text>
-                      <Text style={styles.ruckReviewLabel}>CHECKPOINTS</Text>
-                    </View>
-                    <View style={styles.ruckReviewItem}>
-                      <Text style={styles.ruckReviewValue}>{session.ruckMission.splits?.length ?? 0}</Text>
-                      <Text style={styles.ruckReviewLabel}>SPLITS</Text>
-                    </View>
-                    <View style={styles.ruckReviewItem}>
-                      <Text style={styles.ruckReviewValue}>{(session.ruckMission.targetMinutes / Math.max(0.1, session.ruckMission.targetDistanceKm)).toFixed(1)}</Text>
-                      <Text style={styles.ruckReviewLabel}>MIN/KM</Text>
-                    </View>
-                  </View>
-                )}
+                {session.ruckMission && (() => {
+                  const expanded = expandedRuckId === session.id;
+                  const actualDistanceKm = routeDistanceKm(session.routePoints);
+                  const actualPace = actualDistanceKm > 0 ? session.durationMinutes / actualDistanceKm : 0;
+                  const targetPace = session.ruckMission.targetMinutes / Math.max(0.1, session.ruckMission.targetDistanceKm);
+                  const splits = session.ruckMission.splits ?? [];
+                  const bestSplit = splits.length > 0 ? splits.reduce((best, split) => split.splitSeconds < best.splitSeconds ? split : best, splits[0]) : null;
+                  const slowestSplit = splits.length > 0 ? splits.reduce((slowest, split) => split.splitSeconds > slowest.splitSeconds ? split : slowest, splits[0]) : null;
+                  const reachedCount = session.ruckMission.plannedCheckpoints.filter((checkpoint) => checkpoint.status === 'reached').length;
+                  const finishOnTarget = session.durationMinutes <= session.ruckMission.targetMinutes;
+
+                  return (
+                    <>
+                      <Pressable style={styles.ruckReview} onPress={() => setExpandedRuckId((current) => current === session.id ? null : session.id)}>
+                        <View style={styles.ruckReviewItem}>
+                          <Text style={styles.ruckReviewValue}>{session.ruckMission.targetDistanceKm.toFixed(1)}km</Text>
+                          <Text style={styles.ruckReviewLabel}>TARGET</Text>
+                        </View>
+                        <View style={styles.ruckReviewItem}>
+                          <Text style={styles.ruckReviewValue}>{reachedCount}/{session.ruckMission.plannedCheckpoints.length}</Text>
+                          <Text style={styles.ruckReviewLabel}>CHECKPOINTS</Text>
+                        </View>
+                        <View style={styles.ruckReviewItem}>
+                          <Text style={styles.ruckReviewValue}>{splits.length}</Text>
+                          <Text style={styles.ruckReviewLabel}>SPLITS</Text>
+                        </View>
+                        <View style={styles.ruckReviewItem}>
+                          <Text style={styles.ruckReviewValue}>{expanded ? 'HIDE' : 'VIEW'}</Text>
+                          <Text style={styles.ruckReviewLabel}>AAR</Text>
+                        </View>
+                      </Pressable>
+
+                      {expanded && (
+                        <View style={styles.ruckDetail}>
+                          <View style={styles.ruckDetailGrid}>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={styles.ruckDetailValue}>{actualDistanceKm.toFixed(2)}km</Text>
+                              <Text style={styles.ruckReviewLabel}>ROUTE</Text>
+                            </View>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={styles.ruckDetailValue}>{actualPace > 0 ? actualPace.toFixed(1) : '--'}</Text>
+                              <Text style={styles.ruckReviewLabel}>ACTUAL /KM</Text>
+                            </View>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={styles.ruckDetailValue}>{targetPace.toFixed(1)}</Text>
+                              <Text style={styles.ruckReviewLabel}>TARGET /KM</Text>
+                            </View>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={[styles.ruckDetailValue, { color: finishOnTarget ? colours.green : colours.amber }]}>{finishOnTarget ? 'ON' : 'MISS'}</Text>
+                              <Text style={styles.ruckReviewLabel}>TARGET</Text>
+                            </View>
+                          </View>
+
+                          <View style={styles.ruckDetailGrid}>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={styles.ruckDetailValue}>{Math.round(actualDistanceKm * (session.loadKg ?? 0))}</Text>
+                              <Text style={styles.ruckReviewLabel}>KG-KM</Text>
+                            </View>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={styles.ruckDetailValue}>{bestSplit ? formatElapsed(bestSplit.splitSeconds) : '--'}</Text>
+                              <Text style={styles.ruckReviewLabel}>BEST SPLIT</Text>
+                            </View>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={styles.ruckDetailValue}>{slowestSplit ? formatElapsed(slowestSplit.splitSeconds) : '--'}</Text>
+                              <Text style={styles.ruckReviewLabel}>SLOW SPLIT</Text>
+                            </View>
+                            <View style={styles.ruckDetailItem}>
+                              <Text style={styles.ruckDetailValue}>{session.loadKg ?? 0}kg</Text>
+                              <Text style={styles.ruckReviewLabel}>LOAD</Text>
+                            </View>
+                          </View>
+
+                          {session.ruckMission.plannedCheckpoints.length > 0 && (
+                            <View style={styles.ruckSection}>
+                              <Text style={styles.ruckSectionTitle}>Checkpoints</Text>
+                              {session.ruckMission.plannedCheckpoints.map((checkpoint, index) => (
+                                <View key={checkpoint.id} style={styles.ruckCheckpointRow}>
+                                  <View style={[styles.statusDot, { backgroundColor: checkpoint.status === 'reached' ? colours.green : checkpoint.status === 'skipped' ? colours.red : colours.cyan }]} />
+                                  <View style={styles.ruckCheckpointCopy}>
+                                    <Text style={styles.ruckCheckpointTitle}>{index + 1}. {checkpoint.label}</Text>
+                                    <Text style={styles.ruckCheckpointCoord}>{formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs')}</Text>
+                                  </View>
+                                  <Text style={styles.ruckCheckpointStatus}>{checkpoint.status.toUpperCase()}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+
+                          {splits.length > 0 && (
+                            <View style={styles.ruckSection}>
+                              <Text style={styles.ruckSectionTitle}>Splits</Text>
+                              {splits.map((split) => (
+                                <View key={split.km} style={styles.ruckSplitRow}>
+                                  <Text style={styles.ruckSplitKm}>KM {split.km}</Text>
+                                  <Text style={styles.ruckSplitValue}>{formatElapsed(split.splitSeconds)}</Text>
+                                  <Text style={styles.ruckSplitMeta}>{formatElapsed(split.elapsedSeconds)} total</Text>
+                                </View>
+                              ))}
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </>
+                  );
+                })()}
               </View>
             ))}
 
@@ -711,6 +811,62 @@ const styles = StyleSheet.create({
   },
   ruckReviewValue: { color: colours.cyan, fontSize: 13, fontWeight: '900' },
   ruckReviewLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
+  ruckDetail: {
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    padding: 10,
+    gap: 10,
+    backgroundColor: 'rgba(4,8,15,0.22)',
+  },
+  ruckDetailGrid: { flexDirection: 'row', gap: 8 },
+  ruckDetailItem: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  ruckDetailValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  ruckSection: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    overflow: 'hidden',
+  },
+  ruckSectionTitle: { color: colours.text, fontSize: 12, fontWeight: '900', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 6 },
+  ruckCheckpointRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+  },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  ruckCheckpointCopy: { flex: 1 },
+  ruckCheckpointTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
+  ruckCheckpointCoord: { color: colours.muted, fontSize: 10, fontWeight: '800', marginTop: 2 },
+  ruckCheckpointStatus: { color: colours.muted, fontSize: 9, fontWeight: '900' },
+  ruckSplitRow: {
+    minHeight: 38,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    paddingHorizontal: 10,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+  },
+  ruckSplitKm: { color: colours.text, fontSize: 11, fontWeight: '900', width: 50 },
+  ruckSplitValue: { color: colours.cyan, fontSize: 13, fontWeight: '900', flex: 1, textAlign: 'center' },
+  ruckSplitMeta: { color: colours.muted, fontSize: 10, fontWeight: '800', width: 82, textAlign: 'right' },
   modalOverlay: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.62)' },
   modalPanel: { borderWidth: 1, borderColor: colours.border, borderRadius: 20, padding: 18, backgroundColor: colours.surface },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
