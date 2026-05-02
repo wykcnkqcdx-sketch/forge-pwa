@@ -60,6 +60,7 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 
 const LOCATION_TASK_NAME = 'background-location-task';
 const supportsBackgroundLocation = Platform.OS !== 'web';
+const CHECKPOINT_ARRIVAL_RADIUS_METERS = 50;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 
 type TrackingState = {
@@ -198,6 +199,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [planRestored, setPlanRestored] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
+  const announcedCheckpointArrivals = useRef<Set<string>>(new Set());
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const prevHeading = useRef(0);
   const { currentDistance, elapsedSeconds, routePoints, startTime, status, rejectedPointCount, lastRejectedReason } = trackingState;
@@ -265,6 +267,20 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const selectedCheckpointEtaMinutes = selectedCheckpointDistanceKm == null
     ? null
     : selectedCheckpointDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
+  const nearestCheckpoint = useMemo(() => {
+    if (!currentPoint || plannedCheckpoints.length === 0) return null;
+
+    return plannedCheckpoints
+      .filter((checkpoint) => checkpoint.status !== 'skipped')
+      .map((checkpoint) => ({
+        checkpoint,
+        distanceKm: distanceBetween(currentPoint, checkpoint),
+      }))
+      .sort((a, b) => a.distanceKm - b.distanceKm)[0] ?? null;
+  }, [currentPoint, plannedCheckpoints]);
+  const arrivalCheckpoint = nearestCheckpoint && nearestCheckpoint.distanceKm * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS
+    ? nearestCheckpoint.checkpoint
+    : null;
   const splits = useMemo<RuckSplit[]>(() => {
     if (routePoints.length < 2) return [];
 
@@ -447,6 +463,29 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     const reachedIndex = Math.min(checkpointCount, Math.floor(currentDistance / checkpointIntervalKm));
     setCheckpointIndex((current) => Math.max(current, reachedIndex));
   }, [checkpointCount, checkpointIntervalKm, currentDistance]);
+
+  useEffect(() => {
+    if (!currentPoint || plannedCheckpoints.length === 0) return;
+
+    const arrived = plannedCheckpoints.filter((checkpoint) => (
+      checkpoint.status === 'planned' &&
+      distanceBetween(currentPoint, checkpoint) * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS
+    ));
+
+    if (arrived.length === 0) return;
+
+    setPlannedCheckpoints((current) => current.map((checkpoint) => (
+      arrived.some((arrivedCheckpoint) => arrivedCheckpoint.id === checkpoint.id)
+        ? { ...checkpoint, status: 'reached' }
+        : checkpoint
+    )));
+
+    const firstNewArrival = arrived.find((checkpoint) => !announcedCheckpointArrivals.current.has(checkpoint.id));
+    arrived.forEach((checkpoint) => announcedCheckpointArrivals.current.add(checkpoint.id));
+    if (firstNewArrival) {
+      setSelectedCheckpointId(firstNewArrival.id);
+    }
+  }, [currentPoint, plannedCheckpoints]);
 
   const stopTracking = async () => {
     dispatchTracking({ type: 'stopped' });
@@ -987,7 +1026,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                 </View>
               </View>
               <View style={styles.mapMissionStrip} pointerEvents="none">
-                <Text style={styles.mapMissionText}>{formatSignedMinutes(targetDeltaMinutes)}</Text>
+                <Text style={styles.mapMissionText}>{arrivalCheckpoint ? 'ARRIVED' : formatSignedMinutes(targetDeltaMinutes)}</Text>
                 <Text style={styles.mapMissionText}>{selectedCheckpoint?.label ?? checkpointStatus}</Text>
                 <Text style={styles.mapMissionText}>
                   {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
@@ -1158,7 +1197,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         <View style={styles.navHeader}>
           <View>
             <Text style={styles.cardTitle}>Checkpoint Planner</Text>
-            <Text style={styles.muted}>{plannedCheckpoints.length > 0 ? `${plannedCheckpoints.length} mapped` : 'Add current GPS or enter grid'}</Text>
+            <Text style={styles.muted}>
+              {arrivalCheckpoint
+                ? `${arrivalCheckpoint.label} reached inside ${CHECKPOINT_ARRIVAL_RADIUS_METERS}m`
+                : plannedCheckpoints.length > 0
+                  ? `${plannedCheckpoints.length} mapped${nearestCheckpoint ? ` | nearest ${Math.round(nearestCheckpoint.distanceKm * 1000)}m` : ''}`
+                  : 'Add current GPS or enter grid'}
+            </Text>
           </View>
           <Pressable style={styles.checkpointButton} onPress={addCheckpointHere}>
             <Ionicons name="locate" size={16} color={colours.background} />
