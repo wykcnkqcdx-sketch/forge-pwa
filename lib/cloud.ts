@@ -134,21 +134,23 @@ export type CloudMutation =
   | { type: 'upsert_readiness_log'; payload: ReadinessLog }
   | { type: 'upsert_workout_completion'; payload: WorkoutCompletion };
 
-function ensureSupabase() {
-  if (!supabase) throw new Error('Supabase client is not configured.');
-  return supabase;
-}
-
-function toInFilter(ids: string[]) {
-  return `(${ids.join(',')})`;
-}
-
-function resolveUpdatedAt(value: string | undefined, fallback?: string) {
+export function resolveUpdatedAt(value: string | undefined, fallback?: string) {
   return value ?? fallback ?? new Date().toISOString();
 }
 
-function isRemoteNewer(remoteUpdatedAt: string | null | undefined, localUpdatedAt: string) {
+export function isRemoteNewer(remoteUpdatedAt: string | null | undefined, localUpdatedAt: string) {
   return Boolean(remoteUpdatedAt && new Date(remoteUpdatedAt).getTime() > new Date(localUpdatedAt).getTime());
+}
+
+export function toInFilter(ids: string[]) {
+  return `(${ids.join(',')})`;
+}
+
+export { distanceMeters, simplifyRoute, compressRoutePointsForSync };
+
+function ensureSupabase() {
+  if (!supabase) throw new Error('Supabase client is not configured.');
+  return supabase;
 }
 
 function distanceMeters(a: Pick<TrackPoint, 'latitude' | 'longitude'>, b: Pick<TrackPoint, 'latitude' | 'longitude'>) {
