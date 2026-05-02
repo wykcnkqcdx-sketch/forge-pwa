@@ -1,8 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
-import type { Session } from '@supabase/supabase-js';
 import { HomeScreen } from './screens/HomeScreen';
 import { ReadinessScreen } from './screens/ReadinessScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
@@ -11,18 +10,21 @@ import { TrainScreen } from './screens/TrainScreen';
 import { FuelScreen } from './screens/FuelScreen';
 import { InstructorScreen } from './screens/InstructorScreen';
 import { AuthScreen } from './screens/AuthScreen';
-import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups, ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
+import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
+import { trainingGroups } from './data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from './data/domain';
-import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from './lib/cloud';
-import { buildGoogleSheetsPayload, exportToGoogleSheets } from './lib/googleSheets';
-import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from './lib/offlineQueue';
 import { clearActiveRoute } from './lib/ruckRouteStore';
-import { secureDestroyLocalData, secureGetItem, secureRemoveItem, secureSetItem } from './lib/secureStorage';
-import { isSupabaseConfigured, supabase } from './lib/supabase';
+import { secureDestroyLocalData } from './lib/secureStorage';
+import { isSupabaseConfigured } from './lib/supabase';
 import { colours, shadow, touchTarget } from './theme';
+import { useToast } from './hooks/useToast';
+import { useLocalStore } from './hooks/useLocalStore';
+import { useCloudSync } from './hooks/useCloudSync';
+import { usePinLock } from './hooks/usePinLock';
 
 type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'instructor' | 'readiness';
-type PinSetupMode = 'set' | 'change' | null;
+type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
+
 type PendingMemberInvite = {
   id: string;
   name: string;
@@ -44,169 +46,80 @@ type ForgeBackup = {
 };
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
-  { id: 'home',       label: 'Home',    icon: 'home-outline',      iconActive: 'home' },
-  { id: 'train',      label: 'Train',   icon: 'barbell-outline',   iconActive: 'barbell' },
-  { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline', iconActive: 'footsteps' },
+  { id: 'home',       label: 'Home',    icon: 'home-outline',       iconActive: 'home' },
+  { id: 'train',      label: 'Train',   icon: 'barbell-outline',    iconActive: 'barbell' },
+  { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
   { id: 'fuel',       label: 'Fuel',    icon: 'restaurant-outline', iconActive: 'restaurant' },
-  { id: 'analytics',  label: 'Intel',   icon: 'analytics-outline', iconActive: 'analytics' },
-  { id: 'instructor', label: 'Coach',   icon: 'people-outline',    iconActive: 'people' },
+  { id: 'analytics',  label: 'Intel',   icon: 'analytics-outline',  iconActive: 'analytics' },
+  { id: 'instructor', label: 'Coach',   icon: 'people-outline',     iconActive: 'people' },
 ];
 
-type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
 const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
-  { id: 'portal', label: 'Today', icon: 'flash-outline', iconActive: 'flash' },
-  { id: 'train', label: 'Train', icon: 'barbell-outline', iconActive: 'barbell' },
-  { id: 'ruck', label: 'Ruck', icon: 'footsteps-outline', iconActive: 'footsteps' },
-  { id: 'fuel', label: 'Fuel', icon: 'restaurant-outline', iconActive: 'restaurant' },
-  { id: 'readiness', label: 'Ready', icon: 'body-outline', iconActive: 'body' },
+  { id: 'portal',    label: 'Today', icon: 'flash-outline',      iconActive: 'flash' },
+  { id: 'train',     label: 'Train', icon: 'barbell-outline',    iconActive: 'barbell' },
+  { id: 'ruck',      label: 'Ruck',  icon: 'footsteps-outline',  iconActive: 'footsteps' },
+  { id: 'fuel',      label: 'Fuel',  icon: 'restaurant-outline', iconActive: 'restaurant' },
+  { id: 'readiness', label: 'Ready', icon: 'body-outline',       iconActive: 'body' },
 ];
 
-const COACH_SELF: import('./data/mockData').SquadMember = {
-  id: 'coach-self',
-  name: 'Coach',
-  groupId: 'self',
-  readiness: 80,
-  compliance: 100,
-  risk: 'Low',
-  load: 0,
+const COACH_SELF: SquadMember = {
+  id: 'coach-self', name: 'Coach', groupId: 'self',
+  readiness: 80, compliance: 100, risk: 'Low', load: 0,
 };
 
-function safeJsonParse<T>(json: string, key: string): T | null {
-  try {
-    return JSON.parse(json) as T;
-  } catch {
-    console.error(`Corrupted stored data for "${key}", falling back to defaults`);
-    return null;
-  }
-}
-
 export default function App() {
-  const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
-  const [members, setMembers] = useState<SquadMember[]>(squadMembers);
-  const [groups, setGroups] = useState<TrainingGroup[]>(trainingGroups);
-  const [programmeTemplates, setProgrammeTemplates] = useState<ProgrammeTemplate[]>(initialProgrammeTemplates);
-  const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
-  const [workoutCompletions, setWorkoutCompletions] = useState<WorkoutCompletion[]>([]);
-  const [googleSheetsEndpoint, setGoogleSheetsEndpoint] = useState('');
-  const [googleSheetsExporting, setGoogleSheetsExporting] = useState(false);
-  const [googleSheetsMessage, setGoogleSheetsMessage] = useState('');
-  const [cloudSession, setCloudSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(!isSupabaseConfigured);
-  const [authLoading, setAuthLoading] = useState(false);
-  const [authError, setAuthError] = useState('');
-  const [cloudStatus, setCloudStatus] = useState<'local' | 'auth' | 'syncing' | 'synced' | 'error'>(
-    isSupabaseConfigured ? 'auth' : 'local'
-  );
-  const [savedPin, setSavedPin] = useState<string | null>(null);
-  const [isUnlocked, setIsUnlocked] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState(false);
-  const [pinSetupMode, setPinSetupMode] = useState<PinSetupMode>(null);
-  const [newPinInput, setNewPinInput] = useState('');
-  const [confirmPinInput, setConfirmPinInput] = useState('');
-  const [pinSetupError, setPinSetupError] = useState('');
-  const [isReady, setIsReady] = useState(false);
-  const [typedText, setTypedText] = useState('');
-  const [toastMessage, setToastMessage] = useState('');
+  // ── Core hooks ────────────────────────────────────────────────────────────
+  const { showToast, toastMessage, toastAnim } = useToast();
+
+  const store = useLocalStore();
+  const { sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, googleSheetsEndpoint, isReady } = store;
+
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
+  const cloud = useCloudSync({
+    sessions, members, workoutCompletions, readinessLogs,
+    setSessions: store.setSessions,
+    setMembers: store.setMembers,
+    setWorkoutCompletions: store.setWorkoutCompletions,
+    setReadinessLogs: store.setReadinessLogs,
+    setPendingSyncCount,
+    showToast,
+    isReady,
+    googleSheetsEndpoint,
+  });
+
+  const pin = usePinLock({
+    savedPin: store.savedPin,
+    setSavedPin: store.setSavedPin,
+    isReady,
+    onWipe: async () => {
+      store.setSessions([]);
+      store.setMembers([]);
+      store.setGroups([]);
+      store.setProgrammeTemplates([]);
+      store.setReadinessLogs([]);
+      store.setWorkoutCompletions([]);
+      store.setGoogleSheetsEndpoint('');
+      store.setSavedPin(null);
+      await Promise.all([
+        cloud.resetCloudForWipe(),
+        secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin']),
+        clearActiveRoute(),
+      ]).catch((error) => console.error('Failed to clear local app data', error));
+      setPendingSyncCount(0);
+      if (typeof window !== 'undefined') window.alert('OPSEC WIPE\n\nAll local data has been permanently destroyed.');
+      else Alert.alert('OPSEC WIPE', 'All local data has been permanently destroyed.');
+    },
+  });
+
+  // ── Navigation state ──────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<Tab>('home');
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [activeMemberTab, setActiveMemberTab] = useState<MemberTab>('portal');
   const [pendingMemberInvite, setPendingMemberInvite] = useState<PendingMemberInvite | null>(null);
-  const prevTabIndex = useRef(0);
-  const slideAnim = useRef(new Animated.Value(0)).current;
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const toastAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Splash animation ──────────────────────────────────────────────────────
+  const [typedText, setTypedText] = useState('');
   const pulseAnim = useRef(new Animated.Value(0.3)).current;
-  const inactivityTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cloudHydrated = useRef(false);
-  const skipNextRemotePush = useRef(false);
-  const offlineSyncPending = useRef(false);
-  const coachLandingPrimed = useRef(false);
-
-  const isBrowserOffline = useCallback(() => (
-    typeof navigator !== 'undefined' && navigator.onLine === false
-  ), []);
-
-  const refreshPendingSyncCount = useCallback(async () => {
-    try {
-      setPendingSyncCount(await getPendingOfflineMutationCount());
-    } catch (error) {
-      console.error('Failed to read pending offline queue count', error);
-    }
-  }, []);
-
-  const enqueueCloudMutation = useCallback(async (mutation: Parameters<typeof enqueueOfflineMutation>[0]) => {
-    if (!isSupabaseConfigured || !cloudSession?.user) return;
-
-    try {
-      await enqueueOfflineMutation(mutation);
-      await refreshPendingSyncCount();
-      if (isBrowserOffline()) offlineSyncPending.current = true;
-    } catch (error) {
-      console.error('Failed to enqueue offline mutation', error);
-      showToast('Save failed — change may not sync');
-    }
-  }, [cloudSession?.user, isBrowserOffline, refreshPendingSyncCount]);
-
-  const showToast = useCallback((message: string) => {
-    if (toastTimer.current) clearTimeout(toastTimer.current);
-    setToastMessage(message);
-    Animated.timing(toastAnim, {
-      toValue: 1,
-      duration: 220,
-      useNativeDriver: true,
-    }).start();
-
-    toastTimer.current = setTimeout(() => {
-      Animated.timing(toastAnim, {
-        toValue: 0,
-        duration: 180,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) setToastMessage('');
-      });
-    }, 3200);
-  }, [toastAnim]);
-
-  const applyCloudSnapshot = useCallback((snapshot: {
-    sessions: TrainingSession[];
-    members: SquadMember[];
-    workoutCompletions: WorkoutCompletion[];
-    readinessLogs: ReadinessLog[];
-  }) => {
-    skipNextRemotePush.current = true;
-    setSessions(snapshot.sessions);
-    setMembers(snapshot.members);
-    setWorkoutCompletions(snapshot.workoutCompletions);
-    setReadinessLogs(snapshot.readinessLogs);
-  }, []);
-
-  const refreshCloudSnapshot = useCallback(async (userId: string) => {
-    const snapshot = await fetchCloudSnapshot(userId);
-    applyCloudSnapshot(snapshot);
-    setCloudStatus('synced');
-  }, [applyCloudSnapshot]);
-
-  const flushOfflineMutations = useCallback(async (userId: string) => {
-    const replayed = await replayOfflineQueue((mutation, createdAt) => pushCloudMutation(userId, mutation, createdAt));
-    await refreshPendingSyncCount();
-    if (replayed > 0 && offlineSyncPending.current) {
-      offlineSyncPending.current = false;
-      showToast('Offline records have synced');
-    }
-    return replayed;
-  }, [refreshPendingSyncCount, showToast]);
-
-  const resetInactivityTimer = useCallback(() => {
-    if (inactivityTimer.current) clearTimeout(inactivityTimer.current);
-    if (savedPin && isUnlocked) {
-      inactivityTimer.current = setTimeout(() => {
-        setIsUnlocked(false);
-      }, 3 * 60 * 1000); // 3 minutes
-    }
-  }, [savedPin, isUnlocked]);
 
   useEffect(() => {
     if (isReady) return;
@@ -214,36 +127,42 @@ export default function App() {
     const text = 'INITIALISING SYSTEMS...';
     const timer = setInterval(() => {
       i++;
-      if (i >= text.length) {
-        setTypedText(text);
-        clearInterval(timer);
-      } else {
-        setTypedText(text.substring(0, i) + '_');
-      }
+      if (i >= text.length) { setTypedText(text); clearInterval(timer); }
+      else setTypedText(text.substring(0, i) + '_');
     }, 40);
     return () => clearInterval(timer);
   }, [isReady]);
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 0.3,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
+    Animated.loop(Animated.sequence([
+      Animated.timing(pulseAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
+      Animated.timing(pulseAnim, { toValue: 0.3, duration: 800, useNativeDriver: true }),
+    ])).start();
   }, [pulseAnim]);
 
+  // ── Tab slide animation ───────────────────────────────────────────────────
+  const prevTabIndex = useRef(0);
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    const currentIndex = tabs.findIndex((t) => t.id === activeTab);
+    const prevIndex = prevTabIndex.current;
+    if (currentIndex !== prevIndex) {
+      const direction = currentIndex > prevIndex ? 1 : -1;
+      slideAnim.setValue(direction * 40);
+      fadeAnim.setValue(0);
+      Animated.parallel([
+        Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
+      ]).start();
+      prevTabIndex.current = currentIndex;
+    }
+  }, [activeTab, slideAnim, fadeAnim]);
+
+  // ── URL invite params ─────────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     const url = new URL(window.location.href);
     const memberId = url.searchParams.get('member');
     if (memberId) {
@@ -281,672 +200,117 @@ export default function App() {
     if (!appleMeta.parentElement) document.head.appendChild(appleMeta);
 
     if ('serviceWorker' in navigator) {
-      const serviceWorkerUrl = new URL('sw.js', window.location.href).toString();
-      navigator.serviceWorker.register(serviceWorkerUrl).catch((error) => {
+      navigator.serviceWorker.register(new URL('sw.js', window.location.href).toString()).catch((error) => {
         console.warn('Service worker registration failed', error);
       });
     }
   }, []);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      setAuthReady(true);
-      return;
-    }
-
-    let mounted = true;
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (!mounted) return;
-      if (error) {
-        console.error('Failed to restore auth session', error);
-        setAuthError(error.message);
-      }
-      setCloudSession(data.session ?? null);
-      setAuthReady(true);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCloudSession(session ?? null);
-      setAuthReady(true);
-      setAuthError('');
-      setCloudStatus(session ? 'syncing' : 'auth');
-      cloudHydrated.current = false;
-      if (!session) coachLandingPrimed.current = false;
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    resetInactivityTimer();
-    return () => { if (inactivityTimer.current) clearTimeout(inactivityTimer.current); };
-  }, [resetInactivityTimer]);
-
-  useEffect(() => {
-    return () => {
-      if (toastTimer.current) clearTimeout(toastTimer.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    const currentIndex = tabs.findIndex((t) => t.id === activeTab);
-    const prevIndex = prevTabIndex.current;
-
-    if (currentIndex !== prevIndex) {
-      const direction = currentIndex > prevIndex ? 1 : -1;
-      slideAnim.setValue(direction * 40);
-      fadeAnim.setValue(0);
-
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 1,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start();
-
-      prevTabIndex.current = currentIndex;
-    }
-  }, [activeTab, slideAnim, fadeAnim]);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const storedSessions = await secureGetItem('forge:sessions');
-        const parsedSessions = storedSessions ? safeJsonParse<TrainingSession[]>(storedSessions, 'forge:sessions') : null;
-        if (parsedSessions) setSessions(parsedSessions);
-
-        const storedMembers = await secureGetItem('forge:members');
-        const parsedMembers = storedMembers ? safeJsonParse<SquadMember[]>(storedMembers, 'forge:members') : null;
-        if (parsedMembers) setMembers(parsedMembers);
-
-        const storedGroups = await secureGetItem('forge:groups');
-        const parsedGroups = storedGroups ? safeJsonParse<TrainingGroup[]>(storedGroups, 'forge:groups') : null;
-        if (parsedGroups) setGroups(parsedGroups);
-
-        const storedProgrammeTemplates = await secureGetItem('forge:programme_templates');
-        const parsedTemplates = storedProgrammeTemplates ? safeJsonParse<ProgrammeTemplate[]>(storedProgrammeTemplates, 'forge:programme_templates') : null;
-        if (parsedTemplates) setProgrammeTemplates(parsedTemplates);
-
-        const storedReadiness = await secureGetItem('forge:readiness_logs');
-        const parsedReadiness = storedReadiness ? safeJsonParse<ReadinessLog[]>(storedReadiness, 'forge:readiness_logs') : null;
-        if (parsedReadiness) setReadinessLogs(parsedReadiness);
-
-        const storedCompletions = await secureGetItem('forge:workout_completions');
-        const parsedCompletions = storedCompletions ? safeJsonParse<WorkoutCompletion[]>(storedCompletions, 'forge:workout_completions') : null;
-        if (parsedCompletions) setWorkoutCompletions(parsedCompletions);
-
-        const storedGoogleSheetsEndpoint = await secureGetItem('forge:google_sheets_endpoint');
-        if (storedGoogleSheetsEndpoint) setGoogleSheetsEndpoint(storedGoogleSheetsEndpoint);
-        
-        const storedPin = await secureGetItem('forge:pin');
-        if (storedPin) setSavedPin(storedPin);
-      } catch (error) {
-        console.error('Failed to load local data', error);
-      } finally {
-        setIsReady(true);
-      }
-    }
-    loadData();
-  }, []);
-
-  useEffect(() => {
-    if (isReady) secureSetItem('forge:sessions', JSON.stringify(sessions));
-  }, [sessions, isReady]);
-
+  // Add invited member once store is ready
   useEffect(() => {
     if (!isReady || !activeMemberId || !pendingMemberInvite) return;
     if (members.some((member) => member.id === activeMemberId)) return;
-
-    setMembers((current) => [
+    store.setMembers((current) => [
       {
         id: pendingMemberInvite.id,
         groupId: pendingMemberInvite.groupId,
         name: pendingMemberInvite.name,
         gymName: pendingMemberInvite.gymName,
         email: pendingMemberInvite.email,
-        readiness: 72,
-        compliance: 80,
-        risk: 'Low',
-        load: 65,
-        inviteStatus: 'Joined',
-        assignment: 'Strength Training',
+        readiness: 72, compliance: 80, risk: 'Low', load: 65,
+        inviteStatus: 'Joined', assignment: 'Strength Training',
         pinnedExerciseIds: ['trap-bar-deadlift', 'pull-up'],
-        ghostMode: false,
-        streakDays: 0,
-        weeklyVolume: 0,
-        hypeCount: 0,
+        ghostMode: false, streakDays: 0, weeklyVolume: 0, hypeCount: 0,
       },
       ...current,
     ]);
-  }, [activeMemberId, isReady, members, pendingMemberInvite]);
+  }, [activeMemberId, isReady, members, pendingMemberInvite, store]);
 
-  useEffect(() => {
-    if (isReady) secureSetItem('forge:members', JSON.stringify(members));
-  }, [members, isReady]);
-
-  useEffect(() => {
-    if (isReady) secureSetItem('forge:groups', JSON.stringify(groups));
-  }, [groups, isReady]);
-
-  useEffect(() => {
-    if (isReady) secureSetItem('forge:programme_templates', JSON.stringify(programmeTemplates));
-  }, [programmeTemplates, isReady]);
-
-  useEffect(() => {
-    if (isReady) secureSetItem('forge:readiness_logs', JSON.stringify(readinessLogs));
-  }, [readinessLogs, isReady]);
-
-  useEffect(() => {
-    if (isReady) secureSetItem('forge:workout_completions', JSON.stringify(workoutCompletions));
-  }, [workoutCompletions, isReady]);
-
-  useEffect(() => {
-    if (isReady) secureSetItem('forge:google_sheets_endpoint', googleSheetsEndpoint);
-  }, [googleSheetsEndpoint, isReady]);
-
-  useEffect(() => {
-    if (isReady) refreshPendingSyncCount();
-  }, [isReady, refreshPendingSyncCount]);
-
-  useEffect(() => {
-    if (isReady) {
-      if (savedPin === null) secureRemoveItem('forge:pin');
-      else secureSetItem('forge:pin', savedPin);
-    }
-  }, [savedPin, isReady]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !cloudSession?.user || !isReady) return;
-
-    let cancelled = false;
-    const userId = cloudSession.user.id;
-    async function hydrateCloud() {
-      try {
-        setCloudStatus('syncing');
-        const snapshot = await fetchCloudSnapshot(userId);
-        if (cancelled) return;
-
-        if (snapshot.sessions.length > 0 || snapshot.members.length > 0 || snapshot.workoutCompletions.length > 0) {
-          applyCloudSnapshot({
-            sessions: snapshot.sessions.length > 0 ? snapshot.sessions : sessions,
-            members: snapshot.members.length > 0 ? snapshot.members : members,
-            workoutCompletions: snapshot.workoutCompletions.length > 0 ? snapshot.workoutCompletions : workoutCompletions,
-            readinessLogs: snapshot.readinessLogs.length > 0 ? snapshot.readinessLogs : readinessLogs,
-          });
-        } else {
-          await flushOfflineMutations(userId);
-          await pushCloudSnapshot(userId, sessions, members, workoutCompletions, readinessLogs);
-        }
-
-        if (!cancelled) {
-          cloudHydrated.current = true;
-          setCloudStatus('synced');
-          if (!activeMemberId && activeTab === 'home' && !coachLandingPrimed.current) {
-            coachLandingPrimed.current = true;
-            setActiveTab('instructor');
-          }
-        }
-      } catch (error) {
-        console.error('Failed to hydrate cloud data', error);
-        if (!cancelled) {
-          cloudHydrated.current = true;
-          setCloudStatus('error');
-          showToast('Cloud sync failed — working offline');
-        }
-      }
-    }
-
-    hydrateCloud();
-    return () => {
-      cancelled = true;
-    };
-  }, [cloudSession?.user?.id, isReady, flushOfflineMutations]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !cloudSession?.user || !isReady || !cloudHydrated.current) return;
-    const userId = cloudSession.user.id;
-
-    if (skipNextRemotePush.current) {
-      skipNextRemotePush.current = false;
-      return;
-    }
-
-    const timer = setTimeout(async () => {
-      try {
-        setCloudStatus('syncing');
-        const replayed = await flushOfflineMutations(userId);
-        if (replayed > 0) await refreshCloudSnapshot(userId);
-        setCloudStatus('synced');
-      } catch (error) {
-        console.error('Failed to sync cloud data', error);
-        if (isBrowserOffline()) offlineSyncPending.current = true;
-        setCloudStatus('error');
-      }
-    }, 400);
-
-    return () => clearTimeout(timer);
-  }, [
-    sessions,
-    members,
-    workoutCompletions,
-    readinessLogs,
-    cloudSession?.user?.id,
-    isReady,
-    flushOfflineMutations,
-    isBrowserOffline,
-    refreshCloudSnapshot,
-  ]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase || !cloudSession?.user || !isReady) return;
-    const client = supabase;
-    const userId = cloudSession.user.id;
-
-    const refreshSnapshot = async () => {
-      try {
-        setCloudStatus('syncing');
-        await refreshCloudSnapshot(userId);
-      } catch (error) {
-        console.error('Failed to refresh realtime snapshot', error);
-        setCloudStatus('error');
-      }
-    };
-
-    const channel = client
-      .channel(`forge-squad-${userId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'squad_members', filter: `user_id=eq.${userId}` }, refreshSnapshot)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_completions', filter: `user_id=eq.${userId}` }, refreshSnapshot)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'readiness_logs', filter: `user_id=eq.${userId}` }, refreshSnapshot)
-      .subscribe();
-
-    if (typeof window !== 'undefined') {
-      const handleVisibilityOrFocus = () => {
-        if (document.visibilityState === 'visible') refreshSnapshot();
-      };
-      const handleOnline = () => {
-        const syncOfflineRecords = async () => {
-          try {
-            setCloudStatus('syncing');
-            await flushOfflineMutations(userId);
-            await refreshCloudSnapshot(userId);
-          } catch (error) {
-            console.error('Failed to sync after reconnect', error);
-            setCloudStatus('error');
-          }
-        };
-
-        syncOfflineRecords();
-      };
-
-      window.addEventListener('focus', handleVisibilityOrFocus);
-      window.addEventListener('online', handleOnline);
-      document.addEventListener('visibilitychange', handleVisibilityOrFocus);
-
-      return () => {
-        window.removeEventListener('focus', handleVisibilityOrFocus);
-        window.removeEventListener('online', handleOnline);
-        document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
-        client.removeChannel(channel);
-      };
-    }
-
-    return () => {
-      client.removeChannel(channel);
-    };
-  }, [
-    cloudSession?.user?.id,
-    isReady,
-    flushOfflineMutations,
-    members,
-    readinessLogs,
-    refreshCloudSnapshot,
-    sessions,
-    workoutCompletions,
-  ]);
-
-  function showBlockingMessage(title: string, message: string) {
-    if (typeof window !== 'undefined') {
-      window.alert(`${title}\n\n${message}`);
-      return;
-    }
-
-    Alert.alert(title, message);
-  }
-
-  async function clearCloudAuthSession() {
-    if (!supabase) return;
-
-    const { error } = await supabase.auth.signOut({ scope: 'global' });
-    if (error) {
-      console.error('Global Supabase sign-out failed during wipe', error);
-      const { error: localError } = await supabase.auth.signOut({ scope: 'local' });
-      if (localError) console.error('Local Supabase sign-out failed during wipe', localError);
-    }
-  }
-
-  async function executeDuressWipe() {
-    setSessions([]);
-    setMembers([]);
-    setGroups([]);
-    setProgrammeTemplates([]);
-    setReadinessLogs([]);
-    setSavedPin(null);
-    setIsUnlocked(true);
-    setPinInput('');
-    setActiveMemberId(null);
-    if (typeof window !== 'undefined') {
-      const url = new URL(window.location.href);
-      url.searchParams.delete('member');
-      window.history.replaceState({}, '', url.toString());
-    }
-    setWorkoutCompletions([]);
-    setGoogleSheetsEndpoint('');
-    setCloudSession(null);
-    setCloudStatus(isSupabaseConfigured ? 'auth' : 'local');
-    await Promise.all([
-      clearCloudAuthSession(),
-      secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin']),
-      clearActiveRoute(),
-      clearOfflineQueue(),
-    ]).catch((error) => console.error('Failed to clear local app data', error));
-    setPendingSyncCount(0);
-    showBlockingMessage('OPSEC WIPE', 'All local data has been permanently destroyed.');
-  }
-
-  function openPinSetup() {
-    setNewPinInput('');
-    setConfirmPinInput('');
-    setPinSetupError('');
-    setPinSetupMode(savedPin ? 'change' : 'set');
-  }
-
-  function closePinSetup() {
-    setPinSetupMode(null);
-    setNewPinInput('');
-    setConfirmPinInput('');
-    setPinSetupError('');
-  }
-
-  function savePinSetup() {
-    if (!/^\d{4,8}$/.test(newPinInput)) {
-      setPinSetupError('PIN must be 4 to 8 digits.');
-      return;
-    }
-
-    if (newPinInput === '0000') {
-      setPinSetupError('0000 is reserved for duress wipe.');
-      return;
-    }
-
-    if (newPinInput !== confirmPinInput) {
-      setPinSetupError('PIN entries do not match.');
-      return;
-    }
-
-    setSavedPin(newPinInput);
-    setIsUnlocked(false);
-    closePinSetup();
-    Alert.alert('PIN saved', 'Your app lock PIN has been updated.');
-  }
-
-  function handleSetPin() {
-    if (savedPin) {
-      Alert.alert('PIN options', 'Change or remove the current app lock PIN.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Change', onPress: openPinSetup },
-        { text: 'Remove', style: 'destructive', onPress: () => { setSavedPin(null); setIsUnlocked(true); } },
-      ]);
-    } else {
-      openPinSetup();
-    }
-  }
-
-  function handleManualWipe() {
-    if (typeof window !== 'undefined') {
-      if (window.confirm('Permanently delete all local data? This cannot be undone.')) {
-        executeDuressWipe();
-      }
-      return;
-    }
-
-    Alert.alert('OPSEC WIPE', 'Permanently delete all local data? This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'WIPE', style: 'destructive', onPress: executeDuressWipe },
-    ]);
-  }
-
-  function switchTab(newTab: Tab) {
-    if (activeTab !== newTab) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setActiveTab(newTab);
-    }
-  }
+  // ── CRUD actions ──────────────────────────────────────────────────────────
+  const { enqueueCloudMutation } = cloud;
 
   function addSession(session: TrainingSession) {
-    const updatedSession = { ...session, updatedAt: new Date().toISOString() };
-    setSessions((current) => [updatedSession, ...current]);
-    enqueueCloudMutation({ type: 'upsert_session', payload: updatedSession });
+    const updated = { ...session, updatedAt: new Date().toISOString() };
+    store.setSessions((curr) => [updated, ...curr]);
+    enqueueCloudMutation({ type: 'upsert_session', payload: updated });
   }
 
   function deleteSession(id: string) {
-    setSessions((current) => current.filter((s) => s.id !== id));
+    store.setSessions((curr) => curr.filter((s) => s.id !== id));
     enqueueCloudMutation({ type: 'delete_session', payload: { id } });
   }
 
   function editSession(id: string, updates: Partial<TrainingSession>) {
-    const stampedUpdates = { ...updates, updatedAt: new Date().toISOString() };
-    setSessions((current) =>
-      current.map((s) => (s.id === id ? { ...s, ...stampedUpdates } : s))
-    );
-    enqueueCloudMutation({ type: 'update_session', payload: { id, updates: stampedUpdates } });
+    const stamped = { ...updates, updatedAt: new Date().toISOString() };
+    store.setSessions((curr) => curr.map((s) => (s.id === id ? { ...s, ...stamped } : s)));
+    enqueueCloudMutation({ type: 'update_session', payload: { id, updates: stamped } });
   }
 
   function addMember(member: SquadMember) {
-    const updatedMember = { ...member, updatedAt: new Date().toISOString() };
-    setMembers((current) => [updatedMember, ...current]);
-    enqueueCloudMutation({ type: 'upsert_member', payload: updatedMember });
+    const updated = { ...member, updatedAt: new Date().toISOString() };
+    store.setMembers((curr) => [updated, ...curr]);
+    enqueueCloudMutation({ type: 'upsert_member', payload: updated });
   }
 
   function deleteMember(id: string) {
-    setMembers((current) => current.filter((member) => member.id !== id));
+    store.setMembers((curr) => curr.filter((m) => m.id !== id));
     enqueueCloudMutation({ type: 'delete_member', payload: { id } });
   }
 
   function updateMember(id: string, updates: Partial<SquadMember>) {
-    const stampedUpdates = { ...updates, updatedAt: new Date().toISOString() };
-    setMembers((current) => current.map((member) => (member.id === id ? { ...member, ...stampedUpdates } : member)));
-    enqueueCloudMutation({ type: 'update_member', payload: { id, updates: stampedUpdates } });
+    const stamped = { ...updates, updatedAt: new Date().toISOString() };
+    store.setMembers((curr) => curr.map((m) => (m.id === id ? { ...m, ...stamped } : m)));
+    enqueueCloudMutation({ type: 'update_member', payload: { id, updates: stamped } });
   }
 
   function addGroup(group: TrainingGroup) {
-    setGroups((current) => [...current, group]);
+    store.setGroups((curr) => [...curr, group]);
   }
 
   function addProgrammeTemplate(template: ProgrammeTemplate) {
-    setProgrammeTemplates((current) => [template, ...current.filter((item) => item.id !== template.id)]);
+    store.setProgrammeTemplates((curr) => [template, ...curr.filter((t) => t.id !== template.id)]);
   }
 
   function deleteProgrammeTemplate(id: string) {
-    setProgrammeTemplates((current) => current.filter((template) => template.id !== id));
+    store.setProgrammeTemplates((curr) => curr.filter((t) => t.id !== id));
   }
 
   function addReadinessLog(log: ReadinessLog) {
-    const updatedLog = { ...log, updatedAt: new Date().toISOString() };
-    setReadinessLogs((current) => [updatedLog, ...current]);
-    enqueueCloudMutation({ type: 'upsert_readiness_log', payload: updatedLog });
+    const updated = { ...log, updatedAt: new Date().toISOString() };
+    store.setReadinessLogs((curr) => [updated, ...curr]);
+    enqueueCloudMutation({ type: 'upsert_readiness_log', payload: updated });
   }
 
-  async function signInWithEmail(email: string, password: string) {
-    if (!supabase) return;
-    if (!email || !password) {
-      setAuthError('Email and password are required.');
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthError('');
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) setAuthError(error.message);
-    setAuthLoading(false);
-  }
-
-  async function signUpWithEmail(email: string, password: string) {
-    if (!supabase) return;
-    if (!email || !password) {
-      setAuthError('Email and password are required.');
-      return;
-    }
-
-    setAuthLoading(true);
-    setAuthError('');
-    const { error } = await supabase.auth.signUp({ email, password });
-    if (error) {
-      setAuthError(error.message);
-    } else {
-      setAuthError('Account created. Check your email if confirmation is enabled, then sign in.');
-    }
-    setAuthLoading(false);
-  }
-
-  async function signOutCloud() {
-    if (!supabase) return;
-    await supabase.auth.signOut();
-    setCloudSession(null);
-    setCloudStatus('auth');
-  }
-
-  async function syncCloudNow() {
-    if (!isSupabaseConfigured || !supabase) {
-      setCloudStatus('local');
-      return;
-    }
-
-    if (!cloudSession?.user) {
-      setCloudStatus('auth');
-      return;
-    }
-
-    try {
-      setCloudStatus('syncing');
-      const userId = cloudSession.user.id;
-      await flushOfflineMutations(userId);
-      await refreshCloudSnapshot(userId);
-    } catch (error) {
-      console.error('Manual cloud sync failed', error);
-      if (isBrowserOffline()) offlineSyncPending.current = true;
-      setCloudStatus('error');
-    }
-  }
-
-  async function exportGoogleSheetsNow() {
-    const trimmedEndpoint = googleSheetsEndpoint.trim();
-    if (!trimmedEndpoint) {
-      showBlockingMessage('Google Sheets URL required', 'Paste your Google Apps Script web app URL before exporting.');
-      return;
-    }
-
-    try {
-      setGoogleSheetsExporting(true);
-      setGoogleSheetsMessage('Sending export to Google Sheets...');
-      const payload = buildGoogleSheetsPayload(
-        sessions,
-        members,
-        groups,
-        programmeTemplates,
-        readinessLogs,
-        workoutCompletions,
-        cloudSession?.user.email ?? null
-      );
-      const result = await exportToGoogleSheets(trimmedEndpoint, payload);
-      if (result.delivery === 'json' && result.spreadsheetUrl) {
-        const message = `FORGE data was written to Google Sheets.\n\n${result.spreadsheetUrl}`;
-        setGoogleSheetsMessage(message);
-        showBlockingMessage('Export sent', message);
-      } else {
-        const message = 'FORGE sent the export request. Refresh the Google Sheet and check the Meta tab first.';
-        setGoogleSheetsMessage(message);
-        showBlockingMessage('Export sent', message);
-      }
-    } catch (error) {
-      console.error('Failed to export to Google Sheets', error);
-      const message = error instanceof Error ? error.message : 'Could not send data to Google Sheets.';
-      setGoogleSheetsMessage(`Export failed: ${message}`);
-      showBlockingMessage('Export failed', message);
-    } finally {
-      setGoogleSheetsExporting(false);
-    }
-  }
-
+  // ── Import / Export ───────────────────────────────────────────────────────
   function validateImportedSessions(value: unknown): TrainingSession[] | null {
     if (!Array.isArray(value)) return null;
-
     const validTypes: TrainingSession['type'][] = ['Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Run', 'Mobility'];
-    const imported = value.filter((session): session is TrainingSession => {
-      if (!session || typeof session !== 'object') return false;
-      const candidate = session as Partial<TrainingSession>;
-      return (
-        typeof candidate.id === 'string'
-        && typeof candidate.title === 'string'
-        && typeof candidate.score === 'number'
-        && typeof candidate.durationMinutes === 'number'
-                && typeof candidate.rpe === 'number'
-                && typeof candidate.type === 'string'
-                && validTypes.includes(candidate.type as TrainingSession['type'])
-                && (candidate.completedAt === undefined || typeof candidate.completedAt === 'string')
-      );
+    const imported = value.filter((s): s is TrainingSession => {
+      if (!s || typeof s !== 'object') return false;
+      const c = s as Partial<TrainingSession>;
+      return typeof c.id === 'string' && typeof c.title === 'string' && typeof c.score === 'number'
+        && typeof c.durationMinutes === 'number' && typeof c.rpe === 'number'
+        && typeof c.type === 'string' && validTypes.includes(c.type as TrainingSession['type'])
+        && (c.completedAt === undefined || typeof c.completedAt === 'string');
     });
-
     return imported.length === value.length ? imported : null;
   }
 
   function validateImportedMembers(value: unknown): SquadMember[] | null {
     if (!Array.isArray(value)) return null;
-
-    const imported = value.filter((member): member is SquadMember => {
-      if (!member || typeof member !== 'object') return false;
-      const candidate = member as Partial<SquadMember>;
-      return (
-        typeof candidate.id === 'string'
-        && typeof candidate.name === 'string'
-        && typeof candidate.groupId === 'string'
-        && typeof candidate.readiness === 'number'
-        && typeof candidate.compliance === 'number'
-        && typeof candidate.load === 'number'
-        && (candidate.risk === 'Low' || candidate.risk === 'Medium' || candidate.risk === 'High')
-      );
+    const imported = value.filter((m): m is SquadMember => {
+      if (!m || typeof m !== 'object') return false;
+      const c = m as Partial<SquadMember>;
+      return typeof c.id === 'string' && typeof c.name === 'string' && typeof c.groupId === 'string'
+        && typeof c.readiness === 'number' && typeof c.compliance === 'number'
+        && typeof c.load === 'number' && (c.risk === 'Low' || c.risk === 'Medium' || c.risk === 'High');
     });
-
     return imported.length === value.length ? imported : null;
   }
 
   function exportData() {
-    if (typeof document === 'undefined') {
-      Alert.alert('Export unavailable', 'Data export is available in the web app.');
-      return;
-    }
-
-    const backup: ForgeBackup = {
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      sessions,
-      members,
-      groups,
-      programmeTemplates,
-      readinessLogs,
-      workoutCompletions,
-      googleSheetsEndpoint,
-    };
+    if (typeof document === 'undefined') { Alert.alert('Export unavailable', 'Data export is available in the web app.'); return; }
+    const backup: ForgeBackup = { version: 1, exportedAt: new Date().toISOString(), sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, googleSheetsEndpoint };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -959,39 +323,27 @@ export default function App() {
   }
 
   function importData() {
-    if (typeof document === 'undefined') {
-      Alert.alert('Import unavailable', 'Data import is available in the web app.');
-      return;
-    }
-
+    if (typeof document === 'undefined') { Alert.alert('Import unavailable', 'Data import is available in the web app.'); return; }
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'application/json,.json';
     input.onchange = () => {
       const file = input.files?.[0];
       if (!file) return;
-
       const reader = new FileReader();
       reader.onload = () => {
         try {
           const parsed = JSON.parse(String(reader.result));
           const imported = validateImportedSessions(Array.isArray(parsed) ? parsed : parsed.sessions);
-          const importedMembers = !Array.isArray(parsed) && parsed.members
-            ? validateImportedMembers(parsed.members)
-            : null;
-
-          if (!imported) {
-            Alert.alert('Import failed', 'That file does not look like a valid FORGE backup.');
-            return;
-          }
-
-          setSessions(imported);
-          if (importedMembers) setMembers(importedMembers);
-          if (!Array.isArray(parsed) && Array.isArray(parsed.groups)) setGroups(parsed.groups);
-          if (!Array.isArray(parsed) && Array.isArray(parsed.programmeTemplates)) setProgrammeTemplates(parsed.programmeTemplates);
-          if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
-          if (parsed.workoutCompletions) setWorkoutCompletions(parsed.workoutCompletions);
-          if (!Array.isArray(parsed) && typeof parsed.googleSheetsEndpoint === 'string') setGoogleSheetsEndpoint(parsed.googleSheetsEndpoint);
+          const importedMembers = !Array.isArray(parsed) && parsed.members ? validateImportedMembers(parsed.members) : null;
+          if (!imported) { Alert.alert('Import failed', 'That file does not look like a valid FORGE backup.'); return; }
+          store.setSessions(imported);
+          if (importedMembers) store.setMembers(importedMembers);
+          if (!Array.isArray(parsed) && Array.isArray(parsed.groups)) store.setGroups(parsed.groups);
+          if (!Array.isArray(parsed) && Array.isArray(parsed.programmeTemplates)) store.setProgrammeTemplates(parsed.programmeTemplates);
+          if (parsed.readinessLogs) store.setReadinessLogs(parsed.readinessLogs);
+          if (parsed.workoutCompletions) store.setWorkoutCompletions(parsed.workoutCompletions);
+          if (!Array.isArray(parsed) && typeof parsed.googleSheetsEndpoint === 'string') store.setGoogleSheetsEndpoint(parsed.googleSheetsEndpoint);
           Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
         } catch (error) {
           console.error('Failed to import backup', error);
@@ -1003,45 +355,57 @@ export default function App() {
     input.click();
   }
 
+  // ── Tab navigation ────────────────────────────────────────────────────────
+  function switchTab(newTab: Tab) {
+    if (activeTab !== newTab) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setActiveTab(newTab);
+    }
+  }
+
   const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-          onStartShouldSetPanResponderCapture: () => {
-            resetInactivityTimer();
-            return false; // Return false so we don't block child touch events
-          },
-        onMoveShouldSetPanResponderCapture: (_, gestureState) => {
-            resetInactivityTimer();
-          // Capture the touch if it's a clear horizontal swipe
-          return Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 2 && Math.abs(gestureState.dx) > 30;
-        },
-        onPanResponderRelease: (_, gestureState) => {
-          const { dx } = gestureState;
-          if (Math.abs(dx) > 60) {
-            const currentIndex = tabs.findIndex((t) => t.id === activeTab);
-            if (dx < 0 && currentIndex < tabs.length - 1) {
-              switchTab(tabs[currentIndex + 1].id); // Swipe Left -> Next Tab
-            } else if (dx > 0 && currentIndex > 0) {
-              switchTab(tabs[currentIndex - 1].id); // Swipe Right -> Previous Tab
-            }
-          }
-        },
-      }),
-      [activeTab, resetInactivityTimer]
+    () => PanResponder.create({
+      onStartShouldSetPanResponderCapture: () => { pin.resetInactivityTimer(); return false; },
+      onMoveShouldSetPanResponderCapture: (_, g) => {
+        pin.resetInactivityTimer();
+        return Math.abs(g.dx) > Math.abs(g.dy) * 2 && Math.abs(g.dx) > 30;
+      },
+      onPanResponderRelease: (_, g) => {
+        if (Math.abs(g.dx) > 60) {
+          const idx = tabs.findIndex((t) => t.id === activeTab);
+          if (g.dx < 0 && idx < tabs.length - 1) switchTab(tabs[idx + 1].id);
+          else if (g.dx > 0 && idx > 0) switchTab(tabs[idx - 1].id);
+        }
+      },
+    }),
+    [activeTab, pin.resetInactivityTimer]
   );
+
+  // ── Render helpers ────────────────────────────────────────────────────────
+  function renderToast() {
+    if (!toastMessage) return null;
+    return (
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.toast, shadow.card, { opacity: toastAnim, transform: [{ translateY: toastAnim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]}
+      >
+        <View style={styles.toastIcon}>
+          <Ionicons name="cloud-done" size={18} color={colours.background} />
+        </View>
+        <Text style={styles.toastText}>{toastMessage}</Text>
+      </Animated.View>
+    );
+  }
 
   function renderScreen() {
     switch (activeTab) {
-      case 'train':
-        return <TrainScreen addSession={addSession} sessions={sessions} />;
-      case 'ruck':
-        return <RuckScreen addSession={addSession} />;
-      case 'fuel':
-        return <FuelScreen sessions={sessions} readinessLogs={readinessLogs} />;
+      case 'train': return <TrainScreen addSession={addSession} sessions={sessions} />;
+      case 'ruck':  return <RuckScreen addSession={addSession} />;
+      case 'fuel':  return <FuelScreen sessions={sessions} readinessLogs={readinessLogs} />;
       case 'analytics':
         return (
-          <AnalyticsScreen 
-            sessions={sessions} 
+          <AnalyticsScreen
+            sessions={sessions}
             readinessLogs={readinessLogs}
             addReadinessLog={addReadinessLog}
             deleteSession={deleteSession}
@@ -1060,15 +424,15 @@ export default function App() {
       case 'instructor':
         return (
           <InstructorScreen
-            pinEnabled={Boolean(savedPin)}
+            pinEnabled={Boolean(store.savedPin)}
             sessions={sessions}
             members={members}
             groups={groups}
             programmeTemplates={programmeTemplates}
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
-            onSetPin={handleSetPin}
-            onWipe={handleManualWipe}
+            onSetPin={pin.handleSetPin}
+            onWipe={pin.handleManualWipe}
             onExport={exportData}
             onImport={importData}
             onAddMember={addMember}
@@ -1078,16 +442,16 @@ export default function App() {
             onAddProgrammeTemplate={addProgrammeTemplate}
             onDeleteProgrammeTemplate={deleteProgrammeTemplate}
             cloudEnabled={isSupabaseConfigured}
-            cloudStatus={cloudStatus}
-            cloudEmail={cloudSession?.user.email ?? null}
+            cloudStatus={cloud.cloudStatus}
+            cloudEmail={cloud.cloudSession?.user.email ?? null}
             pendingSyncCount={pendingSyncCount}
-            onCloudSync={syncCloudNow}
-            onCloudSignOut={signOutCloud}
+            onCloudSync={cloud.syncCloudNow}
+            onCloudSignOut={cloud.signOutCloud}
             googleSheetsEndpoint={googleSheetsEndpoint}
-            onChangeGoogleSheetsEndpoint={setGoogleSheetsEndpoint}
-            onExportGoogleSheets={exportGoogleSheetsNow}
-            googleSheetsExporting={googleSheetsExporting}
-            googleSheetsMessage={googleSheetsMessage}
+            onChangeGoogleSheetsEndpoint={store.setGoogleSheetsEndpoint}
+            onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}
+            googleSheetsExporting={cloud.googleSheetsExporting}
+            googleSheetsMessage={cloud.googleSheetsMessage}
           />
         );
       default:
@@ -1107,15 +471,13 @@ export default function App() {
   }
 
   function renderMemberScreen(activeMember: SquadMember | null) {
-    const memberSessions = sessions.filter((session) => !activeMember || !session.id.startsWith('member-') || session.id.includes(activeMember.id));
+    const memberSessions = sessions.filter((s) => !activeMember || !s.id.startsWith('member-') || s.id.includes(activeMember.id));
+    const visibleSessions = memberSessions.length ? memberSessions : sessions;
 
     switch (activeMemberTab) {
-      case 'train':
-        return <TrainScreen addSession={addSession} sessions={memberSessions.length ? memberSessions : sessions} />;
-      case 'ruck':
-        return <RuckScreen addSession={addSession} />;
-      case 'fuel':
-        return <FuelScreen sessions={memberSessions.length ? memberSessions : sessions} readinessLogs={readinessLogs} />;
+      case 'train': return <TrainScreen addSession={addSession} sessions={visibleSessions} />;
+      case 'ruck':  return <RuckScreen addSession={addSession} />;
+      case 'fuel':  return <FuelScreen sessions={visibleSessions} readinessLogs={readinessLogs} />;
       case 'readiness':
         return (
           <ReadinessScreen
@@ -1130,7 +492,7 @@ export default function App() {
         return (
           <HomeScreen
             member={activeMember}
-            sessions={memberSessions.length ? memberSessions : sessions}
+            sessions={visibleSessions}
             goToRuck={() => setActiveMemberTab('ruck')}
             goToAnalytics={() => setActiveMemberTab('train')}
             goToFuel={() => setActiveMemberTab('fuel')}
@@ -1144,53 +506,12 @@ export default function App() {
     }
   }
 
-  function renderToast() {
-    if (!toastMessage) return null;
-
-    return (
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.toast,
-          shadow.card,
-          {
-            opacity: toastAnim,
-            transform: [
-              {
-                translateY: toastAnim.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [16, 0],
-                }),
-              },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.toastIcon}>
-          <Ionicons name="cloud-done" size={18} color={colours.background} />
-        </View>
-        <Text style={styles.toastText}>{toastMessage}</Text>
-      </Animated.View>
-    );
-  }
-
-  if (!isReady || !authReady) {
+  // ── Render gates ──────────────────────────────────────────────────────────
+  if (!isReady || !cloud.authReady) {
     return (
       <View style={styles.lockScreen}>
         <View style={styles.lockContent}>
-          <Animated.Text
-            style={[
-              styles.brand,
-              {
-                opacity: pulseAnim,
-                transform: [
-                  {
-                    scale: pulseAnim.interpolate({ inputRange: [0.3, 1], outputRange: [0.95, 1.05] }),
-                  },
-                ],
-              },
-            ]}
-          >
+          <Animated.Text style={[styles.brand, { opacity: pulseAnim, transform: [{ scale: pulseAnim.interpolate({ inputRange: [0.3, 1], outputRange: [0.95, 1.05] }) }] }]}>
             // FORGE
           </Animated.Text>
           <Text style={[styles.lockSub, { marginTop: 12 }]}>{typedText || '_'}</Text>
@@ -1199,13 +520,12 @@ export default function App() {
     );
   }
 
-  if (isSupabaseConfigured && !cloudSession) {
-    return <AuthScreen loading={authLoading} error={authError} onSignIn={signInWithEmail} onSignUp={signUpWithEmail} />;
+  if (isSupabaseConfigured && !cloud.cloudSession) {
+    return <AuthScreen loading={cloud.authLoading} error={cloud.authError} onSignIn={cloud.signInWithEmail} onSignUp={cloud.signUpWithEmail} />;
   }
 
-  if (savedPin && !isUnlocked) {
-    const pinLength = Math.max(4, savedPin.length);
-
+  if (store.savedPin && !pin.isUnlocked) {
+    const pinLength = Math.max(4, store.savedPin.length);
     return (
       <View style={styles.lockScreen}>
         <View style={styles.lockContent}>
@@ -1214,8 +534,8 @@ export default function App() {
           <View style={styles.pinWrapper}>
             <View style={styles.pinDisplay}>
               {Array.from({ length: pinLength }, (_, i) => (
-                <View key={i} style={[styles.pinBox, pinInput.length > i && styles.pinBoxFilled]}>
-                  <Text style={styles.pinDot}>{pinInput.length > i ? '•' : ''}</Text>
+                <View key={i} style={[styles.pinBox, pin.pinInput.length > i && styles.pinBoxFilled]}>
+                  <Text style={styles.pinDot}>{pin.pinInput.length > i ? '•' : ''}</Text>
                 </View>
               ))}
             </View>
@@ -1223,51 +543,29 @@ export default function App() {
               style={styles.hiddenInput}
               keyboardType="number-pad"
               maxLength={pinLength}
-              value={pinInput}
-              onChangeText={(val) => {
-                const numericVal = val.replace(/[^0-9]/g, '');
-                setPinInput(numericVal);
-                setPinError(false);
-                if (numericVal === '0000') {
-                  executeDuressWipe();
-                } else if (numericVal.length === savedPin.length) {
-                  if (numericVal === savedPin) { setIsUnlocked(true); setPinInput(''); }
-                  else { setPinError(true); setTimeout(() => setPinInput(''), 300); }
-                }
-              }}
+              value={pin.pinInput}
+              onChangeText={pin.handlePinInput}
               autoFocus
             />
           </View>
-          <Text style={styles.pinErrorText}>{pinError ? 'Incorrect PIN' : ' '}</Text>
+          <Text style={styles.pinErrorText}>{pin.pinError ? 'Incorrect PIN' : ' '}</Text>
         </View>
       </View>
     );
   }
 
   if (activeMemberId) {
-    const activeMember = members.find((member) => member.id === activeMemberId) ?? null;
-
+    const activeMember = members.find((m) => m.id === activeMemberId) ?? null;
     return (
       <View style={styles.app}>
-        <View style={styles.screenContainer}>
-          {renderMemberScreen(activeMember)}
-        </View>
-
+        <View style={styles.screenContainer}>{renderMemberScreen(activeMember)}</View>
         {renderToast()}
-
         <View style={[styles.tabBar, shadow.card]}>
           <View style={styles.tabBarHighlight} />
           {memberTabs.map((tab) => {
             const isActive = tab.id === activeMemberTab;
             return (
-              <Pressable
-                key={tab.id}
-                style={({ pressed }) => [styles.tabItem, pressed && styles.tabItemPressed]}
-                onPress={() => setActiveMemberTab(tab.id)}
-                accessibilityRole="button"
-                accessibilityLabel={tab.label}
-                accessibilityState={{ selected: isActive }}
-              >
+              <Pressable key={tab.id} style={({ pressed }) => [styles.tabItem, pressed && styles.tabItemPressed]} onPress={() => setActiveMemberTab(tab.id)} accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: isActive }}>
                 {isActive ? (
                   <View style={styles.activePill}>
                     <Ionicons name={tab.iconActive} size={18} color={colours.background} />
@@ -1295,21 +593,19 @@ export default function App() {
 
       {renderToast()}
 
-      {pinSetupMode && (
+      {pin.pinSetupMode && (
         <View style={styles.pinSetupOverlay}>
           <View style={[styles.pinSetupPanel, shadow.card]}>
             <View style={styles.pinSetupHeader}>
               <View>
                 <Text style={styles.pinSetupKicker}>APP LOCK</Text>
-                <Text style={styles.pinSetupTitle}>{pinSetupMode === 'set' ? 'Set PIN' : 'Change PIN'}</Text>
+                <Text style={styles.pinSetupTitle}>{pin.pinSetupMode === 'set' ? 'Set PIN' : 'Change PIN'}</Text>
               </View>
-              <Pressable style={styles.pinSetupClose} onPress={closePinSetup} accessibilityRole="button" accessibilityLabel="Close PIN setup">
+              <Pressable style={styles.pinSetupClose} onPress={pin.closePinSetup} accessibilityRole="button" accessibilityLabel="Close PIN setup">
                 <Ionicons name="close" size={20} color={colours.text} />
               </Pressable>
             </View>
-
             <Text style={styles.pinSetupCopy}>Use 4 to 8 digits. Entering 0000 at lock screen still performs duress wipe.</Text>
-
             <TextInput
               style={styles.pinSetupInput}
               keyboardType="number-pad"
@@ -1317,11 +613,8 @@ export default function App() {
               maxLength={8}
               placeholder="New PIN"
               placeholderTextColor={colours.soft}
-              value={newPinInput}
-              onChangeText={(value) => {
-                setNewPinInput(value.replace(/[^0-9]/g, ''));
-                setPinSetupError('');
-              }}
+              value={pin.newPinInput}
+              onChangeText={(v) => { pin.setNewPinInput(v.replace(/[^0-9]/g, '')); }}
             />
             <TextInput
               style={styles.pinSetupInput}
@@ -1330,46 +623,29 @@ export default function App() {
               maxLength={8}
               placeholder="Confirm PIN"
               placeholderTextColor={colours.soft}
-              value={confirmPinInput}
-              onChangeText={(value) => {
-                setConfirmPinInput(value.replace(/[^0-9]/g, ''));
-                setPinSetupError('');
-              }}
+              value={pin.confirmPinInput}
+              onChangeText={(v) => { pin.setConfirmPinInput(v.replace(/[^0-9]/g, '')); }}
             />
-
-            <Text style={styles.pinSetupError}>{pinSetupError || ' '}</Text>
-
-            <Pressable style={styles.pinSetupButton} onPress={savePinSetup}>
+            <Text style={styles.pinSetupError}>{pin.pinSetupError || ' '}</Text>
+            <Pressable style={styles.pinSetupButton} onPress={pin.savePinSetup}>
               <Text style={styles.pinSetupButtonText}>Save PIN</Text>
             </Pressable>
           </View>
         </View>
       )}
 
-      {/* ── Tab Bar ─────────────────────────────────── */}
       <View style={[styles.tabBar, shadow.card]}>
-        {/* Glass top highlight */}
         <View style={styles.tabBarHighlight} />
-
         {tabs.map((tab) => {
           const isActive = tab.id === activeTab;
           return (
-            <Pressable
-              key={tab.id}
-              style={({ pressed }) => [styles.tabItem, pressed && styles.tabItemPressed]}
-              onPress={() => switchTab(tab.id)}
-              accessibilityRole="button"
-              accessibilityLabel={tab.label}
-              accessibilityState={{ selected: isActive }}
-            >
+            <Pressable key={tab.id} style={({ pressed }) => [styles.tabItem, pressed && styles.tabItemPressed]} onPress={() => switchTab(tab.id)} accessibilityRole="button" accessibilityLabel={tab.label} accessibilityState={{ selected: isActive }}>
               {isActive ? (
-                /* Active pill */
                 <View style={styles.activePill}>
                   <Ionicons name={tab.iconActive} size={18} color={colours.background} />
                   <Text style={styles.activePillLabel}>{tab.label}</Text>
                 </View>
               ) : (
-                /* Inactive icon + label */
                 <View style={styles.inactiveItem}>
                   <Ionicons name={tab.icon} size={20} color={colours.muted} />
                   <Text style={styles.inactiveLabel}>{tab.label}</Text>
@@ -1384,215 +660,50 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  app: {
-    flex: 1,
-    backgroundColor: colours.background,
-  },
-
-  screenContainer: {
-    flex: 1,
-  },
-
+  app: { flex: 1, backgroundColor: colours.background },
+  screenContainer: { flex: 1 },
   toast: {
-    position: 'absolute',
-    left: 20,
-    right: 20,
-    bottom: 96,
-    zIndex: 30,
-    minHeight: 52,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderWidth: 1,
-    borderColor: colours.borderHot,
-    borderRadius: 18,
+    position: 'absolute', left: 20, right: 20, bottom: 96, zIndex: 30,
+    minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: colours.borderHot, borderRadius: 18,
     backgroundColor: 'rgba(27, 31, 26, 0.98)',
   },
-
-  toastIcon: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colours.cyan,
-  },
-
-  toastText: {
-    flex: 1,
-    color: colours.text,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-
-  /* Tab bar shell */
+  toastIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.cyan },
+  toastText: { flex: 1, color: colours.text, fontSize: 13, fontWeight: '900' },
   tabBar: {
-    position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 8,
-    borderRadius: 28,
-    borderWidth: 1,
-    borderColor: colours.border,
-    backgroundColor: 'rgba(4, 8, 15, 0.94)',
-    overflow: 'hidden',
+    position: 'absolute', left: 14, right: 14, bottom: 20,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8,
+    borderRadius: 28, borderWidth: 1, borderColor: colours.border,
+    backgroundColor: 'rgba(4, 8, 15, 0.94)', overflow: 'hidden',
   },
-
-  tabBarHighlight: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: colours.borderGlass,
-  },
-
-  tabItem: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: touchTarget,
-    borderRadius: 20,
-  },
-
-  tabItemPressed: {
-    opacity: 0.70,
-  },
-
-  /* Active state — filled pill */
-  activePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colours.cyan,
-    borderRadius: 20,
-    paddingHorizontal: 9,
-    paddingVertical: 7,
-    ...shadow.cyan,
-  },
-
-  activePillLabel: {
-    color: colours.background,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.4,
-  },
-
-  /* Inactive state */
-  inactiveItem: {
-    alignItems: 'center',
-    gap: 3,
-  },
-
-  inactiveLabel: {
-    color: colours.muted,
-    fontSize: 9,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-
-  /* Lock Screen */
+  tabBarHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: colours.borderGlass },
+  tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: touchTarget, borderRadius: 20 },
+  tabItemPressed: { opacity: 0.70 },
+  activePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyan, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 7, ...shadow.cyan },
+  activePillLabel: { color: colours.background, fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
+  inactiveItem: { alignItems: 'center', gap: 3 },
+  inactiveLabel: { color: colours.muted, fontSize: 9, fontWeight: '700', letterSpacing: 0.2 },
   lockScreen: { flex: 1, backgroundColor: colours.background, justifyContent: 'center', alignItems: 'center', padding: 20 },
   lockContent: { alignItems: 'center', width: '100%', maxWidth: 320 },
   brand: { color: colours.cyan, fontSize: 24, fontWeight: '900', letterSpacing: 4, marginBottom: 8 },
   lockSub: { color: colours.muted, fontSize: 14, textAlign: 'center', marginBottom: 32 },
   pinWrapper: { position: 'relative', width: 240, height: 64, marginBottom: 16 },
   pinDisplay: { flexDirection: 'row', justifyContent: 'space-between', height: '100%' },
-  pinBox: {
-    width: 50,
-    height: 64,
-    borderWidth: 2,
-    borderColor: colours.border,
-    borderRadius: 12,
-    backgroundColor: 'rgba(2, 5, 8, 0.58)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  pinBox: { width: 50, height: 64, borderWidth: 2, borderColor: colours.border, borderRadius: 12, backgroundColor: 'rgba(2, 5, 8, 0.58)', alignItems: 'center', justifyContent: 'center' },
   pinBoxFilled: { borderColor: colours.cyan },
   pinDot: { color: colours.cyan, fontSize: 32 },
   hiddenInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0 },
   pinErrorText: { color: colours.red, fontSize: 12, fontWeight: '700', minHeight: 16 },
-  pinSetupOverlay: {
-    position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-    zIndex: 20,
-    justifyContent: 'center',
-    padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.62)',
-  },
-  pinSetupPanel: {
-    borderWidth: 1,
-    borderColor: colours.border,
-    borderRadius: 20,
-    padding: 18,
-    backgroundColor: colours.surface,
-  },
-  pinSetupHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  pinSetupKicker: {
-    color: colours.cyan,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.8,
-  },
-  pinSetupTitle: {
-    color: colours.text,
-    fontSize: 24,
-    fontWeight: '900',
-    marginTop: 3,
-  },
-  pinSetupClose: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-  },
-  pinSetupCopy: {
-    color: colours.muted,
-    fontSize: 13,
-    lineHeight: 19,
-    marginTop: 10,
-    marginBottom: 14,
-  },
-  pinSetupInput: {
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 14,
-    color: colours.text,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    marginBottom: 10,
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  pinSetupError: {
-    minHeight: 18,
-    color: colours.red,
-    fontSize: 12,
-    fontWeight: '800',
-    marginBottom: 8,
-  },
-  pinSetupButton: {
-    alignItems: 'center',
-    backgroundColor: colours.cyan,
-    borderRadius: 16,
-    paddingVertical: 13,
-  },
-  pinSetupButtonText: {
-    color: colours.background,
-    fontSize: 15,
-    fontWeight: '900',
-  },
+  pinSetupOverlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, zIndex: 20, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.62)' },
+  pinSetupPanel: { borderWidth: 1, borderColor: colours.border, borderRadius: 20, padding: 18, backgroundColor: colours.surface },
+  pinSetupHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  pinSetupKicker: { color: colours.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1.8 },
+  pinSetupTitle: { color: colours.text, fontSize: 24, fontWeight: '900', marginTop: 3 },
+  pinSetupClose: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)' },
+  pinSetupCopy: { color: colours.muted, fontSize: 13, lineHeight: 19, marginTop: 10, marginBottom: 14 },
+  pinSetupInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 14, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 10, fontSize: 16, fontWeight: '800' },
+  pinSetupError: { minHeight: 18, color: colours.red, fontSize: 12, fontWeight: '800', marginBottom: 8 },
+  pinSetupButton: { alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 16, paddingVertical: 13 },
+  pinSetupButtonText: { color: colours.background, fontSize: 15, fontWeight: '900' },
 });
