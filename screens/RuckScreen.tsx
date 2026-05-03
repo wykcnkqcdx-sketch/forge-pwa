@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image, TextInput } from 'react-native';
+import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image, TextInput, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -253,6 +253,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [mapViewport, setMapViewport] = useState<MapViewport>({ width: 0, height: 0 });
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
   const [targetDistanceKm, setTargetDistanceKm] = useState(8);
   const [targetMinutes, setTargetMinutes] = useState(105);
   const [checkpointIntervalKm, setCheckpointIntervalKm] = useState(2);
@@ -764,6 +765,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       }
 
       dispatchTracking({ type: 'start_succeeded', firstPoint });
+      setMapFullscreen(true);
     } catch (error) {
       console.error('Failed to start GPS tracking', error);
       stopTracking();
@@ -804,6 +806,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCheckpointIndex(0);
     setPlannedCheckpoints([]);
     setSelectedCheckpointId(null);
+    setMapFullscreen(false);
     clearActiveRoute();
     clearActiveRuckPlan();
   };
@@ -814,6 +817,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setCheckpointIndex(0);
     setPlannedCheckpoints([]);
     setSelectedCheckpointId(null);
+    setMapFullscreen(false);
     clearActiveRoute();
     clearActiveRuckPlan();
   };
@@ -1143,6 +1147,176 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     return colours.cyan;
   }
 
+  function renderMapStage(fullscreen: boolean) {
+    const showOverlays = showExpandedMap || fullscreen;
+    return (
+      <View
+        style={fullscreen ? styles.fullscreenMapStage : [styles.mapStage, showExpandedMap && styles.mapStageExpanded]}
+        onLayout={(event) => {
+          const { width, height } = event.nativeEvent.layout;
+          setMapViewport((current) => (
+            Math.round(current.width) === Math.round(width) && Math.round(current.height) === Math.round(height)
+              ? current
+              : { width, height }
+          ));
+        }}
+      >
+        {mapTiles.map((tile) => (
+          <Image key={tile.id} source={{ uri: tile.url }} style={tile.style} />
+        ))}
+        {mapTiles.length > 0 && <View style={styles.mapShade} pointerEvents="none" />}
+        <View style={styles.mapGridHorizontal} />
+        <View style={styles.mapGridVertical} />
+        <View style={[styles.mapRing, styles.mapRingOuter]} />
+        <View style={[styles.mapRing, styles.mapRingInner]} />
+
+        {mapTiles.length === 0 ? (
+          <View style={styles.mapEmpty}>
+            <Ionicons name="navigate-circle-outline" size={42} color={colours.cyan} />
+            <Text style={styles.mapEmptyText}>Start GPS to draw your route</Text>
+          </View>
+        ) : (
+          <Svg
+            style={StyleSheet.absoluteFill}
+            viewBox={`0 0 ${Math.max(1, mapViewport.width)} ${Math.max(1, mapViewport.height)}`}
+            pointerEvents="none"
+          >
+            {routeLinePoints && (
+              <Polyline
+                points={routeLinePoints}
+                fill="none"
+                stroke={colours.cyan}
+                strokeWidth={4}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                opacity={0.9}
+              />
+            )}
+            {firstMapPoint && (
+              <Circle cx={firstMapPoint.x} cy={firstMapPoint.y} r={5} fill={colours.background} stroke={colours.cyan} strokeWidth={2} />
+            )}
+            {lastMapPoint && (
+              <Circle cx={lastMapPoint.x} cy={lastMapPoint.y} r={8} fill={colours.green} stroke="rgba(255,255,255,0.75)" strokeWidth={2} />
+            )}
+            {checkpointMapPoints.map((checkpoint, index) => (
+              <React.Fragment key={checkpoint.id}>
+                <Circle
+                  cx={checkpoint.x}
+                  cy={checkpoint.y}
+                  r={selectedCheckpoint?.id === checkpoint.id ? 10 : 8}
+                  fill={checkpointTone(checkpoint)}
+                  stroke="rgba(7,17,30,0.86)"
+                  strokeWidth={2}
+                />
+                <SvgText x={checkpoint.x} y={checkpoint.y + 3} textAnchor="middle" fontSize="9" fontWeight="900" fill={colours.background}>
+                  {index + 1}
+                </SvgText>
+              </React.Fragment>
+            ))}
+          </Svg>
+        )}
+
+        <View style={styles.crosshair} pointerEvents="none">
+          <View style={styles.crosshairHorizontal} />
+          <View style={styles.crosshairVertical} />
+        </View>
+
+        {showOverlays && (
+          <>
+            <View style={styles.mapGridOverlay} pointerEvents="none">
+              <Text style={styles.mapOverlayLabel}>GRID</Text>
+              <Text style={styles.mapOverlayValue}>{currentCoordinate ?? 'Awaiting fix'}</Text>
+            </View>
+            <View style={styles.mapCompassOverlay} pointerEvents="none">
+              <Animated.View
+                style={{
+                  transform: [{
+                    rotate: rotationAnim.interpolate({
+                      inputRange: [-720, 0, 360, 720],
+                      outputRange: ['-720deg', '0deg', '360deg', '720deg'],
+                    }),
+                  }],
+                }}
+              >
+                <Ionicons name="navigate" size={22} color={colours.background} />
+              </Animated.View>
+              <Text style={styles.mapCompassValue}>{displayHeading == null ? '---' : formatHeading(displayHeading)}</Text>
+              <Text style={styles.mapCompassLabel}>{displayHeading == null ? 'HDG' : cardinalDirection(displayHeading)}</Text>
+            </View>
+            <View style={[styles.mapTelemetry, fullscreen && styles.mapTelemetryFullscreen]} pointerEvents="none">
+              <View style={styles.mapTelemetryItem}>
+                <Text style={styles.mapTelemetryValue}>{currentDistance.toFixed(2)}</Text>
+                <Text style={styles.mapTelemetryLabel}>KM</Text>
+              </View>
+              <View style={styles.mapTelemetryItem}>
+                <Text style={styles.mapTelemetryValue}>{activePace}</Text>
+                <Text style={styles.mapTelemetryLabel}>MIN/KM</Text>
+              </View>
+              <View style={styles.mapTelemetryItem}>
+                <Text style={styles.mapTelemetryValue}>{displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
+                <Text style={styles.mapTelemetryLabel}>BRG</Text>
+              </View>
+              <View style={styles.mapTelemetryItem}>
+                <Text style={styles.mapTelemetryValue}>{currentAltitude == null ? '--' : `${currentAltitude}`}</Text>
+                <Text style={styles.mapTelemetryLabel}>ALT M</Text>
+              </View>
+            </View>
+            <View style={[styles.mapMissionStrip, fullscreen && styles.mapMissionStripFullscreen]} pointerEvents="none">
+              <Text style={styles.mapMissionText}>{arrivalCheckpoint ? 'ARRIVED' : formatSignedMinutes(targetDeltaMinutes)}</Text>
+              <Text style={styles.mapMissionText}>{selectedCheckpoint?.label ?? checkpointStatus}</Text>
+              <Text style={styles.mapMissionText}>
+                {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
+              </Text>
+            </View>
+            <View style={[styles.finishStrip, fullscreen && styles.finishStripFullscreen]} pointerEvents="none">
+              <Text style={styles.finishStripText}>FINISH {finishDistanceRemainingKm.toFixed(1)}km</Text>
+              <Text style={styles.finishStripText}>REQ {finishRequiredPace > 0 ? `${finishRequiredPace.toFixed(1)}/km` : '--'}</Text>
+              <Text style={[styles.finishStripText, { color: finishOnTarget ? colours.green : colours.amber }]}>
+                {finishOnTarget ? 'ON TARGET' : 'AT RISK'}
+              </Text>
+            </View>
+            <View style={[styles.bearingGuidanceStrip, fullscreen && styles.bearingGuidanceStripFullscreen, { borderColor: `${bearingGuidance.tone}66`, backgroundColor: `${bearingGuidance.tone}18` }]} pointerEvents="none">
+              <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
+              <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
+            </View>
+          </>
+        )}
+        {mapTiles.length > 0 && (
+          <Text style={styles.mapAttribution}>{activeMapLayer.attribution}</Text>
+        )}
+      </View>
+    );
+  }
+
+  if (mapFullscreen) {
+    return (
+      <SafeAreaView style={styles.fullscreenContainer}>
+        {renderMapStage(true)}
+        <View style={styles.fullscreenBottomBar}>
+          <Pressable style={styles.fullscreenCollapseBtn} onPress={() => setMapFullscreen(false)}>
+            <Ionicons name="contract" size={18} color={colours.text} />
+          </Pressable>
+          {isTracking ? (
+            <Pressable style={[styles.trackButton, styles.stopButton, { flex: 1 }]} onPress={stopTracking}>
+              <Ionicons name="stop" size={20} color={colours.background} />
+              <Text style={styles.trackButtonText}>Stop Tracking</Text>
+            </Pressable>
+          ) : startTime ? (
+            <>
+              <Pressable style={[styles.saveButton, { flex: 1 }]} onPress={saveTrackedRuck}>
+                <Text style={styles.saveButtonText}>Save GPS Session</Text>
+              </Pressable>
+              <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
+                <Ionicons name="close" size={20} color={colours.text} />
+                <Text style={[styles.trackButtonText, { color: colours.text }]}>Discard</Text>
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <Screen>
       <Text style={styles.muted}>Loaded movement</Text>
@@ -1199,162 +1373,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           })}
         </View>
 
-        <View
-          style={[styles.mapStage, showExpandedMap && styles.mapStageExpanded]}
-          onLayout={(event) => {
-            const { width, height } = event.nativeEvent.layout;
-            setMapViewport((current) => (
-              Math.round(current.width) === Math.round(width) && Math.round(current.height) === Math.round(height)
-                ? current
-                : { width, height }
-            ));
-          }}
-        >
-          {mapTiles.map((tile) => (
-            <Image key={tile.id} source={{ uri: tile.url }} style={tile.style} />
-          ))}
-          {mapTiles.length > 0 && <View style={styles.mapShade} pointerEvents="none" />}
-          <View style={styles.mapGridHorizontal} />
-          <View style={styles.mapGridVertical} />
-          <View style={[styles.mapRing, styles.mapRingOuter]} />
-          <View style={[styles.mapRing, styles.mapRingInner]} />
-
-          {mapTiles.length === 0 ? (
-            <View style={styles.mapEmpty}>
-              <Ionicons name="navigate-circle-outline" size={42} color={colours.cyan} />
-              <Text style={styles.mapEmptyText}>Start GPS to draw your route</Text>
-            </View>
-          ) : (
-            <Svg
-              style={StyleSheet.absoluteFill}
-              viewBox={`0 0 ${Math.max(1, mapViewport.width)} ${Math.max(1, mapViewport.height)}`}
-              pointerEvents="none"
-            >
-              {routeLinePoints && (
-                <Polyline
-                  points={routeLinePoints}
-                  fill="none"
-                  stroke={colours.cyan}
-                  strokeWidth={4}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  opacity={0.9}
-                />
-              )}
-              {firstMapPoint && (
-                <Circle
-                  cx={firstMapPoint.x}
-                  cy={firstMapPoint.y}
-                  r={5}
-                  fill={colours.background}
-                  stroke={colours.cyan}
-                  strokeWidth={2}
-                />
-              )}
-              {lastMapPoint && (
-                <Circle
-                  cx={lastMapPoint.x}
-                  cy={lastMapPoint.y}
-                  r={8}
-                  fill={colours.green}
-                  stroke="rgba(255,255,255,0.75)"
-                  strokeWidth={2}
-                />
-              )}
-              {checkpointMapPoints.map((checkpoint, index) => (
-                <React.Fragment key={checkpoint.id}>
-                  <Circle
-                    cx={checkpoint.x}
-                    cy={checkpoint.y}
-                    r={selectedCheckpoint?.id === checkpoint.id ? 10 : 8}
-                    fill={checkpointTone(checkpoint)}
-                    stroke="rgba(7,17,30,0.86)"
-                    strokeWidth={2}
-                  />
-                  <SvgText
-                    x={checkpoint.x}
-                    y={checkpoint.y + 3}
-                    textAnchor="middle"
-                    fontSize="9"
-                    fontWeight="900"
-                    fill={colours.background}
-                  >
-                    {index + 1}
-                  </SvgText>
-                </React.Fragment>
-              ))}
-            </Svg>
-          )}
-          <View style={styles.crosshair} pointerEvents="none">
-            <View style={styles.crosshairHorizontal} />
-            <View style={styles.crosshairVertical} />
-          </View>
-          {showExpandedMap && (
-            <>
-              <View style={styles.mapGridOverlay} pointerEvents="none">
-                <Text style={styles.mapOverlayLabel}>GRID</Text>
-                <Text style={styles.mapOverlayValue}>{currentCoordinate ?? 'Awaiting fix'}</Text>
-              </View>
-              <View style={styles.mapCompassOverlay} pointerEvents="none">
-                <Animated.View
-                  style={{
-                    transform: [
-                      {
-                        rotate: rotationAnim.interpolate({
-                          inputRange: [0, 360],
-                          outputRange: ['0deg', '360deg'],
-                        }),
-                      },
-                    ],
-                  }}
-                >
-                  <Ionicons name="navigate" size={22} color={colours.background} />
-                </Animated.View>
-                <Text style={styles.mapCompassValue}>{displayHeading == null ? '---' : formatHeading(displayHeading)}</Text>
-                <Text style={styles.mapCompassLabel}>{displayHeading == null ? 'HDG' : cardinalDirection(displayHeading)}</Text>
-              </View>
-              <View style={styles.mapTelemetry} pointerEvents="none">
-                <View style={styles.mapTelemetryItem}>
-                  <Text style={styles.mapTelemetryValue}>{currentDistance.toFixed(2)}</Text>
-                  <Text style={styles.mapTelemetryLabel}>KM</Text>
-                </View>
-                <View style={styles.mapTelemetryItem}>
-                  <Text style={styles.mapTelemetryValue}>{activePace}</Text>
-                  <Text style={styles.mapTelemetryLabel}>MIN/KM</Text>
-                </View>
-                <View style={styles.mapTelemetryItem}>
-                  <Text style={styles.mapTelemetryValue}>{displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
-                  <Text style={styles.mapTelemetryLabel}>BRG</Text>
-                </View>
-                <View style={styles.mapTelemetryItem}>
-                  <Text style={styles.mapTelemetryValue}>{currentAltitude == null ? '--' : `${currentAltitude}`}</Text>
-                  <Text style={styles.mapTelemetryLabel}>ALT M</Text>
-                </View>
-              </View>
-              <View style={styles.mapMissionStrip} pointerEvents="none">
-                <Text style={styles.mapMissionText}>{arrivalCheckpoint ? 'ARRIVED' : formatSignedMinutes(targetDeltaMinutes)}</Text>
-                <Text style={styles.mapMissionText}>{selectedCheckpoint?.label ?? checkpointStatus}</Text>
-                <Text style={styles.mapMissionText}>
-                  {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
-                </Text>
-              </View>
-              <View style={styles.finishStrip} pointerEvents="none">
-                <Text style={styles.finishStripText}>FINISH {finishDistanceRemainingKm.toFixed(1)}km</Text>
-                <Text style={styles.finishStripText}>REQ {finishRequiredPace > 0 ? `${finishRequiredPace.toFixed(1)}/km` : '--'}</Text>
-                <Text style={[styles.finishStripText, { color: finishOnTarget ? colours.green : colours.amber }]}>
-                  {finishOnTarget ? 'ON TARGET' : 'AT RISK'}
-                </Text>
-              </View>
-              <View style={[styles.bearingGuidanceStrip, { borderColor: `${bearingGuidance.tone}66`, backgroundColor: `${bearingGuidance.tone}18` }]} pointerEvents="none">
-                <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
-                <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
-              </View>
-            </>
-          )}
-          {mapTiles.length > 0 && (
-            <Text style={styles.mapAttribution}>{activeMapLayer.attribution}</Text>
-          )}
-        </View>
+        {renderMapStage(false)}
 
         <Pressable
           style={[styles.expandMapButton, showExpandedMap && styles.expandMapButtonActive, hasActiveGpsSession && styles.expandMapButtonLocked]}
@@ -2051,6 +2070,45 @@ const styles = StyleSheet.create({
   },
   layerOptionText: { color: colours.muted, fontSize: 10, fontWeight: '900' },
   layerOptionTextActive: { color: colours.green },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: '#0F1F35',
+  },
+  fullscreenMapStage: {
+    flex: 1,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(4,8,15,0.72)',
+  },
+  fullscreenBottomBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingHorizontal: 14,
+    paddingTop: 12,
+    paddingBottom: 28,
+    backgroundColor: 'rgba(4,8,15,0.88)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(103,232,249,0.14)',
+  },
+  fullscreenCollapseBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1,
+    borderColor: colours.border,
+    flexShrink: 0,
+  },
+  mapTelemetryFullscreen: { bottom: 96 },
+  mapMissionStripFullscreen: { bottom: 152 },
+  finishStripFullscreen: { bottom: 192 },
+  bearingGuidanceStripFullscreen: { bottom: 232 },
   mapStage: {
     height: 190,
     marginTop: 14,
