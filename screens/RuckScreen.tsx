@@ -441,15 +441,15 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       },
       {
         label: 'GPS fix',
-        value: currentPoint ? gpsQuality.detail : 'Awaiting fix',
+        value: currentPoint ? gpsQuality.detail : 'Requested on start',
         tone: currentPoint ? gpsQuality.tone : colours.amber,
-        ready: !!currentPoint,
+        ready: true,
       },
       {
         label: 'Background',
         value: supportsBackgroundLocation ? 'Native ready' : 'Web tab only',
         tone: supportsBackgroundLocation ? colours.green : colours.amber,
-        ready: supportsBackgroundLocation,
+        ready: true,
       },
     ];
     const blockingIssues = checks.filter((check) => !check.ready).length;
@@ -734,34 +734,32 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
       await resetActiveRoute(firstPoint);
 
-      if (supportsBackgroundLocation) {
-        const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-        if (bgStatus !== 'granted') {
-          Alert.alert('Permission denied', 'Background location permission is required for locked-screen tracking.');
-          dispatchTracking({ type: 'stopped' });
-          return;
-        }
-
-        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      foregroundLocationSubscription.current = await Location.watchPositionAsync(
+        {
           accuracy: Location.Accuracy.High,
           timeInterval: 3000,
           distanceInterval: 5,
-          showsBackgroundLocationIndicator: true,
-          foregroundService: {
-            notificationTitle: 'FORGE Ruck Tracker',
-            notificationBody: 'GPS tracking active',
-            notificationColor: colours.cyan,
-          },
-        });
-      } else {
-        foregroundLocationSubscription.current = await Location.watchPositionAsync(
-          {
+        },
+        recordLocation
+      );
+
+      if (supportsBackgroundLocation) {
+        const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+        if (bgStatus === 'granted') {
+          await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
             accuracy: Location.Accuracy.High,
             timeInterval: 3000,
             distanceInterval: 5,
-          },
-          recordLocation
-        );
+            showsBackgroundLocationIndicator: true,
+            foregroundService: {
+              notificationTitle: 'FORGE Ruck Tracker',
+              notificationBody: 'GPS tracking active',
+              notificationColor: colours.cyan,
+            },
+          });
+        } else {
+          Alert.alert('Foreground tracking active', 'Background permission was not granted, so GPS will track while this screen stays open.');
+        }
       }
 
       dispatchTracking({ type: 'start_succeeded', firstPoint });
