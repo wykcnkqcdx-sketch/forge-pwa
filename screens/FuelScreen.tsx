@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   goalText: { fontSize: 12, fontWeight: '900' },
-  grid: { flexDirection: 'row', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 18, fontWeight: '900' },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
@@ -337,7 +337,7 @@ const styles = StyleSheet.create({
   },
   stepText: { color: colours.background, fontSize: 18, fontWeight: '900' },
   weightValue: { color: colours.text, fontWeight: '900', minWidth: 50, textAlign: 'center' },
-  macroGrid: { flexDirection: 'row', gap: 10, marginTop: 12 },
+  macroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
   macroItem: {
     flex: 1,
     borderWidth: 1,
@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
   rpeLabel: { color: colours.text, fontSize: 13, fontWeight: '900' },
   rpeGuidance: { color: colours.textSoft, fontSize: 12, lineHeight: 17, marginTop: 2 },
   hydrationValue: { color: colours.cyan, fontWeight: '900' },
-  hydrationActions: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  hydrationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   hydrationButton: {
     flex: 1,
     borderWidth: 1,
