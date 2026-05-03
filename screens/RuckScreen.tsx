@@ -623,11 +623,16 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
 
   const panStartCenter = useRef<TrackPoint | null>(null);
   const pinchStartZoom = useRef(mapZoom);
+  const zoomAnimFrame = useRef<number | null>(null);
 
   const mapGestures = useMemo(() => {
     const panGesture = Gesture.Pan()
       .enabled(Boolean(effectiveMapCenterRef.current))
       .onStart(() => {
+        if (zoomAnimFrame.current) {
+          cancelAnimationFrame(zoomAnimFrame.current);
+          zoomAnimFrame.current = null;
+        }
         setIsPanning(true);
         setGpsFollowMode(false);
         panStartCenter.current = effectiveMapCenterRef.current ?? null;
@@ -660,10 +665,13 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     const pinchGesture = Gesture.Pinch()
       .enabled(Boolean(effectiveMapCenterRef.current))
       .onStart(() => {
+        if (zoomAnimFrame.current) {
+          cancelAnimationFrame(zoomAnimFrame.current);
+          zoomAnimFrame.current = null;
+        }
         pinchStartZoom.current = mapZoomRef.current;
       })
       .onUpdate((event) => {
-        // Map linear finger scale to exponential map zoom increments
         const newZoom = Math.max(2, Math.min(18, pinchStartZoom.current + Math.log2(event.scale)));
         setMapZoom(newZoom);
       })
@@ -673,7 +681,24 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       .numberOfTaps(2)
       .enabled(Boolean(effectiveMapCenterRef.current))
       .onEnd(() => {
-        setMapZoom(15);
+        if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
+        const startZoom = mapZoomRef.current;
+        const endZoom = 15;
+        const durationMs = 250;
+        const startTime = Date.now();
+
+        function step() {
+          const progress = Math.min(1, (Date.now() - startTime) / durationMs);
+          const easeOut = 1 - Math.pow(1 - progress, 3);
+          setMapZoom(startZoom + (endZoom - startZoom) * easeOut);
+
+          if (progress < 1) {
+            zoomAnimFrame.current = requestAnimationFrame(step);
+          } else {
+            zoomAnimFrame.current = null;
+          }
+        }
+        zoomAnimFrame.current = requestAnimationFrame(step);
       })
       .runOnJS(true);
 
@@ -1561,6 +1586,18 @@ function updateSelectedCheckpointHere() {
                 <Text style={styles.mapSelectButtonText}>Move CP</Text>
               </Pressable>
             ) : null}
+            <Pressable style={styles.mapSelectButton} onPress={() => {
+              if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
+              setMapZoom((z) => Math.max(2, z - 1));
+            }}>
+              <Ionicons name="remove" size={16} color={colours.cyan} />
+            </Pressable>
+            <Pressable style={styles.mapSelectButton} onPress={() => {
+              if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
+              setMapZoom((z) => Math.min(18, z + 1));
+            }}>
+              <Ionicons name="add" size={16} color={colours.cyan} />
+            </Pressable>
           </View>
         )}
       </View>
@@ -1605,12 +1642,6 @@ function updateSelectedCheckpointHere() {
               </Pressable>
             </>
           ) : null}
-          <Pressable style={styles.mapSelectButton} onPress={() => setMapZoom((z) => Math.max(2, z - 1))}>
-            <Ionicons name="remove" size={16} color={colours.cyan} />
-          </Pressable>
-          <Pressable style={styles.mapSelectButton} onPress={() => setMapZoom((z) => Math.min(18, z + 1))}>
-            <Ionicons name="add" size={16} color={colours.cyan} />
-          </Pressable>
         </View>
       </SafeAreaView>
     );
