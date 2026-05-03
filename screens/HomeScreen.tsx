@@ -34,6 +34,13 @@ function isSameLocalDay(dateIso: string | undefined, day: Date) {
   return new Date(dateIso).toDateString() === day.toDateString();
 }
 
+function readinessActionLabel(band: 'GREEN' | 'AMBER' | 'RED', loadRisk: 'Low' | 'Moderate' | 'High') {
+  if (band === 'RED' || loadRisk === 'High') return 'Recover';
+  if (loadRisk === 'Moderate') return 'Reduce';
+  if (band === 'AMBER') return 'Maintain';
+  return 'Push';
+}
+
 export function HomeScreen({
   sessions,
   goToRuck,
@@ -252,6 +259,7 @@ export function HomeScreen({
     }
     return recommendedSession;
   }, [assignedCompletedToday, assignedCompletion, checkInStatus, goToFuel, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, performance.readinessBand, recommendedSession]);
+  const readinessAction = readinessActionLabel(performance.readinessBand, performance.loadRisk);
 
   function domainPressHandler(domainId: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -286,7 +294,7 @@ export function HomeScreen({
       <View style={styles.header}>
         <View>
           <Text style={styles.kicker}>{today.toUpperCase()}</Text>
-          <Text style={styles.title}>{displayName ? `${displayName}'s Today` : 'Tactical Readiness'}</Text>
+          <Text style={styles.title}>{displayName ? `${displayName}'s Today` : 'Today'}</Text>
           {!hasSessionToday && (
             <Text style={styles.noCheckIn}>No training logged today</Text>
           )}
@@ -322,12 +330,12 @@ export function HomeScreen({
       <Card hot>
         <View style={styles.decisionHeader}>
           <View style={styles.readinessPuck}>
-            <Text style={styles.label}>READY</Text>
+            <Text style={styles.label}>READINESS</Text>
             <Text style={[styles.readinessValue, { color: performance.readinessTone }]}>{performance.readiness}</Text>
-            <Text style={[styles.statusBand, { color: performance.readinessTone }]}>{performance.readinessBand}</Text>
+            <Text style={[styles.statusBand, { color: performance.readinessTone }]}>{readinessAction}</Text>
           </View>
           <View style={styles.decisionCopy}>
-            <Text style={styles.label}>TODAY'S MOVE</Text>
+            <Text style={styles.label}>TRAINING DECISION</Text>
             <Text style={[styles.decisionTitle, { color: dailyDecision.tone }]}>{dailyDecision.title}</Text>
             <Text style={styles.decisionDetail}>{dailyDecision.detail}</Text>
             <Text style={styles.checkInStamp}>{checkInStatus}</Text>
@@ -376,6 +384,10 @@ export function HomeScreen({
           ))}
         </View>
 
+        <View style={styles.signalHeader}>
+          <Text style={styles.signalTitle}>Readiness Signals</Text>
+          <Text style={styles.signalSubtitle}>Details</Text>
+        </View>
         <View style={styles.commandGrid}>
           <View style={styles.commandTile}>
             <Text style={styles.commandLabel}>LOAD</Text>
@@ -599,6 +611,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 12,
+    flexWrap: 'wrap',
   },
   kicker: {
     color: colours.cyan,
@@ -608,7 +621,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colours.text,
-    fontSize: 30,
+    fontSize: 28,
     fontWeight: '900',
     marginTop: 4,
   },
@@ -628,6 +641,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: colours.cyanDim,
+    flexShrink: 0,
   },
   opsecText: {
     color: colours.cyan,
@@ -677,7 +691,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   statusBand: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '900',
     marginBottom: 4,
   },
@@ -726,7 +740,23 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    marginTop: 8,
+  },
+  signalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: 14,
+  },
+  signalTitle: {
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '900',
+  },
+  signalSubtitle: {
+    color: colours.muted,
+    fontSize: 11,
+    fontWeight: '800',
   },
   commandTile: {
     width: '48%',

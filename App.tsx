@@ -52,7 +52,7 @@ const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap
   { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
   { id: 'fuel',       label: 'Fuel',    icon: 'restaurant-outline', iconActive: 'restaurant' },
   { id: 'analytics',  label: 'Intel',   icon: 'analytics-outline',  iconActive: 'analytics' },
-  { id: 'settings', label: 'Settings', icon: 'settings-outline', iconActive: 'settings' },
+  { id: 'settings', label: 'Ops', icon: 'settings-outline', iconActive: 'settings' },
 ];
 
 const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -677,18 +677,18 @@ const styles = StyleSheet.create({
   toastIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.cyan },
   toastText: { flex: 1, color: colours.text, fontSize: 13, fontWeight: '900' },
   tabBar: {
-    position: 'absolute', left: 14, right: 14, bottom: 20,
-    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 8, paddingVertical: 8,
-    borderRadius: 28, borderWidth: 1, borderColor: colours.border,
+    position: 'absolute', left: 10, right: 10, bottom: 14,
+    flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 7,
+    borderRadius: 24, borderWidth: 1, borderColor: colours.border,
     backgroundColor: 'rgba(4, 8, 15, 0.94)', overflow: 'hidden',
   },
   tabBarHighlight: { position: 'absolute', top: 0, left: 0, right: 0, height: 1, backgroundColor: colours.borderGlass },
   tabItem: { flex: 1, alignItems: 'center', justifyContent: 'center', minHeight: touchTarget, borderRadius: 20 },
   tabItemPressed: { opacity: 0.70 },
-  activePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyan, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 7, ...shadow.cyan },
-  activePillLabel: { color: colours.background, fontSize: 10, fontWeight: '900', letterSpacing: 0.4 },
+  activePill: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colours.cyan, borderRadius: 18, paddingHorizontal: 7, paddingVertical: 7, ...shadow.cyan },
+  activePillLabel: { color: colours.background, fontSize: 9, fontWeight: '900', letterSpacing: 0.2 },
   inactiveItem: { alignItems: 'center', gap: 3 },
-  inactiveLabel: { color: colours.muted, fontSize: 9, fontWeight: '700', letterSpacing: 0.2 },
+  inactiveLabel: { color: colours.muted, fontSize: 8, fontWeight: '700', letterSpacing: 0 },
   lockScreen: { flex: 1, backgroundColor: colours.background, justifyContent: 'center', alignItems: 'center', padding: 20 },
   lockContent: { alignItems: 'center', width: '100%', maxWidth: 320 },
   brand: { color: colours.cyan, fontSize: 24, fontWeight: '900', letterSpacing: 4, marginBottom: 8 },

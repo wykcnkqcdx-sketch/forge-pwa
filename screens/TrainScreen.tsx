@@ -5,11 +5,24 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
-import { colours } from '../theme';
+import { colours, touchTarget } from '../theme';
 import { TrainingSession, ExerciseCategory, Exercise, MovementPattern, exerciseLibrary, trainingModes } from '../data/mockData';
 
 const categories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 const timeTargets = [20, 30, 45, 60];
+const quickLogTemplates: Array<{
+  label: string;
+  type: TrainingSession['type'];
+  minutes: number;
+  rpe: number;
+  icon: keyof typeof Ionicons.glyphMap;
+  tone: string;
+}> = [
+  { label: 'Strength', type: 'Strength', minutes: 45, rpe: 7, icon: 'barbell-outline', tone: colours.green },
+  { label: 'Run', type: 'Run', minutes: 30, rpe: 6, icon: 'walk-outline', tone: colours.cyan },
+  { label: 'Ruck', type: 'Ruck', minutes: 60, rpe: 7, icon: 'footsteps-outline', tone: colours.amber },
+  { label: 'Mobility', type: 'Mobility', minutes: 20, rpe: 3, icon: 'body-outline', tone: colours.violet },
+];
 
 function targetCountForMinutes(minutes: number) {
   if (minutes <= 20) return 3;
@@ -153,10 +166,46 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
     Alert.alert('Session saved', `${selectedExercises.length} exercises have been added to your training log.`);
   }
 
+  function quickLogSession(template: typeof quickLogTemplates[number]) {
+    const session: TrainingSession = {
+      id: `quick-${template.type.toLowerCase()}-${Date.now()}`,
+      type: template.type,
+      title: `Quick ${template.label}`,
+      score: Math.round(template.minutes * template.rpe),
+      durationMinutes: template.minutes,
+      rpe: template.rpe,
+      completedAt: new Date().toISOString(),
+      loadKg: template.type === 'Ruck' ? 20 : undefined,
+    };
+
+    addSession(session);
+    Alert.alert('Session saved', `${template.label} logged. It will appear on Today and Recent Load.`);
+  }
+
   return (
     <Screen>
       <Text style={styles.muted}>Training block</Text>
       <Text style={styles.title}>{activeMode.title}</Text>
+
+      <Card accent={colours.cyan}>
+        <Text style={styles.cardTitle}>Quick Log</Text>
+        <Text style={styles.trainingHint}>Save a basic session now. Use the builder below when you want exercise detail.</Text>
+        <View style={styles.quickLogGrid}>
+          {quickLogTemplates.map((template) => (
+            <Pressable
+              key={template.label}
+              accessibilityRole="button"
+              accessibilityLabel={`Quick log ${template.label}`}
+              style={[styles.quickLogButton, { borderColor: `${template.tone}55`, backgroundColor: `${template.tone}12` }]}
+              onPress={() => quickLogSession(template)}
+            >
+              <Ionicons name={template.icon} size={19} color={template.tone} />
+              <Text style={[styles.quickLogLabel, { color: template.tone }]}>{template.label}</Text>
+              <Text style={styles.quickLogMeta}>{template.minutes}m / RPE {template.rpe}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </Card>
 
       <View style={styles.modeTabs}>
         {availableModes.map((mode) => {
@@ -375,6 +424,18 @@ const styles = StyleSheet.create({
   cardTitle: { color: colours.text, fontSize: 18, fontWeight: '900' },
   badge: { fontSize: 11, fontWeight: '900', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999 },
   timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  quickLogGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  quickLogButton: {
+    width: '48%',
+    flexGrow: 1,
+    minHeight: touchTarget,
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    justifyContent: 'center',
+  },
+  quickLogLabel: { fontSize: 13, fontWeight: '900', marginTop: 5 },
+  quickLogMeta: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 2 },
   timeButton: {
     minHeight: 48,
     flex: 1,
