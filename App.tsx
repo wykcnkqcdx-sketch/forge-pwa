@@ -420,7 +420,7 @@ export default function App() {
   function renderScreen() {
     switch (activeTab) {
       case 'train': return <TrainScreen addSession={addSession} sessions={sessions} />;
-      case 'ruck':  return <RuckScreen addSession={addSession} />;
+      case 'ruck':  return <RuckScreen addSession={addSession} sessions={sessions} />;
       case 'fuel':  return <FuelScreen sessions={sessions} readinessLogs={readinessLogs} />;
       case 'analytics':
         return (
@@ -496,7 +496,7 @@ export default function App() {
 
     switch (activeMemberTab) {
       case 'train': return <TrainScreen addSession={addSession} sessions={visibleSessions} />;
-      case 'ruck':  return <RuckScreen addSession={addSession} />;
+      case 'ruck':  return <RuckScreen addSession={addSession} sessions={visibleSessions} />;
       case 'fuel':  return <FuelScreen sessions={visibleSessions} readinessLogs={readinessLogs} />;
       case 'readiness':
         return (

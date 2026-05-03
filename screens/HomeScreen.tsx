@@ -11,6 +11,7 @@ import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { colours, touchTarget } from '../theme';
 import { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import { distanceBetween } from '../utils/mapUtils';
 
 function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
   if (status === 'GREEN') return colours.green;
@@ -32,6 +33,17 @@ function sessionTypeIcon(type: TrainingSession['type']): keyof typeof Ionicons.g
 function isSameLocalDay(dateIso: string | undefined, day: Date) {
   if (!dateIso) return false;
   return new Date(dateIso).toDateString() === day.toDateString();
+}
+
+function estimateRuckDistanceKm(session: TrainingSession) {
+  if (session.routePoints && session.routePoints.length > 1) {
+    return session.routePoints.slice(1).reduce((total, point, index) => (
+      total + distanceBetween(session.routePoints![index], point)
+    ), 0);
+  }
+
+  const titleDistance = session.title.match(/([\d.]+)\s*km/i)?.[1];
+  return titleDistance ? Number(titleDistance) : session.ruckMission?.targetDistanceKm ?? 0;
 }
 
 function readinessActionLabel(band: 'GREEN' | 'AMBER' | 'RED', loadRisk: 'Low' | 'Moderate' | 'High') {
@@ -138,6 +150,8 @@ export function HomeScreen({
     .reduce((total, s) => total + (s.loadKg ?? 0) * (s.durationMinutes / 60) * 5.2, 0);
 
   const recentSessions = sortSessionsByDate(sessions).slice(0, 3);
+  const latestRuck = sortSessionsByDate(sessions).find((session) => session.type === 'Ruck');
+  const latestRuckDistance = latestRuck ? estimateRuckDistanceKm(latestRuck) : 0;
 
   const acwrValue = Number(performance.acuteChronicRatio);
   const acwrTone = acwrValue > 1.3 ? colours.red : acwrValue < 0.8 ? colours.amber : colours.green;
@@ -616,6 +630,53 @@ export function HomeScreen({
         </Pressable>
       </Card>
 
+      {latestRuck ? (
+        <Card accent={latestRuck.routeConfidence === 'Low' ? colours.red : latestRuck.routeConfidence === 'Medium' ? colours.amber : colours.green}>
+          <View style={styles.lastRuckHeader}>
+            <View>
+              <Text style={styles.sectionTitle}>Last Ruck</Text>
+              <Text style={styles.body}>{latestRuck.title}</Text>
+            </View>
+            <View style={styles.lastRuckBadge}>
+              <Text style={styles.lastRuckBadgeText}>{latestRuck.routeConfidence ?? 'Manual'}</Text>
+            </View>
+          </View>
+          <View style={styles.lastRuckGrid}>
+            <View style={styles.lastRuckMetric}>
+              <Text style={styles.lastRuckValue}>{latestRuckDistance ? latestRuckDistance.toFixed(2) : '--'}km</Text>
+              <Text style={styles.lastRuckLabel}>Distance</Text>
+            </View>
+            <View style={styles.lastRuckMetric}>
+              <Text style={styles.lastRuckValue}>{latestRuck.loadKg ?? 0}kg</Text>
+              <Text style={styles.lastRuckLabel}>Load</Text>
+            </View>
+            <View style={styles.lastRuckMetric}>
+              <Text style={styles.lastRuckValue}>{latestRuck.durationMinutes}m</Text>
+              <Text style={styles.lastRuckLabel}>Time</Text>
+            </View>
+            <View style={styles.lastRuckMetric}>
+              <Text style={styles.lastRuckValue}>
+                {latestRuckDistance ? (latestRuck.durationMinutes / latestRuckDistance).toFixed(1) : '--'}
+              </Text>
+              <Text style={styles.lastRuckLabel}>Min/km</Text>
+            </View>
+          </View>
+          <Text style={styles.lastRuckQuality}>
+            {latestRuck.averageAccuracyMeters ? `GPS average +/-${latestRuck.averageAccuracyMeters}m` : 'No GPS accuracy saved'}
+            {latestRuck.rejectedPointCount != null ? ` | ${latestRuck.rejectedPointCount} rejected point${latestRuck.rejectedPointCount === 1 ? '' : 's'}` : ''}
+          </Text>
+          <Pressable
+            style={[styles.secondaryButton, { marginTop: 12 }]}
+            accessibilityLabel="Open ruck history"
+            accessibilityRole="button"
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goToRuck(); }}
+          >
+            <Ionicons name="list" size={18} color={colours.cyan} />
+            <Text style={styles.secondaryButtonText}>Open Ruck History</Text>
+          </Pressable>
+        </Card>
+      ) : null}
+
       {/* Recent Load */}
       <View style={styles.recentHeader}>
         <Text style={styles.sectionTitle}>Recent Load</Text>
@@ -982,6 +1043,36 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
+  lastRuckHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  lastRuckBadge: {
+    minHeight: 32,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.cyanDim,
+  },
+  lastRuckBadgeText: { color: colours.cyan, fontSize: 10, fontWeight: '900' },
+  lastRuckGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  lastRuckMetric: {
+    width: '47%',
+    flexGrow: 1,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  lastRuckValue: { color: colours.text, fontSize: 16, fontWeight: '900' },
+  lastRuckLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', marginTop: 2 },
+  lastRuckQuality: { color: colours.muted, fontSize: 11, fontWeight: '800', lineHeight: 16, marginTop: 10 },
   sessionRow: {
     minHeight: touchTarget,
     flexDirection: 'row',
