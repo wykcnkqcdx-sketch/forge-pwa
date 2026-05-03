@@ -325,7 +325,6 @@ ${finalExclusionPatternsForDescription
 
     const sortedFiles = Array.from(filesToConsider).sort();
     const file_line_limit =
-      DEFAULT_MAX_LINES_TEXT_FILE / Math.max(1, sortedFiles.length);
 
     const fileProcessingPromises = sortedFiles.map(
       async (filePath): Promise<FileProcessingResult> => {
