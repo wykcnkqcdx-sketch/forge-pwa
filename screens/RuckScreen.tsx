@@ -292,7 +292,8 @@ export function RuckScreen({
   const [mapLayer, setMapLayer] = useState<MapLayerKey>('topo');
   const [mapViewport, setMapViewport] = useState<MapViewport>({ width: 0, height: 0 });
   const [mapCenter, setMapCenter] = useState<TrackPoint | null>(null);
-  const [mapSelectionMode, setMapSelectionMode] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, false = pan free
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
@@ -586,28 +587,31 @@ export function RuckScreen({
   }, []);
 
   useEffect(() => {
-    if (!currentPoint || mapCenter || mapSelectionMode) return;
+    if (!currentPoint || mapCenter || !gpsFollowMode || isPanning) return;
     setMapCenter(currentPoint);
-  }, [currentPoint, mapCenter, mapSelectionMode]);
+  }, [currentPoint, mapCenter, gpsFollowMode, isPanning]);
 
   const panStartCenter = useRef<TrackPoint | null>(null);
   const mapPanResponder = useMemo(
     () => PanResponder.create({
-      onStartShouldSetPanResponder: () => mapSelectionMode && Boolean(effectiveMapCenter),
+      onStartShouldSetPanResponder: () => Boolean(effectiveMapCenter), // Always enable
       onMoveShouldSetPanResponder: (_, gesture) => (
-        mapSelectionMode
-        && Boolean(effectiveMapCenter)
-        && (Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3)
+        Boolean(effectiveMapCenter) && (Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1) // Sensitive threshold
       ),
       onPanResponderGrant: () => {
+        setIsPanning(true);
         panStartCenter.current = effectiveMapCenter ?? null;
       },
       onPanResponderMove: (_, gesture) => {
         const start = panStartCenter.current;
         if (!start || mapViewport.width <= 0 || mapViewport.height <= 0) return;
 
+        // Bound panning to reasonable viewport limits
+        const dxBound = Math.max(-mapViewport.width * 2, Math.min(mapViewport.width * 2, gesture.dx));
+        const dyBound = Math.max(-mapViewport.height * 2, Math.min(mapViewport.height * 2, gesture.dy));
+
         const startPixel = latLonToWorldPixel(start.latitude, start.longitude, MAP_ZOOM);
-        const next = worldPixelToLatLon(startPixel.x - gesture.dx, startPixel.y - gesture.dy, MAP_ZOOM);
+        const next = worldPixelToLatLon(startPixel.x - dxBound, startPixel.y - dyBound, MAP_ZOOM);
         setMapCenter({
           latitude: next.latitude,
           longitude: next.longitude,
@@ -617,13 +621,15 @@ export function RuckScreen({
         });
       },
       onPanResponderRelease: () => {
+        setIsPanning(false);
         panStartCenter.current = null;
       },
       onPanResponderTerminate: () => {
+        setIsPanning(false);
         panStartCenter.current = null;
       },
     }),
-    [effectiveMapCenter, mapSelectionMode, mapViewport.height, mapViewport.width]
+    [effectiveMapCenter, mapViewport.height, mapViewport.width]
   );
 
   useEffect(() => {
@@ -1169,12 +1175,12 @@ export function RuckScreen({
     )));
   }
 
-  function addCheckpointHere() {
+function addCheckpointHere() {
     if (!effectiveMapCenter) {
       Alert.alert('No map position', 'Start GPS tracking or wait for a location fix before adding a checkpoint here.');
       return;
     }
-    addCheckpoint(effectiveMapCenter, mapSelectionMode ? 'manual' : 'current');
+    addCheckpoint(effectiveMapCenter, mapCenter ? 'manual' : 'current');
   }
 
   function addCheckpointFromInput() {
@@ -1206,7 +1212,7 @@ export function RuckScreen({
     setCheckpointCoordinateInput('');
   }
 
-  function updateSelectedCheckpointHere() {
+function updateSelectedCheckpointHere() {
     if (!selectedCheckpoint) return;
     if (!effectiveMapCenter) {
       Alert.alert('No map position', 'Start GPS tracking or wait for a location fix before moving the checkpoint here.');
@@ -1219,7 +1225,7 @@ export function RuckScreen({
       altitude: effectiveMapCenter.altitude,
       accuracy: effectiveMapCenter.accuracy,
       timestamp: Date.now(),
-      source: mapSelectionMode ? 'manual' : 'current',
+      source: mapCenter ? 'manual' : 'current',
     });
   }
 
@@ -1426,8 +1432,8 @@ export function RuckScreen({
         {showOverlays && (
           <>
             <View style={styles.mapGridOverlay} pointerEvents="none">
-              <Text style={styles.mapOverlayLabel}>{mapSelectionMode ? 'MAP CENTER' : 'GRID'}</Text>
-              <Text style={styles.mapOverlayValue}>{mapSelectionMode ? mapCenterCoordinate ?? 'Awaiting fix' : currentCoordinate ?? 'Awaiting fix'}</Text>
+              <Text style={styles.mapOverlayLabel}>{gpsFollowMode ? 'GPS GRID' : 'MAP CENTER'}</Text>
+              <Text style={styles.mapOverlayValue}>{gpsFollowMode ? currentCoordinate ?? 'Awaiting fix' : mapCenterCoordinate ?? 'Awaiting fix'}</Text>
             </View>
             <View style={styles.mapCompassOverlay} pointerEvents="none">
               <Animated.View
@@ -1489,15 +1495,15 @@ export function RuckScreen({
         {showOverlays && (
           <View style={styles.mapSelectControls}>
             <Pressable
-              style={[styles.mapSelectButton, mapSelectionMode && styles.mapSelectButtonActive]}
+              style={[styles.mapSelectButton, !gpsFollowMode && styles.mapSelectButtonActive]}
               onPress={() => {
-                setMapSelectionMode((current) => !current);
-                if (!mapCenter && currentPoint) setMapCenter(currentPoint);
+                setGpsFollowMode((current) => !current);
+                if (gpsFollowMode && currentPoint) setMapCenter(currentPoint);
               }}
             >
-              <Ionicons name="move" size={14} color={mapSelectionMode ? colours.background : colours.cyan} />
-              <Text style={[styles.mapSelectButtonText, mapSelectionMode && styles.mapSelectButtonTextActive]}>
-                {mapSelectionMode ? 'Selecting' : 'Select'}
+              <Ionicons name={!gpsFollowMode ? "location-off" : 'locate'} size={14} color={!gpsFollowMode ? colours.background : colours.cyan} />
+              <Text style={[styles.mapSelectButtonText, !gpsFollowMode && styles.mapSelectButtonTextActive]}>
+                {gpsFollowMode ? 'Pan Free' : 'GPS Follow'}
               </Text>
             </Pressable>
             <Pressable style={styles.mapSelectButton} onPress={recenterMapOnGps}>
@@ -1651,10 +1657,10 @@ export function RuckScreen({
         </View>
 
         {currentPoint && currentCoordinate && (
-          <Text style={styles.coordinateText}>
-            {mapSelectionMode && mapCenterCoordinate ? `Map centre: ${mapCenterCoordinate}` : currentCoordinate}
-            {currentPoint.accuracy ? ` | +/-${Math.round(currentPoint.accuracy)}m` : ''}
-          </Text>
+        <Text style={styles.coordinateText}>
+          {!gpsFollowMode && mapCenter ? `Map centre: ${mapCenterCoordinate}` : currentCoordinate}
+          {currentPoint.accuracy ? ` | +/-${Math.round(currentPoint.accuracy)}m` : ''}
+        </Text>
         )}
       </Card>
 
