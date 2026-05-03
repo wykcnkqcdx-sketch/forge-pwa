@@ -221,6 +221,13 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
     }
 
     case 'point_recorded': {
+      if (state.routePoints.length === 0) {
+        return {
+          ...state,
+          routePoints: [action.point],
+          startTime: state.startTime ?? new Date(action.point.timestamp),
+        };
+      }
       const previousPoint = state.routePoints[state.routePoints.length - 1];
       const result = evaluateRoutePoint(previousPoint, action.point);
       if (!result.accepted) {
