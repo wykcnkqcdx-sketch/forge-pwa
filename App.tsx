@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-// import * as Haptics from 'expo-haptics'; // Disabled due to web compat issue
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from './screens/HomeScreen';
 import { ReadinessScreen } from './screens/ReadinessScreen';
