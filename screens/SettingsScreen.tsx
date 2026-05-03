@@ -11,8 +11,8 @@ export function SettingsScreen(props: React.ComponentProps<typeof InstructorScre
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.title}>Settings</Text>
-        <Text style={styles.subtitle}>App preferences &amp; advanced tools</Text>
+        <Text style={styles.title}>Ops</Text>
+        <Text style={styles.subtitle}>Privacy, backup, sync, and coach tools</Text>
       </View>
       <InstructorScreen {...props} />
     </Screen>
@@ -21,11 +21,11 @@ export function SettingsScreen(props: React.ComponentProps<typeof InstructorScre
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 24,
-    paddingBottom: 20,
+    paddingTop: 8,
+    paddingBottom: 14,
   },
   title: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: '900',
     color: colours.text,
   },

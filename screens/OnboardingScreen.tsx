@@ -16,7 +16,7 @@ const slides: Slide[] = [
   {
     icon: 'body-outline',
     title: 'Log Readiness First',
-    body: 'Every session starts with how you feel: sleep, soreness, hydration, stress. Accurate inputs → better decisions.',
+    body: 'Every session starts with how you feel: sleep, soreness, hydration, stress. Accurate inputs lead to better decisions.',
   },
   {
     icon: 'flash-outline',
@@ -98,7 +98,7 @@ export function OnboardingScreen() {
 
         <View style={styles.footer}>
         <Pressable style={styles.getStarted} onPress={completeOnboarding}>
-            <Text style={styles.getStartedText}>Get Started →</Text>
+            <Text style={styles.getStartedText}>Get Started</Text>
           </Pressable>
           {currentSlide < slides.length - 1 && (
             <Pressable onPress={goToNextSlide}>

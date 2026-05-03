@@ -1333,10 +1333,10 @@ export function InstructorScreen({
 
 const styles = StyleSheet.create({
   muted: { color: colours.muted, fontSize: 13 },
-  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
-  grid: { flexDirection: 'row', gap: 12 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  title: { color: colours.text, fontSize: 28, fontWeight: '900', marginBottom: 14 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  headerRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  cardHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   cardTitleFlush: { marginBottom: 0 },
   cloudActions: {
@@ -1639,10 +1639,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.18)',
     marginBottom: 10,
   },
-  groupTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  groupTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   groupScore: { alignItems: 'flex-end' },
   scoreMeta: { color: colours.soft, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
-  groupStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 10 },
+  groupStats: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 10 },
   groupStat: { color: colours.muted, fontSize: 11, fontWeight: '800' },
   connectionRow: {
     flexDirection: 'row',
@@ -1750,7 +1750,7 @@ const styles = StyleSheet.create({
   },
   programmeExerciseName: { color: colours.text, fontSize: 13, fontWeight: '900' },
   programmeExerciseDose: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
-  programmeActionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  programmeActionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   programmeLoadButton: {
     flex: 1,
     alignItems: 'center',

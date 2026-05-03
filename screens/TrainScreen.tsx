@@ -413,7 +413,7 @@ const styles = StyleSheet.create({
   lockedText: { color: colours.soft, fontSize: 11, fontWeight: '900' },
   lockedBarBg: { width: 32, height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' },
   lockedBarFill: { height: '100%', backgroundColor: colours.soft },
-  grid: { flexDirection: 'row', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   selectionStatus: {
     borderWidth: 1,
     borderRadius: 10,

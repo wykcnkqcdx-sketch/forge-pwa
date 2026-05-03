@@ -2457,7 +2457,7 @@ const styles = StyleSheet.create({
   expandMapButtonLocked: { opacity: 0.92 },
   expandMapButtonText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
   expandMapButtonTextActive: { color: colours.background },
-  liveStats: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  liveStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   liveStat: {
     flex: 1,
     borderWidth: 1,
@@ -2479,7 +2479,7 @@ const styles = StyleSheet.create({
   saveButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
   saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   discardButton: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colours.border, borderWidth: 1 },
-  grid: { flexDirection: 'row', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10, gap: 12 },
   controlLabel: { color: colours.text, fontWeight: '800' },

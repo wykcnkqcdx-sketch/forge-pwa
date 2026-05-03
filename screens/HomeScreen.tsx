@@ -137,13 +137,13 @@ export function HomeScreen({
       list.push({ tone: colours.amber, icon: 'time-outline', text: 'Readiness check-in is stale - log today before acting on recovery signals' });
     }
     if (performance.monotony > 2.0) {
-      list.push({ tone: colours.amber, icon: 'warning-outline', text: `Monotony elevated (${performance.monotony.toFixed(1)}) — vary training type` });
+      list.push({ tone: colours.amber, icon: 'warning-outline', text: `Monotony elevated (${performance.monotony.toFixed(1)}) - vary training type` });
     }
     if (latestReadiness?.sleepHours !== undefined && latestReadiness.sleepHours < 6) {
-      list.push({ tone: colours.amber, icon: 'moon-outline', text: 'Low sleep flagged — limit high-intensity work today' });
+      list.push({ tone: colours.amber, icon: 'moon-outline', text: 'Low sleep flagged - limit high-intensity work today' });
     }
     if (latestReadiness?.hydration === 'Poor') {
-      list.push({ tone: colours.red, icon: 'water-outline', text: 'Hydration poor — address before training' });
+      list.push({ tone: colours.red, icon: 'water-outline', text: 'Hydration poor - address before training' });
     }
     return list;
   }, [performance.monotony, latestReadiness, latestStoredReadiness, readinessIsStale]);
