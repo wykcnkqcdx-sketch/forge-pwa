@@ -3,7 +3,6 @@ import { View, Text, Pressable, StyleSheet, FlatList, useWindowDimensions } from
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
-import { useLocalStore } from '../hooks/useLocalStore';
 import { colours } from '../theme';
 
 interface Slide {
@@ -30,15 +29,10 @@ const slides: Slide[] = [
   },
 ];
 
-export function OnboardingScreen() {
+export function OnboardingScreen({ onComplete }: { onComplete: (mode: 'fresh' | 'demo') => void }) {
   const { width } = useWindowDimensions();
-  const { setHasSeenOnboarding } = useLocalStore();
   const [currentSlide, setCurrentSlide] = useState(0);
   const flatListRef = useRef<FlatList>(null);
-
-  const completeOnboarding = () => {
-    setHasSeenOnboarding(true);
-  };
 
   const goToNextSlide = () => {
     const next = currentSlide + 1;
@@ -97,8 +91,11 @@ export function OnboardingScreen() {
         {renderDots()}
 
         <View style={styles.footer}>
-        <Pressable style={styles.getStarted} onPress={completeOnboarding}>
-            <Text style={styles.getStartedText}>Get Started</Text>
+          <Pressable style={styles.getStarted} onPress={() => onComplete('fresh')}>
+            <Text style={styles.getStartedText}>Start Fresh</Text>
+          </Pressable>
+          <Pressable style={styles.demoButton} onPress={() => onComplete('demo')}>
+            <Text style={styles.demoButtonText}>Load Demo Data</Text>
           </Pressable>
           {currentSlide < slides.length - 1 && (
             <Pressable onPress={goToNextSlide}>
@@ -196,6 +193,20 @@ const styles = StyleSheet.create({
   getStartedText: {
     color: colours.background,
     fontSize: 18,
+    fontWeight: '900',
+  },
+  demoButton: {
+    minHeight: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  demoButtonText: {
+    color: colours.cyan,
+    fontSize: 14,
     fontWeight: '900',
   },
   next: {

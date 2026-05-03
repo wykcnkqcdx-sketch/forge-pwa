@@ -12,7 +12,7 @@ import { SettingsScreen } from './screens/SettingsScreen';
 import { OnboardingScreen } from './screens/OnboardingScreen';
 import { AuthScreen } from './screens/AuthScreen';
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from './data/mockData';
-import { trainingGroups } from './data/mockData';
+import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups } from './data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from './data/domain';
 import { clearActiveRoute } from './lib/ruckRouteStore';
 import { secureDestroyLocalData } from './lib/secureStorage';
@@ -282,6 +282,25 @@ export default function App() {
     enqueueCloudMutation({ type: 'upsert_readiness_log', payload: updated });
   }
 
+  function completeOnboarding(mode: 'fresh' | 'demo') {
+    if (mode === 'fresh') {
+      store.setSessions([]);
+      store.setMembers([]);
+      store.setGroups(trainingGroups);
+      store.setProgrammeTemplates(initialProgrammeTemplates);
+      store.setReadinessLogs([]);
+      store.setWorkoutCompletions([]);
+    } else {
+      store.setSessions(initialSessions);
+      store.setMembers(squadMembers);
+      store.setGroups(trainingGroups);
+      store.setProgrammeTemplates(initialProgrammeTemplates);
+      store.setReadinessLogs([]);
+      store.setWorkoutCompletions([]);
+    }
+    store.setHasSeenOnboarding(true);
+  }
+
   // ── Import / Export ───────────────────────────────────────────────────────
   function validateImportedSessions(value: unknown): TrainingSession[] | null {
     if (!Array.isArray(value)) return null;
@@ -522,7 +541,7 @@ export default function App() {
   }
 
   if (!hasSeenOnboarding) {
-    return <OnboardingScreen />;
+    return <OnboardingScreen onComplete={completeOnboarding} />;
   }
 
   if (isSupabaseConfigured && !cloud.cloudSession) {

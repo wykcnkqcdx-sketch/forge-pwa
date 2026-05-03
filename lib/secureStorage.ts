@@ -2,42 +2,34 @@
  * Secure storage for web (IndexedDB) and native (AsyncStorage).
  *
  * On web, each value is encrypted with AES-256-GCM. The encryption key is a
- * non-extractable CryptoKey stored in a dedicated IndexedDB keystore — the raw
+ * non-extractable CryptoKey stored in a dedicated IndexedDB keystore. The raw
  * key bytes are never accessible to JavaScript, even via DevTools.
  *
- * On native (iOS/Android), falls back to AsyncStorage (platform keychain
- * integration is a native-build concern handled at the Expo layer).
+ * On native (iOS/Android), this currently falls back to AsyncStorage.
+ * Replace this with platform secure storage before production field use.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Dexie from 'dexie';
 import { Platform } from 'react-native';
 
-// ── Constants ────────────────────────────────────────────────────────────────
-
 const KEY_DB_NAME = 'forge-keystore';
 const DATA_DB_NAME = 'forge-secure-local-v2';
 const CRYPTO_KEY_SLOT = 'primary';
 const IV_BYTES = 12;
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-
 type EncryptedRecord = {
   id: string;
-  data: ArrayBuffer; // IV (12 bytes) || AES-GCM ciphertext
+  data: ArrayBuffer;
 };
 
 type DataDb = {
   records: Dexie.Table<EncryptedRecord, string>;
 };
 
-// ── Platform guard ────────────────────────────────────────────────────────────
-
 function isWebWithIndexedDb() {
   return Platform.OS === 'web' && typeof indexedDB !== 'undefined' && typeof crypto?.subtle !== 'undefined';
 }
-
-// ── Raw IndexedDB key store (stores CryptoKey objects natively) ───────────────
 
 let keyDbPromise: Promise<IDBDatabase> | null = null;
 
@@ -72,8 +64,6 @@ function idbPut(db: IDBDatabase, store: string, key: string, value: unknown): Pr
   });
 }
 
-// ── Non-extractable CryptoKey management ─────────────────────────────────────
-
 let cryptoKeyPromise: Promise<CryptoKey> | null = null;
 
 async function getOrCreateCryptoKey(): Promise<CryptoKey> {
@@ -85,7 +75,7 @@ async function getOrCreateCryptoKey(): Promise<CryptoKey> {
 
       const key = await crypto.subtle.generateKey(
         { name: 'AES-GCM', length: 256 },
-        false, // non-extractable: raw bytes are NEVER accessible to JS
+        false,
         ['encrypt', 'decrypt'],
       );
       await idbPut(db, 'keys', CRYPTO_KEY_SLOT, key);
@@ -97,8 +87,6 @@ async function getOrCreateCryptoKey(): Promise<CryptoKey> {
   }
   return cryptoKeyPromise;
 }
-
-// ── AES-GCM helpers ───────────────────────────────────────────────────────────
 
 async function encrypt(key: CryptoKey, plaintext: string): Promise<ArrayBuffer> {
   const iv = crypto.getRandomValues(new Uint8Array(IV_BYTES));
@@ -121,8 +109,6 @@ async function decrypt(key: CryptoKey, data: ArrayBuffer): Promise<string> {
   return new TextDecoder().decode(plaintext);
 }
 
-// ── Dexie data store (stores encrypted blobs) ────────────────────────────────
-
 let dataDbPromise: Promise<DataDb & Dexie> | null = null;
 
 function getDataDb(): Promise<DataDb & Dexie> {
@@ -140,8 +126,6 @@ function getDataDb(): Promise<DataDb & Dexie> {
   return dataDbPromise;
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
 export async function secureSetItem(key: string, value: string): Promise<void> {
   if (!isWebWithIndexedDb()) {
     await AsyncStorage.setItem(key, value);
@@ -158,10 +142,8 @@ export async function secureGetItem(key: string): Promise<string | null> {
   const [cryptoKey, db] = await Promise.all([getOrCreateCryptoKey(), getDataDb()]);
   const record = await db.records.get(key);
   if (!record) {
-    // Migration path: plain AsyncStorage value from a previous install
     const legacy = await AsyncStorage.getItem(key);
     if (legacy) {
-      // Re-encrypt into the new store and clear the legacy copy
       await secureSetItem(key, legacy);
       await AsyncStorage.removeItem(key);
       return legacy;
@@ -172,7 +154,7 @@ export async function secureGetItem(key: string): Promise<string | null> {
   try {
     return await decrypt(cryptoKey, record.data);
   } catch {
-    console.error(`Failed to decrypt stored value for "${key}" — data may be corrupt`);
+    console.error(`Failed to decrypt stored value for "${key}" - data may be corrupt`);
     return null;
   }
 }
@@ -194,7 +176,6 @@ export async function secureDestroyLocalData(keys: string[]): Promise<void> {
   await secureMultiRemove(keys);
 
   if (isWebWithIndexedDb()) {
-    // Close and delete the data store
     if (dataDbPromise) {
       const db = await dataDbPromise;
       db.close();
@@ -202,7 +183,6 @@ export async function secureDestroyLocalData(keys: string[]): Promise<void> {
     }
     await Dexie.delete(DATA_DB_NAME);
 
-    // Delete the keystore — next launch generates a fresh key
     if (keyDbPromise) {
       const keyDb = await keyDbPromise;
       keyDb.close();
@@ -211,12 +191,11 @@ export async function secureDestroyLocalData(keys: string[]): Promise<void> {
     await new Promise<void>((resolve) => {
       const req = indexedDB.deleteDatabase(KEY_DB_NAME);
       req.onsuccess = () => resolve();
-      req.onerror = () => resolve(); // best-effort
+      req.onerror = () => resolve();
     });
 
     cryptoKeyPromise = null;
   }
 
-  // Always clear AsyncStorage (legacy values + native path)
   await AsyncStorage.multiRemove(keys);
 }

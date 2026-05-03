@@ -5,7 +5,7 @@ import * as Haptics from 'expo-haptics';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
-import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } from '../lib/performance';
+import { buildPerformanceProfile, buildWeeklyLoadSeries, PerformanceProfile, sortSessionsByDate } from '../lib/performance';
 import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { colours, touchTarget } from '../theme';
@@ -39,6 +39,51 @@ function readinessActionLabel(band: 'GREEN' | 'AMBER' | 'RED', loadRisk: 'Low' |
   if (loadRisk === 'Moderate') return 'Reduce';
   if (band === 'AMBER') return 'Maintain';
   return 'Push';
+}
+
+function buildDailyReadinessDecision(performance: PerformanceProfile, readiness?: ReadinessLog) {
+  const flags: string[] = [];
+  let score = performance.readiness;
+
+  if (readiness?.sleepHours !== undefined && readiness.sleepHours < 6) {
+    score -= 12;
+    flags.push('sleep below target');
+  }
+  if ((readiness?.soreness ?? 0) >= 4) {
+    score -= 10;
+    flags.push('high soreness');
+  }
+  if ((readiness?.pain ?? 0) >= 3) {
+    score -= 14;
+    flags.push('pain reported');
+  }
+  if ((readiness?.illness ?? 0) >= 3) {
+    score -= 18;
+    flags.push('illness reported');
+  }
+  if (readiness?.hydration === 'Poor') {
+    score -= 8;
+    flags.push('poor hydration');
+  }
+  if ((readiness?.stress ?? 0) >= 4) {
+    score -= 6;
+    flags.push('high stress');
+  }
+
+  const readinessScore = Math.max(25, Math.min(96, Math.round(score)));
+  const band = readinessScore >= 80 ? 'GREEN' : readinessScore >= 62 ? 'AMBER' : 'RED';
+  const tone = band === 'GREEN' ? colours.green : band === 'AMBER' ? colours.amber : colours.red;
+  const action = readinessActionLabel(band, performance.loadRisk);
+
+  return {
+    score: readinessScore,
+    band,
+    tone,
+    action,
+    explanation: flags.length
+      ? `Readiness adjusted for ${flags.slice(0, 3).join(', ')}.`
+      : 'Readiness is based on recent load and today\'s check-in.',
+  };
 }
 
 export function HomeScreen({
@@ -83,6 +128,10 @@ export function HomeScreen({
   const guidance = useMemo(
     () => buildPrescriptiveGuidance(sessions, latestReadiness?.sleepHours ?? 7, performance.loadRisk === 'High' ? 'down' : 'flat'),
     [sessions, latestReadiness?.sleepHours, performance.loadRisk],
+  );
+  const dailyReadiness = useMemo(
+    () => buildDailyReadinessDecision(performance, latestReadiness),
+    [performance, latestReadiness],
   );
   const ruckWork = sessions
     .filter((s) => s.type === 'Ruck')
@@ -176,7 +225,7 @@ export function HomeScreen({
 
   // Recommended session
   const recommendedSession = useMemo(() => {
-    if (performance.readinessBand === 'RED' || performance.loadRisk === 'High') {
+    if (dailyReadiness.band === 'RED' || performance.loadRisk === 'High') {
       return {
         title: 'Mobility & Recovery',
         detail: '20–30 min · Low intensity · Focus on tissue care',
@@ -187,7 +236,7 @@ export function HomeScreen({
         goTo: goToTrain,
       };
     }
-    if (performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate') {
+    if (dailyReadiness.band === 'AMBER' || performance.loadRisk === 'Moderate') {
       return {
         title: 'Zone 2 Aerobic',
         detail: '40 min · Heart rate 130–145 bpm · Steady effort',
@@ -221,7 +270,7 @@ export function HomeScreen({
       tone: colours.green,
       goTo: goToTrain,
     };
-  }, [performance.readinessBand, performance.loadRisk, sessions, goToTrain, goToRuck]);
+  }, [dailyReadiness.band, performance.loadRisk, sessions, goToTrain, goToRuck]);
 
   const dailyDecision = useMemo(() => {
     if (needsReadinessCheckIn && goToReadiness) {
@@ -246,20 +295,19 @@ export function HomeScreen({
         goTo: goToFuel,
       };
     }
-    if (member?.assignmentSession && member.assignmentSession.status !== 'completed' && performance.readinessBand !== 'RED' && performance.loadRisk !== 'High') {
+    if (member?.assignmentSession && member.assignmentSession.status !== 'completed' && dailyReadiness.band !== 'RED' && performance.loadRisk !== 'High') {
       return {
         title: member.assignmentSession.title,
         detail: member.assignmentSession.coachNote ?? `${member.assignmentSession.type} assigned by coach.`,
         reason: `${checkInStatus}. Assigned session is ready to execute.`,
         actionLabel: 'Start Assigned',
         icon: sessionTypeIcon(member.assignmentSession.type),
-        tone: performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate' ? colours.amber : colours.green,
+        tone: dailyReadiness.band === 'AMBER' || performance.loadRisk === 'Moderate' ? colours.amber : colours.green,
         goTo: goToTrain,
       };
     }
     return recommendedSession;
-  }, [assignedCompletedToday, assignedCompletion, checkInStatus, goToFuel, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, performance.readinessBand, recommendedSession]);
-  const readinessAction = readinessActionLabel(performance.readinessBand, performance.loadRisk);
+  }, [assignedCompletedToday, assignedCompletion, checkInStatus, dailyReadiness.band, goToFuel, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, recommendedSession]);
 
   function domainPressHandler(domainId: string) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -331,8 +379,8 @@ export function HomeScreen({
         <View style={styles.decisionHeader}>
           <View style={styles.readinessPuck}>
             <Text style={styles.label}>READINESS</Text>
-            <Text style={[styles.readinessValue, { color: performance.readinessTone }]}>{performance.readiness}</Text>
-            <Text style={[styles.statusBand, { color: performance.readinessTone }]}>{readinessAction}</Text>
+            <Text style={[styles.readinessValue, { color: dailyReadiness.tone }]}>{dailyReadiness.score}</Text>
+            <Text style={[styles.statusBand, { color: dailyReadiness.tone }]}>{dailyReadiness.action}</Text>
           </View>
           <View style={styles.decisionCopy}>
             <Text style={styles.label}>TRAINING DECISION</Text>
@@ -342,7 +390,7 @@ export function HomeScreen({
           </View>
         </View>
 
-        <ProgressBar value={performance.readiness} colour={performance.readinessTone} />
+        <ProgressBar value={dailyReadiness.score} colour={dailyReadiness.tone} />
 
         <View style={[styles.reasonPanel, { borderColor: `${dailyDecision.tone}55`, backgroundColor: `${dailyDecision.tone}12` }]}>
           <View style={[styles.reasonIcon, { backgroundColor: `${dailyDecision.tone}22` }]}>
@@ -350,7 +398,7 @@ export function HomeScreen({
           </View>
           <View style={styles.reasonCopy}>
             <Text style={[styles.reasonTitle, { color: dailyDecision.tone }]}>{dailyDecision.reason}</Text>
-            <Text style={styles.reasonDetail}>{guidance}</Text>
+            <Text style={styles.reasonDetail}>{dailyReadiness.explanation} {guidance}</Text>
           </View>
         </View>
 
