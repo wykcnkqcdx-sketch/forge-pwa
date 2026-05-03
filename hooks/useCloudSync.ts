@@ -115,6 +115,10 @@ export function useCloudSync({
       }
       setCloudSession(data.session ?? null);
       setAuthReady(true);
+    }).catch((err) => {
+      if (!mounted) return;
+      console.error('getSession threw unexpectedly', err);
+      setAuthReady(true);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
