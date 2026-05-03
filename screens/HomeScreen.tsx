@@ -309,7 +309,7 @@ export function HomeScreen({
           return (
             <View key={i} style={styles.stripDay}>
               <View style={styles.stripTrack}>
-                <View style={[styles.stripBar, { flex: barFraction, backgroundColor: barTone, opacity: isToday ? 1 : 0.72 }]} />
+                <View style={[styles.stripBar, { height: `${Math.round(barFraction * 100)}%`, backgroundColor: barTone, opacity: isToday ? 1 : 0.72 }]} />
               </View>
               <Text style={[styles.stripLabel, isToday && styles.stripLabelToday]}>{dayLabels[i]}</Text>
               {isToday && <View style={styles.stripTodayDot} />}
@@ -671,18 +671,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     marginTop: 8,
   },
-  readinessRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 18,
-  },
   readinessValue: {
     fontSize: 64,
     lineHeight: 68,
     fontWeight: '900',
-  },
-  readinessCopy: {
-    flex: 1,
   },
   statusBand: {
     fontSize: 15,

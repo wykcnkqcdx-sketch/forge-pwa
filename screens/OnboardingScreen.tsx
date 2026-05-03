@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, Pressable, StyleSheet, FlatList } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, Pressable, StyleSheet, FlatList, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -31,15 +31,23 @@ const slides: Slide[] = [
 ];
 
 export function OnboardingScreen() {
+  const { width } = useWindowDimensions();
   const { setHasSeenOnboarding } = useLocalStore();
   const [currentSlide, setCurrentSlide] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
 
   const completeOnboarding = () => {
     setHasSeenOnboarding(true);
   };
 
+  const goToNextSlide = () => {
+    const next = currentSlide + 1;
+    setCurrentSlide(next);
+    flatListRef.current?.scrollToIndex({ index: next, animated: true });
+  };
+
   const renderSlide = ({ item }: { item: typeof slides[0] }) => (
-    <View style={styles.slide}>
+    <View style={[styles.slide, { width }]}>
       <Card style={styles.slideCard}>
         <View style={styles.iconWrap}>
           <Ionicons name={item.icon} size={48} color={colours.cyan} />
@@ -73,19 +81,17 @@ export function OnboardingScreen() {
         </View>
 
         <FlatList
+          ref={flatListRef}
           data={slides}
           renderItem={renderSlide}
           pagingEnabled
           horizontal
           showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={({
-            nativeEvent: { contentOffset },
-          }) => {
-            const index = Math.round(contentOffset.x / 340); // Approximate slide width
-            setCurrentSlide(index);
+          onMomentumScrollEnd={({ nativeEvent: { contentOffset } }) => {
+            setCurrentSlide(Math.round(contentOffset.x / width));
           }}
+          getItemLayout={(_, index) => ({ length: width, offset: width * index, index })}
           style={styles.slides}
-          contentContainerStyle={styles.slidesContent}
         />
 
         {renderDots()}
@@ -95,7 +101,7 @@ export function OnboardingScreen() {
             <Text style={styles.getStartedText}>Get Started →</Text>
           </Pressable>
           {currentSlide < slides.length - 1 && (
-            <Pressable onPress={() => setCurrentSlide(currentSlide + 1)}>
+            <Pressable onPress={goToNextSlide}>
               <Text style={styles.next}>Next</Text>
             </Pressable>
           )}
@@ -129,11 +135,7 @@ const styles = StyleSheet.create({
   slides: {
     flex: 1,
   },
-  slidesContent: {
-    paddingHorizontal: 20,
-  },
   slide: {
-    width: 340,
     justifyContent: 'center',
   },
   slideCard: {
