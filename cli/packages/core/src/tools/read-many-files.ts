@@ -324,10 +324,17 @@ ${finalExclusionPatternsForDescription
     }
 
     const sortedFiles = Array.from(filesToConsider).sort();
-    const file_line_limit =
+    const file_line_limit = Math.floor(
+      DEFAULT_MAX_LINES_TEXT_FILE / Math.max(1, sortedFiles.length)
+    );
 
-    const fileProcessingPromises = sortedFiles.map(
-      async (filePath): Promise<FileProcessingResult> => {
+    const BATCH_SIZE = 50;
+    const results: PromiseSettledResult<FileProcessingResult>[] = [];
+
+    for (let i = 0; i < sortedFiles.length; i += BATCH_SIZE) {
+      const batch = sortedFiles.slice(i, i + BATCH_SIZE);
+      const batchPromises = batch.map(
+        async (filePath): Promise<FileProcessingResult> => {
         try {
           const relativePathForDisplay = path
             .relative(this.config.getTargetDir(), filePath)
@@ -394,10 +401,12 @@ ${finalExclusionPatternsForDescription
             reason: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
           };
         }
-      },
-    );
+        }
+      );
 
-    const results = await Promise.allSettled(fileProcessingPromises);
+      const batchResults = await Promise.allSettled(batchPromises);
+      results.push(...batchResults);
+    }
 
     for (const result of results) {
       if (result.status === 'fulfilled') {
