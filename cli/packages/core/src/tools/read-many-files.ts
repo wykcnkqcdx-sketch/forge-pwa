@@ -328,13 +328,12 @@ ${finalExclusionPatternsForDescription
       DEFAULT_MAX_LINES_TEXT_FILE / Math.max(1, sortedFiles.length)
     );
 
-    const BATCH_SIZE = 50;
-    const results: PromiseSettledResult<FileProcessingResult>[] = [];
+    const CONCURRENCY_LIMIT = 50;
+    const executing = new Set<Promise<FileProcessingResult>>();
+    const fileProcessingPromises: Promise<FileProcessingResult>[] = [];
 
-    for (let i = 0; i < sortedFiles.length; i += BATCH_SIZE) {
-      const batch = sortedFiles.slice(i, i + BATCH_SIZE);
-      const batchPromises = batch.map(
-        async (filePath): Promise<FileProcessingResult> => {
+    for (const filePath of sortedFiles) {
+      const p = (async (): Promise<FileProcessingResult> => {
         try {
           const relativePathForDisplay = path
             .relative(this.config.getTargetDir(), filePath)
@@ -401,12 +400,18 @@ ${finalExclusionPatternsForDescription
             reason: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
           };
         }
-        }
-      );
+      })();
 
-      const batchResults = await Promise.allSettled(batchPromises);
-      results.push(...batchResults);
+      fileProcessingPromises.push(p);
+      executing.add(p);
+      void p.finally(() => { executing.delete(p); });
+
+      if (executing.size >= CONCURRENCY_LIMIT) {
+        await Promise.race(executing);
+      }
     }
+
+    const results = await Promise.allSettled(fileProcessingPromises);
 
     for (const result of results) {
       if (result.status === 'fulfilled') {
