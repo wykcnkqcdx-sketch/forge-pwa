@@ -331,6 +331,38 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     if (currentPoint.accuracy <= WEAK_ACCURACY_METERS) return { label: 'GOOD', tone: colours.green, detail: `+/-${Math.round(currentPoint.accuracy)}m` };
     return { label: 'WEAK', tone: colours.amber, detail: `+/-${Math.round(currentPoint.accuracy)}m` };
   }, [currentPoint]);
+  const trackingStatus = useMemo(() => {
+    if (isStarting) {
+      return {
+        label: 'ACQUIRING GPS',
+        detail: 'Allow location access and wait for the first fix.',
+        tone: colours.amber,
+      };
+    }
+    if (isTracking) {
+      return {
+        label: gpsQuality.label === 'WEAK' ? 'WEAK SIGNAL' : 'TRACKING',
+        detail: supportsBackgroundLocation
+          ? 'GPS active. Background tracking depends on device permission.'
+          : 'Web tracking active. Keep this tab open.',
+        tone: gpsQuality.label === 'WEAK' ? colours.amber : colours.green,
+      };
+    }
+    if (startTime) {
+      return {
+        label: 'PAUSED',
+        detail: 'Save, resume, or discard this ruck.',
+        tone: colours.amber,
+      };
+    }
+    return {
+      label: 'READY',
+      detail: supportsBackgroundLocation
+        ? 'GPS uses more battery during tracking.'
+        : 'GPS uses more battery and only tracks while this tab stays open.',
+      tone: colours.cyan,
+    };
+  }, [gpsQuality.label, isStarting, isTracking, startTime, supportsBackgroundLocation]);
   const targetPace = useMemo(() => targetMinutes / Math.max(0.1, targetDistanceKm), [targetDistanceKm, targetMinutes]);
   const targetPaceLabel = `${targetPace.toFixed(1)}/km`;
   const targetProjectedMinutes = currentDistance > 0.02 && elapsedSeconds > 0
@@ -1333,6 +1365,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       <SafeAreaView style={styles.fullscreenContainer}>
         {renderMapStage(true)}
         <View style={styles.fullscreenBottomBar}>
+          <View style={[styles.fullscreenStatusPanel, { borderColor: `${trackingStatus.tone}66`, backgroundColor: `${trackingStatus.tone}16` }]}>
+            <Text style={[styles.fullscreenStatusLabel, { color: trackingStatus.tone }]}>{trackingStatus.label}</Text>
+            <Text style={styles.fullscreenStatusDetail}>{trackingStatus.detail}</Text>
+          </View>
           <Pressable style={styles.fullscreenCollapseBtn} onPress={() => setMapFullscreen(false)}>
             <Ionicons name="contract" size={18} color={colours.text} />
           </Pressable>
@@ -1348,6 +1384,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
             </Pressable>
           ) : startTime ? (
             <>
+              <Pressable style={[styles.trackButton, { flex: 1 }]} onPress={resumeTracking}>
+                <Ionicons name="play" size={20} color={colours.background} />
+                <Text style={styles.trackButtonText}>Resume</Text>
+              </Pressable>
               <Pressable style={[styles.saveButton, { flex: 1 }]} onPress={saveTrackedRuck}>
                 <Text style={styles.saveButtonText}>Save GPS Session</Text>
               </Pressable>
@@ -1468,6 +1508,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           </View>
         ) : startTime ? (
           <View style={styles.trackingActive}>
+            <Pressable style={styles.trackButton} onPress={resumeTracking}>
+              <Ionicons name="play" size={20} color={colours.background} />
+              <Text style={styles.trackButtonText}>Resume</Text>
+            </Pressable>
             <Pressable style={styles.saveButton} onPress={saveTrackedRuck}>
               <Text style={styles.saveButtonText}>Save GPS Session</Text>
             </Pressable>
@@ -2130,6 +2174,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 10,
     paddingHorizontal: 14,
@@ -2139,6 +2184,15 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: 'rgba(103,232,249,0.14)',
   },
+  fullscreenStatusPanel: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  fullscreenStatusLabel: { fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
+  fullscreenStatusDetail: { color: colours.textSoft, fontSize: 11, fontWeight: '800', marginTop: 2 },
   fullscreenCollapseBtn: {
     width: 44,
     height: 44,
@@ -2150,10 +2204,10 @@ const styles = StyleSheet.create({
     borderColor: colours.border,
     flexShrink: 0,
   },
-  mapTelemetryFullscreen: { bottom: 96 },
-  mapMissionStripFullscreen: { bottom: 152 },
-  finishStripFullscreen: { bottom: 192 },
-  bearingGuidanceStripFullscreen: { bottom: 232 },
+  mapTelemetryFullscreen: { bottom: 142 },
+  mapMissionStripFullscreen: { bottom: 198 },
+  finishStripFullscreen: { bottom: 238 },
+  bearingGuidanceStripFullscreen: { bottom: 278 },
   mapStage: {
     height: 190,
     marginTop: 14,
@@ -2421,7 +2475,7 @@ const styles = StyleSheet.create({
   trackButtonDisabled: { opacity: 0.62 },
   trackButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   stopButton: { backgroundColor: colours.red },
-  trackingActive: { flexDirection: 'row', gap: 12 },
+  trackingActive: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   saveButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
   saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   discardButton: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colours.border, borderWidth: 1 },
