@@ -34,6 +34,7 @@ export function MetricCard({ icon, label, value, sub, tone = colours.cyan }: Pro
 const styles = StyleSheet.create({
   card: {
     flex: 1,
+    minWidth: 148,
     backgroundColor: 'rgba(10, 20, 35, 0.80)',
     borderWidth: 1,
     borderColor: colours.borderSoft,
