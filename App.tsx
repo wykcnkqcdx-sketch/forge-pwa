@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { HomeScreen } from './screens/HomeScreen';
@@ -677,7 +677,11 @@ const styles = StyleSheet.create({
   toastIcon: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.cyan },
   toastText: { flex: 1, color: colours.text, fontSize: 13, fontWeight: '900' },
   tabBar: {
-    position: 'absolute', left: 10, right: 10, bottom: 14,
+    position: Platform.OS === 'web' ? 'fixed' as 'absolute' : 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 14,
+    zIndex: 40,
     flexDirection: 'row', alignItems: 'center', paddingHorizontal: 6, paddingVertical: 7,
     borderRadius: 24, borderWidth: 1, borderColor: colours.border,
     backgroundColor: 'rgba(4, 8, 15, 0.94)', overflow: 'hidden',
