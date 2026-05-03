@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image, TextInput, SafeAreaView, PanResponder } from 'react-native';
+import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, PanResponder } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -1469,7 +1470,12 @@ function updateSelectedCheckpointHere() {
               }}
             >
               {mapTiles.map((tile) => (
-                <Image key={tile.id} source={{ uri: tile.url }} style={tile.style} />
+                <Image 
+                  key={tile.id} 
+                  source={{ uri: tile.url }} 
+                  style={tile.style} 
+                  cachePolicy="disk" 
+                />
               ))}
               <View style={styles.mapShade} pointerEvents="none" />
               <View style={styles.mapGridHorizontal} />
