@@ -1,7 +1,9 @@
+import 'react-native-gesture-handler';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HomeScreen } from './screens/HomeScreen';
 import { ReadinessScreen } from './screens/ReadinessScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
@@ -583,6 +585,7 @@ export default function App() {
   if (activeMemberId) {
     const activeMember = members.find((m) => m.id === activeMemberId) ?? null;
     return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.app}>
         <View style={styles.screenContainer}>{renderMemberScreen(activeMember)}</View>
         {renderToast()}
@@ -608,10 +611,12 @@ export default function App() {
           })}
         </View>
       </View>
+      </GestureHandlerRootView>
     );
   }
 
   return (
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <View style={styles.app} {...panResponder.panHandlers}>
       <Animated.View style={[styles.screenContainer, { opacity: fadeAnim, transform: [{ translateX: slideAnim }] }]}>
         {renderScreen()}
@@ -682,6 +687,7 @@ export default function App() {
         })}
       </View>
     </View>
+    </GestureHandlerRootView>
   );
 }
 

@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
 import Svg, { Circle, Polyline, Text as SvgText } from 'react-native-svg';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -621,25 +622,24 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   mapZoomRef.current = mapZoom;
 
   const panStartCenter = useRef<TrackPoint | null>(null);
-  const mapPanResponder = useMemo(
-    () => PanResponder.create({
-      onStartShouldSetPanResponder: () => Boolean(effectiveMapCenterRef.current), // Always enable
-      onMoveShouldSetPanResponder: (_, gesture) => (
-        Boolean(effectiveMapCenterRef.current) && (Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1) // Sensitive threshold
-      ),
-      onPanResponderGrant: () => {
+  const pinchStartZoom = useRef(mapZoom);
+
+  const mapGestures = useMemo(() => {
+    const panGesture = Gesture.Pan()
+      .enabled(Boolean(effectiveMapCenterRef.current))
+      .onStart(() => {
         setIsPanning(true);
         setGpsFollowMode(false);
         panStartCenter.current = effectiveMapCenterRef.current ?? null;
-      },
-      onPanResponderMove: (_, gesture) => {
+      })
+      .onUpdate((event) => {
         const start = panStartCenter.current;
         const viewport = mapViewportRef.current;
         if (!start || viewport.width <= 0 || viewport.height <= 0) return;
 
         // Bound panning to reasonable viewport limits
-        const dxBound = Math.max(-viewport.width * 2, Math.min(viewport.width * 2, gesture.dx));
-        const dyBound = Math.max(-viewport.height * 2, Math.min(viewport.height * 2, gesture.dy));
+        const dxBound = Math.max(-viewport.width * 2, Math.min(viewport.width * 2, event.translationX));
+        const dyBound = Math.max(-viewport.height * 2, Math.min(viewport.height * 2, event.translationY));
 
         const startPixel = latLonToWorldPixel(start.latitude, start.longitude, mapZoomRef.current);
         const next = worldPixelToLatLon(startPixel.x - dxBound, startPixel.y - dyBound, mapZoomRef.current);
@@ -650,19 +650,27 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
           accuracy: null,
           timestamp: Date.now(),
         });
-      },
-      onPanResponderRelease: () => {
+      })
+      .onEnd(() => {
         setIsPanning(false);
         panStartCenter.current = null;
-      },
-      onPanResponderTerminate: () => {
-        setIsPanning(false);
-        panStartCenter.current = null;
-      },
-      onPanResponderTerminationRequest: () => false,
-    }),
-    []
-  );
+      })
+      .runOnJS(true);
+
+    const pinchGesture = Gesture.Pinch()
+      .enabled(Boolean(effectiveMapCenterRef.current))
+      .onStart(() => {
+        pinchStartZoom.current = mapZoomRef.current;
+      })
+      .onUpdate((event) => {
+        // Map linear finger scale to exponential map zoom increments
+        const newZoom = Math.max(2, Math.min(18, pinchStartZoom.current + Math.log2(event.scale)));
+        setMapZoom(newZoom);
+      })
+      .runOnJS(true);
+
+    return Gesture.Simultaneous(panGesture, pinchGesture);
+  }, []);
 
   useEffect(() => {
     if (activeHeading == null) return;
@@ -1377,10 +1385,10 @@ function updateSelectedCheckpointHere() {
   function renderMapStage(fullscreen: boolean) {
     const showOverlays = showExpandedMap || fullscreen;
     return (
-      <View
-        style={fullscreen ? styles.fullscreenMapStage : [styles.mapStage, showExpandedMap && styles.mapStageExpanded]}
-        {...mapPanResponder.panHandlers}
-        onLayout={(event) => {
+      <GestureDetector gesture={mapGestures}>
+        <View
+          style={fullscreen ? styles.fullscreenMapStage : [styles.mapStage, showExpandedMap && styles.mapStageExpanded]}
+          onLayout={(event) => {
           const { width, height } = event.nativeEvent.layout;
           setMapViewport((current) => (
             Math.round(current.width) === Math.round(width) && Math.round(current.height) === Math.round(height)
@@ -1548,6 +1556,7 @@ function updateSelectedCheckpointHere() {
           </View>
         )}
       </View>
+      </GestureDetector>
     );
   }
 
