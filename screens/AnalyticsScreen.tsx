@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions, Share } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Share, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
@@ -119,7 +119,8 @@ export function AnalyticsScreen({
     : 0;
   const compliance = hasSessions ? Math.min(100, Math.round(55 + recentSessions.length * 6 + Math.max(0, 20 - performance.highIntensityCount * 4))) : 0;
   
-  const screenWidth = Dimensions.get('window').width;
+  const { width: screenWidth } = useWindowDimensions();
+  const chartWidth = Math.max(280, Math.min(560, screenWidth - 64));
   const [trendDays, setTrendDays] = useState<7 | 28 | 90>(7);
 
   const latestReadiness = useMemo(() => {
@@ -336,7 +337,7 @@ export function AnalyticsScreen({
         </View>
         <LineChart
           data={trendChartData}
-          width={screenWidth - 76}
+          width={chartWidth}
           height={180}
           yAxisLabel=""
           yAxisSuffix=""
