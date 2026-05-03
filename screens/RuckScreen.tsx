@@ -18,6 +18,7 @@ import { buildVisibleTiles, getMercatorRoutePoints, latLonToWorldPixel, MapLayer
 import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadActiveRoute, loadActiveRuckPlan, replaceActiveRoute, resetActiveRoute, saveActiveRuckPlan } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
 import { secureGetItem, secureSetItem } from '../lib/secureStorage';
+import { LOCATION_TASK_NAME } from '../lib/backgroundTasks';
 
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
@@ -85,7 +86,6 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
   };
 }
 
-const LOCATION_TASK_NAME = 'background-location-task';
 const supportsBackgroundLocation = Platform.OS !== 'web';
 const CHECKPOINT_ARRIVAL_RADIUS_METERS = 50;
 const BEARING_CAUTION_DEGREES = 20;
@@ -260,27 +260,6 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
     default:
       return state;
   }
-}
-
-if (supportsBackgroundLocation) {
-  TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: any) => {
-    if (error) {
-      console.error('Background Location Task Error:', error);
-      return;
-    }
-    if (data) {
-      const { locations } = data as { locations: Location.LocationObject[] };
-
-      try {
-        const newPoints = locations.map(toTrackPoint);
-        await appendActiveRoutePoints(newPoints);
-      } catch (e) {
-        console.error('Failed to save background locations', e);
-      }
-
-      DeviceEventEmitter.emit('onLocationUpdate', locations);
-    }
-  });
 }
 
 function LiveTimerText({ startTime, isTracking, staticSeconds, style }: { startTime: Date | null; isTracking: boolean; staticSeconds: number; style: any }) {
@@ -821,16 +800,22 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   }, [selectedCheckpoint?.id, selectedCheckpoint?.label]);
 
   useEffect(() => {
+    let isMounted = true;
     Location.watchHeadingAsync((heading) => {
       const nextHeading = heading.trueHeading >= 0 ? heading.trueHeading : heading.magHeading;
-      if (nextHeading >= 0) setCompassHeading(Math.round(nextHeading));
+      if (nextHeading >= 0 && isMounted) setCompassHeading(Math.round(nextHeading));
     }).then((subscription) => {
-      headingSubscription.current = subscription;
+      if (!isMounted) {
+        subscription.remove();
+      } else {
+        headingSubscription.current = subscription;
+      }
     }).catch((error) => {
       console.warn('Compass heading unavailable', error);
     });
 
     return () => {
+      isMounted = false;
       headingSubscription.current?.remove();
       headingSubscription.current = null;
     };
