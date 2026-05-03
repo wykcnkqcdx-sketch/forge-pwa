@@ -660,7 +660,7 @@ export function AnalyticsScreen({
             {whtr.ratio.toFixed(3)}
           </Text>
           <Text style={styles.muted}>
-            {whtr.compliant ? `Compliant — ${whtr.marginCm} cm margin` : `${Math.abs(whtr.marginCm)} cm over threshold`}
+            {whtr.compliant ? `Compliant - ${whtr.marginCm} cm margin` : `${Math.abs(whtr.marginCm)} cm over threshold`}
           </Text>
         </View>
       </Card>
