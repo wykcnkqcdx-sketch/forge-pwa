@@ -43,6 +43,18 @@ export function latLonToWorldPixel(latitude: number, longitude: number, zoom: nu
   };
 }
 
+export function worldPixelToLatLon(x: number, y: number, zoom: number) {
+  const size = worldPixelSize(zoom);
+  const longitude = (x / size) * 360 - 180;
+  const n = Math.PI - (2 * Math.PI * y) / size;
+  const latitude = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+
+  return {
+    latitude: clampLatitude(latitude),
+    longitude,
+  };
+}
+
 function normalizeTileX(x: number, zoom: number) {
   const tileCount = 2 ** zoom;
   return ((x % tileCount) + tileCount) % tileCount;

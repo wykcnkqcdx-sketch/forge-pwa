@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image, TextInput, SafeAreaView } from 'react-native';
+import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, Image, TextInput, SafeAreaView, PanResponder } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -13,7 +13,7 @@ import type { RuckCheckpoint, RuckMissionPlan, RuckSplit } from '../data/domain'
 import { distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, evaluateRoutePoint, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
 import { CoordinateFormat, coordinateFormatOptions, formatCoordinate, parseCoordinate } from '../utils/coordinates';
-import { buildVisibleTiles, getMercatorRoutePoints, MapLayerKey, mapLayerOptions, MapViewport } from '../utils/mapTiles';
+import { buildVisibleTiles, getMercatorRoutePoints, latLonToWorldPixel, MapLayerKey, mapLayerOptions, MapViewport, worldPixelToLatLon } from '../utils/mapTiles';
 import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadActiveRoute, loadActiveRuckPlan, replaceActiveRoute, resetActiveRoute, saveActiveRuckPlan } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
 import { secureGetItem, secureSetItem } from '../lib/secureStorage';
@@ -68,6 +68,7 @@ const supportsBackgroundLocation = Platform.OS !== 'web';
 const CHECKPOINT_ARRIVAL_RADIUS_METERS = 50;
 const BEARING_CAUTION_DEGREES = 20;
 const BEARING_OFF_DEGREES = 45;
+const MAP_ZOOM = 15;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 type FinishMode = 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
 
@@ -263,6 +264,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [coordinateFormat, setCoordinateFormat] = useState<CoordinateFormat>('mgrs');
   const [mapLayer, setMapLayer] = useState<MapLayerKey>('topo');
   const [mapViewport, setMapViewport] = useState<MapViewport>({ width: 0, height: 0 });
+  const [mapCenter, setMapCenter] = useState<TrackPoint | null>(null);
+  const [mapSelectionMode, setMapSelectionMode] = useState(false);
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
@@ -291,8 +294,12 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const allRuckTemplates = useMemo(() => [...ruckTemplates, ...customTemplates], [customTemplates]);
 
   const currentPoint = routePoints[routePoints.length - 1];
+  const effectiveMapCenter = mapCenter ?? currentPoint;
   const currentCoordinate = currentPoint
     ? formatCoordinate(currentPoint.latitude, currentPoint.longitude, coordinateFormat)
+    : null;
+  const mapCenterCoordinate = effectiveMapCenter
+    ? formatCoordinate(effectiveMapCenter.latitude, effectiveMapCenter.longitude, coordinateFormat)
     : null;
   const previousPoint = routePoints[routePoints.length - 2];
   const routeBearing = previousPoint && currentPoint ? Math.round(bearingBetween(previousPoint, currentPoint)) : null;
@@ -300,8 +307,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
   const displayRoutePoints = useMemo(() => decimateRouteForMap(routePoints), [routePoints]);
   const mapPoints = useMemo(
-    () => getMercatorRoutePoints(displayRoutePoints, currentPoint, mapViewport),
-    [currentPoint, displayRoutePoints, mapViewport]
+    () => getMercatorRoutePoints(displayRoutePoints, effectiveMapCenter, mapViewport, MAP_ZOOM),
+    [displayRoutePoints, effectiveMapCenter, mapViewport]
   );
   const placedCheckpoints = useMemo(
     () => plannedCheckpoints.filter((checkpoint): checkpoint is RuckCheckpoint & TrackPoint => (
@@ -310,12 +317,12 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     [plannedCheckpoints]
   );
   const checkpointMapPoints = useMemo(
-    () => getMercatorRoutePoints(placedCheckpoints, currentPoint, mapViewport),
-    [currentPoint, mapViewport, placedCheckpoints]
+    () => getMercatorRoutePoints(placedCheckpoints, effectiveMapCenter, mapViewport, MAP_ZOOM),
+    [effectiveMapCenter, mapViewport, placedCheckpoints]
   );
   const mapTiles = useMemo(
-    () => buildVisibleTiles(currentPoint, mapViewport, mapLayer),
-    [currentPoint, mapLayer, mapViewport]
+    () => buildVisibleTiles(effectiveMapCenter, mapViewport, mapLayer, MAP_ZOOM),
+    [effectiveMapCenter, mapLayer, mapViewport]
   );
   const activeMapLayer = mapLayerOptions.find((option) => option.key === mapLayer) ?? mapLayerOptions[0];
   const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
@@ -542,6 +549,47 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     const nextPoint = toTrackPoint(location);
     dispatchTracking({ type: 'point_recorded', point: nextPoint });
   }, []);
+
+  useEffect(() => {
+    if (!currentPoint || mapCenter || mapSelectionMode) return;
+    setMapCenter(currentPoint);
+  }, [currentPoint, mapCenter, mapSelectionMode]);
+
+  const panStartCenter = useRef<TrackPoint | null>(null);
+  const mapPanResponder = useMemo(
+    () => PanResponder.create({
+      onStartShouldSetPanResponder: () => mapSelectionMode && Boolean(effectiveMapCenter),
+      onMoveShouldSetPanResponder: (_, gesture) => (
+        mapSelectionMode
+        && Boolean(effectiveMapCenter)
+        && (Math.abs(gesture.dx) > 3 || Math.abs(gesture.dy) > 3)
+      ),
+      onPanResponderGrant: () => {
+        panStartCenter.current = effectiveMapCenter ?? null;
+      },
+      onPanResponderMove: (_, gesture) => {
+        const start = panStartCenter.current;
+        if (!start || mapViewport.width <= 0 || mapViewport.height <= 0) return;
+
+        const startPixel = latLonToWorldPixel(start.latitude, start.longitude, MAP_ZOOM);
+        const next = worldPixelToLatLon(startPixel.x - gesture.dx, startPixel.y - gesture.dy, MAP_ZOOM);
+        setMapCenter({
+          latitude: next.latitude,
+          longitude: next.longitude,
+          altitude: null,
+          accuracy: null,
+          timestamp: Date.now(),
+        });
+      },
+      onPanResponderRelease: () => {
+        panStartCenter.current = null;
+      },
+      onPanResponderTerminate: () => {
+        panStartCenter.current = null;
+      },
+    }),
+    [effectiveMapCenter, mapSelectionMode, mapViewport.height, mapViewport.width]
+  );
 
   useEffect(() => {
     if (activeHeading == null) return;
@@ -1049,11 +1097,11 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   }
 
   function addCheckpointHere() {
-    if (!currentPoint) {
-      Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before adding a checkpoint here.');
+    if (!effectiveMapCenter) {
+      Alert.alert('No map position', 'Start GPS tracking or wait for a location fix before adding a checkpoint here.');
       return;
     }
-    addCheckpoint(currentPoint, 'current');
+    addCheckpoint(effectiveMapCenter, mapSelectionMode ? 'manual' : 'current');
   }
 
   function addCheckpointFromInput() {
@@ -1087,19 +1135,27 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
   function updateSelectedCheckpointHere() {
     if (!selectedCheckpoint) return;
-    if (!currentPoint) {
-      Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before moving the checkpoint here.');
+    if (!effectiveMapCenter) {
+      Alert.alert('No map position', 'Start GPS tracking or wait for a location fix before moving the checkpoint here.');
       return;
     }
 
     updateSelectedCheckpoint({
-      latitude: currentPoint.latitude,
-      longitude: currentPoint.longitude,
-      altitude: currentPoint.altitude,
-      accuracy: currentPoint.accuracy,
+      latitude: effectiveMapCenter.latitude,
+      longitude: effectiveMapCenter.longitude,
+      altitude: effectiveMapCenter.altitude,
+      accuracy: effectiveMapCenter.accuracy,
       timestamp: Date.now(),
-      source: 'current',
+      source: mapSelectionMode ? 'manual' : 'current',
     });
+  }
+
+  function recenterMapOnGps() {
+    if (!currentPoint) {
+      Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before recentring.');
+      return;
+    }
+    setMapCenter(currentPoint);
   }
 
   function saveSelectedCheckpointLabel() {
@@ -1224,6 +1280,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     return (
       <View
         style={fullscreen ? styles.fullscreenMapStage : [styles.mapStage, showExpandedMap && styles.mapStageExpanded]}
+        {...mapPanResponder.panHandlers}
         onLayout={(event) => {
           const { width, height } = event.nativeEvent.layout;
           setMapViewport((current) => (
@@ -1296,8 +1353,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         {showOverlays && (
           <>
             <View style={styles.mapGridOverlay} pointerEvents="none">
-              <Text style={styles.mapOverlayLabel}>GRID</Text>
-              <Text style={styles.mapOverlayValue}>{currentCoordinate ?? 'Awaiting fix'}</Text>
+              <Text style={styles.mapOverlayLabel}>{mapSelectionMode ? 'MAP CENTER' : 'GRID'}</Text>
+              <Text style={styles.mapOverlayValue}>{mapSelectionMode ? mapCenterCoordinate ?? 'Awaiting fix' : currentCoordinate ?? 'Awaiting fix'}</Text>
             </View>
             <View style={styles.mapCompassOverlay} pointerEvents="none">
               <Animated.View
@@ -1355,6 +1412,36 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         )}
         {mapTiles.length > 0 && (
           <Text style={styles.mapAttribution}>{activeMapLayer.attribution}</Text>
+        )}
+        {showOverlays && (
+          <View style={styles.mapSelectControls}>
+            <Pressable
+              style={[styles.mapSelectButton, mapSelectionMode && styles.mapSelectButtonActive]}
+              onPress={() => {
+                setMapSelectionMode((current) => !current);
+                if (!mapCenter && currentPoint) setMapCenter(currentPoint);
+              }}
+            >
+              <Ionicons name="move" size={14} color={mapSelectionMode ? colours.background : colours.cyan} />
+              <Text style={[styles.mapSelectButtonText, mapSelectionMode && styles.mapSelectButtonTextActive]}>
+                {mapSelectionMode ? 'Selecting' : 'Select'}
+              </Text>
+            </Pressable>
+            <Pressable style={styles.mapSelectButton} onPress={recenterMapOnGps}>
+              <Ionicons name="locate" size={14} color={colours.cyan} />
+              <Text style={styles.mapSelectButtonText}>My Position</Text>
+            </Pressable>
+            <Pressable style={styles.mapSelectButton} onPress={addCheckpointHere}>
+              <Ionicons name="flag" size={14} color={colours.cyan} />
+              <Text style={styles.mapSelectButtonText}>Add CP</Text>
+            </Pressable>
+            {selectedCheckpoint ? (
+              <Pressable style={styles.mapSelectButton} onPress={updateSelectedCheckpointHere}>
+                <Ionicons name="pin" size={14} color={colours.cyan} />
+                <Text style={styles.mapSelectButtonText}>Move CP</Text>
+              </Pressable>
+            ) : null}
+          </View>
         )}
       </View>
     );
@@ -1492,7 +1579,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
 
         {currentPoint && currentCoordinate && (
           <Text style={styles.coordinateText}>
-            {currentCoordinate}
+            {mapSelectionMode && mapCenterCoordinate ? `Map centre: ${mapCenterCoordinate}` : currentCoordinate}
             {currentPoint.accuracy ? ` | +/-${Math.round(currentPoint.accuracy)}m` : ''}
           </Text>
         )}
@@ -2270,6 +2357,33 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
+  mapSelectControls: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    top: 88,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  mapSelectButton: {
+    minHeight: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    backgroundColor: 'rgba(4,8,15,0.78)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+  },
+  mapSelectButtonActive: {
+    backgroundColor: colours.cyan,
+    borderColor: colours.cyan,
+  },
+  mapSelectButtonText: { color: colours.cyan, fontSize: 10, fontWeight: '900' },
+  mapSelectButtonTextActive: { color: colours.background },
   mapGridOverlay: {
     position: 'absolute',
     top: 10,
