@@ -719,6 +719,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       return;
     }
 
+    setMapFullscreen(true);
     dispatchTracking({ type: 'start_requested' });
 
     try {
@@ -763,10 +764,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       }
 
       dispatchTracking({ type: 'start_succeeded', firstPoint });
-      setMapFullscreen(true);
     } catch (error) {
       console.error('Failed to start GPS tracking', error);
       stopTracking();
+      setMapFullscreen(false);
       Alert.alert('GPS unavailable', 'Unable to start GPS tracking on this device.');
     }
   };
@@ -1294,7 +1295,12 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           <Pressable style={styles.fullscreenCollapseBtn} onPress={() => setMapFullscreen(false)}>
             <Ionicons name="contract" size={18} color={colours.text} />
           </Pressable>
-          {isTracking ? (
+          {isStarting ? (
+            <Pressable style={[styles.trackButton, styles.trackButtonDisabled, { flex: 1 }]} disabled>
+              <Ionicons name="sync" size={20} color={colours.background} />
+              <Text style={styles.trackButtonText}>Acquiring GPS...</Text>
+            </Pressable>
+          ) : isTracking ? (
             <Pressable style={[styles.trackButton, styles.stopButton, { flex: 1 }]} onPress={stopTracking}>
               <Ionicons name="stop" size={20} color={colours.background} />
               <Text style={styles.trackButtonText}>Stop Tracking</Text>
