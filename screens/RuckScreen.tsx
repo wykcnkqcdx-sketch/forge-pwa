@@ -89,7 +89,6 @@ const supportsBackgroundLocation = Platform.OS !== 'web';
 const CHECKPOINT_ARRIVAL_RADIUS_METERS = 50;
 const BEARING_CAUTION_DEGREES = 20;
 const BEARING_OFF_DEGREES = 45;
-const MAP_ZOOM = 15;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 type FinishMode = 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
 
@@ -310,6 +309,7 @@ export function RuckScreen({
   const [coordinateFormat, setCoordinateFormat] = useState<CoordinateFormat>('mgrs');
   const [mapLayer, setMapLayer] = useState<MapLayerKey>('topo');
   const [mapViewport, setMapViewport] = useState<MapViewport>({ width: 0, height: 0 });
+  const [mapZoom, setMapZoom] = useState(15);
   const [mapCenter, setMapCenter] = useState<TrackPoint | null>(null);
   const [isPanning, setIsPanning] = useState(false);
 const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, false = pan free
@@ -362,8 +362,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
   const displayRoutePoints = useMemo(() => decimateRouteForMap(routePoints), [routePoints]);
   const mapPoints = useMemo(
-    () => getMercatorRoutePoints(displayRoutePoints, effectiveMapCenter, mapViewport, MAP_ZOOM),
-    [displayRoutePoints, effectiveMapCenter, mapViewport]
+    () => getMercatorRoutePoints(displayRoutePoints, effectiveMapCenter, mapViewport, mapZoom),
+    [displayRoutePoints, effectiveMapCenter, mapViewport, mapZoom]
   );
   const placedCheckpoints = useMemo(
     () => plannedCheckpoints.filter((checkpoint): checkpoint is RuckCheckpoint & TrackPoint => (
@@ -372,12 +372,12 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     [plannedCheckpoints]
   );
   const checkpointMapPoints = useMemo(
-    () => getMercatorRoutePoints(placedCheckpoints, effectiveMapCenter, mapViewport, MAP_ZOOM),
-    [effectiveMapCenter, mapViewport, placedCheckpoints]
+    () => getMercatorRoutePoints(placedCheckpoints, effectiveMapCenter, mapViewport, mapZoom),
+    [effectiveMapCenter, mapViewport, placedCheckpoints, mapZoom]
   );
   const mapTiles = useMemo(
-    () => buildVisibleTiles(effectiveMapCenter, mapViewport, mapLayer, MAP_ZOOM),
-    [effectiveMapCenter, mapLayer, mapViewport]
+    () => buildVisibleTiles(effectiveMapCenter, mapViewport, mapLayer, mapZoom),
+    [effectiveMapCenter, mapLayer, mapViewport, mapZoom]
   );
   const activeMapLayer = mapLayerOptions.find((option) => option.key === mapLayer) ?? mapLayerOptions[0];
   const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
@@ -617,6 +617,9 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const effectiveMapCenterRef = useRef(effectiveMapCenter);
   effectiveMapCenterRef.current = effectiveMapCenter;
 
+  const mapZoomRef = useRef(mapZoom);
+  mapZoomRef.current = mapZoom;
+
   const panStartCenter = useRef<TrackPoint | null>(null);
   const mapPanResponder = useMemo(
     () => PanResponder.create({
@@ -638,8 +641,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         const dxBound = Math.max(-viewport.width * 2, Math.min(viewport.width * 2, gesture.dx));
         const dyBound = Math.max(-viewport.height * 2, Math.min(viewport.height * 2, gesture.dy));
 
-        const startPixel = latLonToWorldPixel(start.latitude, start.longitude, MAP_ZOOM);
-        const next = worldPixelToLatLon(startPixel.x - dxBound, startPixel.y - dyBound, MAP_ZOOM);
+        const startPixel = latLonToWorldPixel(start.latitude, start.longitude, mapZoomRef.current);
+        const next = worldPixelToLatLon(startPixel.x - dxBound, startPixel.y - dyBound, mapZoomRef.current);
         setMapCenter({
           latitude: next.latitude,
           longitude: next.longitude,
@@ -1585,6 +1588,12 @@ function updateSelectedCheckpointHere() {
               </Pressable>
             </>
           ) : null}
+          <Pressable style={styles.mapSelectButton} onPress={() => setMapZoom((z) => Math.max(2, z - 1))}>
+            <Ionicons name="remove" size={16} color={colours.cyan} />
+          </Pressable>
+          <Pressable style={styles.mapSelectButton} onPress={() => setMapZoom((z) => Math.min(18, z + 1))}>
+            <Ionicons name="add" size={16} color={colours.cyan} />
+          </Pressable>
         </View>
       </SafeAreaView>
     );
