@@ -606,28 +606,37 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   }, []);
 
   useEffect(() => {
-    if (!currentPoint || mapCenter || !gpsFollowMode || isPanning) return;
-    setMapCenter(currentPoint);
-  }, [currentPoint, mapCenter, gpsFollowMode, isPanning]);
+    if (gpsFollowMode && mapCenter !== null) {
+      setMapCenter(null);
+    }
+  }, [gpsFollowMode, mapCenter]);
+
+  const mapViewportRef = useRef(mapViewport);
+  mapViewportRef.current = mapViewport;
+
+  const effectiveMapCenterRef = useRef(effectiveMapCenter);
+  effectiveMapCenterRef.current = effectiveMapCenter;
 
   const panStartCenter = useRef<TrackPoint | null>(null);
   const mapPanResponder = useMemo(
     () => PanResponder.create({
-      onStartShouldSetPanResponder: () => Boolean(effectiveMapCenter), // Always enable
+      onStartShouldSetPanResponder: () => Boolean(effectiveMapCenterRef.current), // Always enable
       onMoveShouldSetPanResponder: (_, gesture) => (
-        Boolean(effectiveMapCenter) && (Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1) // Sensitive threshold
+        Boolean(effectiveMapCenterRef.current) && (Math.abs(gesture.dx) > 1 || Math.abs(gesture.dy) > 1) // Sensitive threshold
       ),
       onPanResponderGrant: () => {
         setIsPanning(true);
-        panStartCenter.current = effectiveMapCenter ?? null;
+        setGpsFollowMode(false);
+        panStartCenter.current = effectiveMapCenterRef.current ?? null;
       },
       onPanResponderMove: (_, gesture) => {
         const start = panStartCenter.current;
-        if (!start || mapViewport.width <= 0 || mapViewport.height <= 0) return;
+        const viewport = mapViewportRef.current;
+        if (!start || viewport.width <= 0 || viewport.height <= 0) return;
 
         // Bound panning to reasonable viewport limits
-        const dxBound = Math.max(-mapViewport.width * 2, Math.min(mapViewport.width * 2, gesture.dx));
-        const dyBound = Math.max(-mapViewport.height * 2, Math.min(mapViewport.height * 2, gesture.dy));
+        const dxBound = Math.max(-viewport.width * 2, Math.min(viewport.width * 2, gesture.dx));
+        const dyBound = Math.max(-viewport.height * 2, Math.min(viewport.height * 2, gesture.dy));
 
         const startPixel = latLonToWorldPixel(start.latitude, start.longitude, MAP_ZOOM);
         const next = worldPixelToLatLon(startPixel.x - dxBound, startPixel.y - dyBound, MAP_ZOOM);
@@ -647,8 +656,9 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         setIsPanning(false);
         panStartCenter.current = null;
       },
+      onPanResponderTerminationRequest: () => false,
     }),
-    [effectiveMapCenter, mapViewport.height, mapViewport.width]
+    []
   );
 
   useEffect(() => {
@@ -1240,7 +1250,8 @@ function updateSelectedCheckpointHere() {
       Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before recentring.');
       return;
     }
-    setMapCenter(currentPoint);
+    setGpsFollowMode(true);
+    setMapCenter(null);
   }
 
   function saveSelectedCheckpointLabel() {
@@ -1503,8 +1514,13 @@ function updateSelectedCheckpointHere() {
             <Pressable
               style={[styles.mapSelectButton, !gpsFollowMode && styles.mapSelectButtonActive]}
               onPress={() => {
-                setGpsFollowMode((current) => !current);
-                if (gpsFollowMode && currentPoint) setMapCenter(currentPoint);
+                if (gpsFollowMode) {
+                  setGpsFollowMode(false);
+                  setMapCenter(effectiveMapCenter);
+                } else {
+                  setGpsFollowMode(true);
+                  setMapCenter(null);
+                }
               }}
             >
               <Ionicons name={!gpsFollowMode ? "locate-outline" : 'locate'} size={14} color={!gpsFollowMode ? colours.background : colours.cyan} />
