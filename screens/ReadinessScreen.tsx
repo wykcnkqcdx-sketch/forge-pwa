@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { Alert, View, Text, StyleSheet, Pressable, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Screen } from '../components/Screen';
@@ -142,7 +142,9 @@ export function ReadinessScreen({
     onUpdateMember?.(member.id, { readiness: readinessScore, risk });
 
     setFeedback('System check submitted. Sending you to Train.');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    if (Platform.OS !== 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
     setTimeout(() => {
       setSubmitting(false);
       onCompleteCheckIn?.();
@@ -208,7 +210,7 @@ export function ReadinessScreen({
       {/* Tactical System Check */}
       <Card accent={colours.amber}>
         <Text style={styles.sectionTitle}>Tactical System Check</Text>
-        <Text style={styles.body}>{checkedInToday ? 'Already submitted today - update below to override.' : 'Fast morning check-in. Smart defaults keep this under 30 seconds.'}</Text>
+        <Text style={styles.body}>{checkedInToday ? 'Already submitted today — update below to override.' : 'Fast morning check-in. Smart defaults keep this under 30 seconds.'}</Text>
 
         <View style={styles.quickCheckRow}>
           <View style={styles.inputGroup}>
@@ -328,7 +330,7 @@ export function ReadinessScreen({
           disabled={submitting}
         >
           <Ionicons name="send" size={18} color={colours.background} />
-          <Text style={styles.submitButtonText}>{submitting ? 'Submitting...' : 'Submit Report'}</Text>
+          <Text style={styles.submitButtonText}>{submitting ? 'Submitting…' : 'Submit Report'}</Text>
         </Pressable>
       </Card>
 
@@ -393,7 +395,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 12,
-    flexWrap: 'wrap',
   },
   kicker: {
     color: colours.cyan,
@@ -417,7 +418,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: colours.cyanDim,
-    flexShrink: 0,
   },
   opsecText: {
     color: colours.cyan,
@@ -444,14 +444,12 @@ const styles = StyleSheet.create({
   },
   quickCheckRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
     marginTop: 12,
     alignItems: 'flex-start',
   },
   inputGroup: {
     flex: 1,
-    minWidth: 150,
   },
   input: {
     minHeight: touchTarget,
@@ -503,7 +501,6 @@ const styles = StyleSheet.create({
   },
   factorScale: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
   },
   factorScaleButton: {
@@ -653,7 +650,6 @@ const styles = StyleSheet.create({
   },
   actionRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 10,
     marginTop: 12,
   },

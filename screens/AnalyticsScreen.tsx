@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Share, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
@@ -15,6 +15,7 @@ import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance'
 import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
 import { calculateWHtR } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
+import { showAlert, showConfirm } from '../lib/dialogs';
 
 function sessionIcon(type: TrainingSession['type']) {
   switch (type) {
@@ -119,8 +120,7 @@ export function AnalyticsScreen({
     : 0;
   const compliance = hasSessions ? Math.min(100, Math.round(55 + recentSessions.length * 6 + Math.max(0, 20 - performance.highIntensityCount * 4))) : 0;
   
-  const { width: screenWidth } = useWindowDimensions();
-  const chartWidth = Math.max(280, Math.min(560, screenWidth - 64));
+  const screenWidth = Dimensions.get('window').width;
   const [trendDays, setTrendDays] = useState<7 | 28 | 90>(7);
 
   const latestReadiness = useMemo(() => {
@@ -242,13 +242,11 @@ export function AnalyticsScreen({
   }
 
   function confirmDelete(id: string) {
-    Alert.alert(
+    showConfirm(
       'Delete Session',
       'Are you sure you want to permanently delete this logged session?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: () => deleteSession(id) },
-      ]
+      () => deleteSession(id),
+      'Delete'
     );
   }
 
@@ -264,7 +262,7 @@ export function AnalyticsScreen({
     const newDuration = parseInt(editDuration, 10);
 
     if (isNaN(newScore) || isNaN(newDuration)) {
-      Alert.alert('Invalid Input', 'Score and duration must be numbers.');
+      showAlert('Invalid Input', 'Score and duration must be numbers.');
       return;
     }
 
@@ -279,9 +277,9 @@ export function AnalyticsScreen({
     try {
       if (!clipboard?.writeText) throw new Error('Clipboard unavailable');
       await clipboard.writeText(text);
-      Alert.alert('AAR copied', 'Ruck summary copied to clipboard.');
+      showAlert('AAR copied', 'Ruck summary copied to clipboard.');
     } catch {
-      Alert.alert('Copy unavailable', text);
+      showAlert('Copy unavailable', text);
     }
   }
 
@@ -289,7 +287,7 @@ export function AnalyticsScreen({
     try {
       await Share.share({ message: buildRuckAar(session) });
     } catch {
-      Alert.alert('Share unavailable', 'Unable to open the share sheet on this device.');
+      showAlert('Share unavailable', 'Unable to open the share sheet on this device.');
     }
   }
 
@@ -337,7 +335,7 @@ export function AnalyticsScreen({
         </View>
         <LineChart
           data={trendChartData}
-          width={chartWidth}
+          width={screenWidth - 76}
           height={180}
           yAxisLabel=""
           yAxisSuffix=""
@@ -660,7 +658,7 @@ export function AnalyticsScreen({
             {whtr.ratio.toFixed(3)}
           </Text>
           <Text style={styles.muted}>
-            {whtr.compliant ? `Compliant - ${whtr.marginCm} cm margin` : `${Math.abs(whtr.marginCm)} cm over threshold`}
+            {whtr.compliant ? `Compliant — ${whtr.marginCm} cm margin` : `${Math.abs(whtr.marginCm)} cm over threshold`}
           </Text>
         </View>
       </Card>
@@ -768,14 +766,14 @@ export function AnalyticsScreen({
 
 const styles = StyleSheet.create({
   muted: { color: colours.muted, fontSize: 13 },
-  title: { color: colours.text, fontSize: 28, fontWeight: '900', marginBottom: 14 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
+  grid: { flexDirection: 'row', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 16 },
   levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
   levelBadgeText: { fontSize: 12, fontWeight: '900' },
-  lineChart: { marginVertical: 8, marginLeft: -8 },
-  chartHeader: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 10 },
+  lineChart: { marginVertical: 8, marginLeft: -12 },
+  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   trendToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 },
   trendBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
   trendBtnActive: { backgroundColor: colours.cyan },
@@ -818,8 +816,8 @@ const styles = StyleSheet.create({
   sectionTitle: { color: colours.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.2 },
   sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyanDim, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: `${colours.cyan}40` },
   sortBtnText: { color: colours.cyan, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  filterScroll: { flexGrow: 0, marginBottom: 12, marginHorizontal: -16 },
-  filterContainer: { gap: 8, paddingHorizontal: 16 },
+  filterScroll: { flexGrow: 0, marginBottom: 12, marginHorizontal: -20 },
+  filterContainer: { gap: 8, paddingHorizontal: 20 },
   filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
   filterPillActive: { borderColor: `${colours.cyan}80`, backgroundColor: colours.cyanDim },
   filterText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
@@ -878,7 +876,6 @@ const styles = StyleSheet.create({
   },
   ruckReview: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: 8,
     borderTopWidth: 1,
     borderColor: colours.borderSoft,
@@ -887,7 +884,6 @@ const styles = StyleSheet.create({
   },
   ruckReviewItem: {
     flex: 1,
-    minWidth: 76,
     minHeight: 44,
     borderRadius: 8,
     borderWidth: 1,
@@ -906,10 +902,9 @@ const styles = StyleSheet.create({
     gap: 10,
     backgroundColor: 'rgba(4,8,15,0.22)',
   },
-  ruckDetailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  ruckDetailGrid: { flexDirection: 'row', gap: 8 },
   ruckDetailItem: {
     flex: 1,
-    minWidth: 92,
     minHeight: 46,
     borderRadius: 8,
     borderWidth: 1,
@@ -977,8 +972,8 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 14, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16, fontSize: 16, fontWeight: '800' },
   saveBtn: { alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 16, paddingVertical: 13, marginTop: 4 },
   saveBtnText: { color: colours.background, fontSize: 15, fontWeight: '900' },
-  bodyInputRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 10 },
-  bodyInputGroup: { flex: 1, minWidth: 130 },
+  bodyInputRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  bodyInputGroup: { flex: 1 },
   bodyInputLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginBottom: 4 },
   bodyInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, color: colours.text, backgroundColor: 'rgba(0,0,0,0.22)', paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '900' },
   whtrResult: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },

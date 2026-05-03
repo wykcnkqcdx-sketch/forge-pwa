@@ -1,17 +1,16 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
-import { buildPerformanceProfile, buildWeeklyLoadSeries, PerformanceProfile, sortSessionsByDate } from '../lib/performance';
+import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } from '../lib/performance';
 import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { colours, touchTarget } from '../theme';
 import { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
-import { distanceBetween } from '../utils/mapUtils';
 
 function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
   if (status === 'GREEN') return colours.green;
@@ -33,69 +32,6 @@ function sessionTypeIcon(type: TrainingSession['type']): keyof typeof Ionicons.g
 function isSameLocalDay(dateIso: string | undefined, day: Date) {
   if (!dateIso) return false;
   return new Date(dateIso).toDateString() === day.toDateString();
-}
-
-function estimateRuckDistanceKm(session: TrainingSession) {
-  if (session.routePoints && session.routePoints.length > 1) {
-    return session.routePoints.slice(1).reduce((total, point, index) => (
-      total + distanceBetween(session.routePoints![index], point)
-    ), 0);
-  }
-
-  const titleDistance = session.title.match(/([\d.]+)\s*km/i)?.[1];
-  return titleDistance ? Number(titleDistance) : session.ruckMission?.targetDistanceKm ?? 0;
-}
-
-function readinessActionLabel(band: 'GREEN' | 'AMBER' | 'RED', loadRisk: 'Low' | 'Moderate' | 'High') {
-  if (band === 'RED' || loadRisk === 'High') return 'Recover';
-  if (loadRisk === 'Moderate') return 'Reduce';
-  if (band === 'AMBER') return 'Maintain';
-  return 'Push';
-}
-
-function buildDailyReadinessDecision(performance: PerformanceProfile, readiness?: ReadinessLog) {
-  const flags: string[] = [];
-  let score = performance.readiness;
-
-  if (readiness?.sleepHours !== undefined && readiness.sleepHours < 6) {
-    score -= 12;
-    flags.push('sleep below target');
-  }
-  if ((readiness?.soreness ?? 0) >= 4) {
-    score -= 10;
-    flags.push('high soreness');
-  }
-  if ((readiness?.pain ?? 0) >= 3) {
-    score -= 14;
-    flags.push('pain reported');
-  }
-  if ((readiness?.illness ?? 0) >= 3) {
-    score -= 18;
-    flags.push('illness reported');
-  }
-  if (readiness?.hydration === 'Poor') {
-    score -= 8;
-    flags.push('poor hydration');
-  }
-  if ((readiness?.stress ?? 0) >= 4) {
-    score -= 6;
-    flags.push('high stress');
-  }
-
-  const readinessScore = Math.max(25, Math.min(96, Math.round(score)));
-  const band = readinessScore >= 80 ? 'GREEN' : readinessScore >= 62 ? 'AMBER' : 'RED';
-  const tone = band === 'GREEN' ? colours.green : band === 'AMBER' ? colours.amber : colours.red;
-  const action = readinessActionLabel(band, performance.loadRisk);
-
-  return {
-    score: readinessScore,
-    band,
-    tone,
-    action,
-    explanation: flags.length
-      ? `Readiness adjusted for ${flags.slice(0, 3).join(', ')}.`
-      : 'Readiness is based on recent load and today\'s check-in.',
-  };
 }
 
 export function HomeScreen({
@@ -141,17 +77,11 @@ export function HomeScreen({
     () => buildPrescriptiveGuidance(sessions, latestReadiness?.sleepHours ?? 7, performance.loadRisk === 'High' ? 'down' : 'flat'),
     [sessions, latestReadiness?.sleepHours, performance.loadRisk],
   );
-  const dailyReadiness = useMemo(
-    () => buildDailyReadinessDecision(performance, latestReadiness),
-    [performance, latestReadiness],
-  );
   const ruckWork = sessions
     .filter((s) => s.type === 'Ruck')
     .reduce((total, s) => total + (s.loadKg ?? 0) * (s.durationMinutes / 60) * 5.2, 0);
 
   const recentSessions = sortSessionsByDate(sessions).slice(0, 3);
-  const latestRuck = sortSessionsByDate(sessions).find((session) => session.type === 'Ruck');
-  const latestRuckDistance = latestRuck ? estimateRuckDistanceKm(latestRuck) : 0;
 
   const acwrValue = Number(performance.acuteChronicRatio);
   const acwrTone = acwrValue > 1.3 ? colours.red : acwrValue < 0.8 ? colours.amber : colours.green;
@@ -200,13 +130,13 @@ export function HomeScreen({
       list.push({ tone: colours.amber, icon: 'time-outline', text: 'Readiness check-in is stale - log today before acting on recovery signals' });
     }
     if (performance.monotony > 2.0) {
-      list.push({ tone: colours.amber, icon: 'warning-outline', text: `Monotony elevated (${performance.monotony.toFixed(1)}) - vary training type` });
+      list.push({ tone: colours.amber, icon: 'warning-outline', text: `Monotony elevated (${performance.monotony.toFixed(1)}) — vary training type` });
     }
     if (latestReadiness?.sleepHours !== undefined && latestReadiness.sleepHours < 6) {
-      list.push({ tone: colours.amber, icon: 'moon-outline', text: 'Low sleep flagged - limit high-intensity work today' });
+      list.push({ tone: colours.amber, icon: 'moon-outline', text: 'Low sleep flagged — limit high-intensity work today' });
     }
     if (latestReadiness?.hydration === 'Poor') {
-      list.push({ tone: colours.red, icon: 'water-outline', text: 'Hydration poor - address before training' });
+      list.push({ tone: colours.red, icon: 'water-outline', text: 'Hydration poor — address before training' });
     }
     return list;
   }, [performance.monotony, latestReadiness, latestStoredReadiness, readinessIsStale]);
@@ -239,7 +169,7 @@ export function HomeScreen({
 
   // Recommended session
   const recommendedSession = useMemo(() => {
-    if (dailyReadiness.band === 'RED' || performance.loadRisk === 'High') {
+    if (performance.readinessBand === 'RED' || performance.loadRisk === 'High') {
       return {
         title: 'Mobility & Recovery',
         detail: '20–30 min · Low intensity · Focus on tissue care',
@@ -250,7 +180,7 @@ export function HomeScreen({
         goTo: goToTrain,
       };
     }
-    if (dailyReadiness.band === 'AMBER' || performance.loadRisk === 'Moderate') {
+    if (performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate') {
       return {
         title: 'Zone 2 Aerobic',
         detail: '40 min · Heart rate 130–145 bpm · Steady effort',
@@ -284,7 +214,7 @@ export function HomeScreen({
       tone: colours.green,
       goTo: goToTrain,
     };
-  }, [dailyReadiness.band, performance.loadRisk, sessions, goToTrain, goToRuck]);
+  }, [performance.readinessBand, performance.loadRisk, sessions, goToTrain, goToRuck]);
 
   const dailyDecision = useMemo(() => {
     if (needsReadinessCheckIn && goToReadiness) {
@@ -309,44 +239,44 @@ export function HomeScreen({
         goTo: goToFuel,
       };
     }
-    if (member?.assignmentSession && member.assignmentSession.status !== 'completed' && dailyReadiness.band !== 'RED' && performance.loadRisk !== 'High') {
+    if (member?.assignmentSession && member.assignmentSession.status !== 'completed' && performance.readinessBand !== 'RED' && performance.loadRisk !== 'High') {
       return {
         title: member.assignmentSession.title,
         detail: member.assignmentSession.coachNote ?? `${member.assignmentSession.type} assigned by coach.`,
         reason: `${checkInStatus}. Assigned session is ready to execute.`,
         actionLabel: 'Start Assigned',
         icon: sessionTypeIcon(member.assignmentSession.type),
-        tone: dailyReadiness.band === 'AMBER' || performance.loadRisk === 'Moderate' ? colours.amber : colours.green,
+        tone: performance.readinessBand === 'AMBER' || performance.loadRisk === 'Moderate' ? colours.amber : colours.green,
         goTo: goToTrain,
       };
     }
     return recommendedSession;
-  }, [assignedCompletedToday, assignedCompletion, checkInStatus, dailyReadiness.band, goToFuel, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, recommendedSession]);
+  }, [assignedCompletedToday, assignedCompletion, checkInStatus, goToFuel, goToReadiness, goToTrain, latestStoredReadiness, member, needsReadinessCheckIn, performance.loadRisk, performance.readinessBand, recommendedSession]);
 
   function domainPressHandler(domainId: string) {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (domainId === 'nutrition') goToFuel?.();
     if (domainId === 'sleep' || domainId === 'mental') goToReadiness?.();
   }
 
   function handleDecisionAction() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     dailyDecision.goTo?.();
   }
 
   function handleAssignedWorkoutAction() {
     if (!assignedWorkout || assignedWorkout.status === 'completed' || assignedCompletedToday) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     goToTrain?.();
   }
 
   function handlePostWorkoutFuel() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     goToFuel?.();
   }
 
   function handlePostWorkoutReadiness() {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     goToReadiness?.();
   }
 
@@ -356,7 +286,7 @@ export function HomeScreen({
       <View style={styles.header}>
         <View>
           <Text style={styles.kicker}>{today.toUpperCase()}</Text>
-          <Text style={styles.title}>{displayName ? `${displayName}'s Today` : 'Today'}</Text>
+          <Text style={styles.title}>{displayName ? `${displayName}'s Today` : 'Tactical Readiness'}</Text>
           {!hasSessionToday && (
             <Text style={styles.noCheckIn}>No training logged today</Text>
           )}
@@ -392,19 +322,19 @@ export function HomeScreen({
       <Card hot>
         <View style={styles.decisionHeader}>
           <View style={styles.readinessPuck}>
-            <Text style={styles.label}>READINESS</Text>
-            <Text style={[styles.readinessValue, { color: dailyReadiness.tone }]}>{dailyReadiness.score}</Text>
-            <Text style={[styles.statusBand, { color: dailyReadiness.tone }]}>{dailyReadiness.action}</Text>
+            <Text style={styles.label}>READY</Text>
+            <Text style={[styles.readinessValue, { color: performance.readinessTone }]}>{performance.readiness}</Text>
+            <Text style={[styles.statusBand, { color: performance.readinessTone }]}>{performance.readinessBand}</Text>
           </View>
           <View style={styles.decisionCopy}>
-            <Text style={styles.label}>TRAINING DECISION</Text>
+            <Text style={styles.label}>TODAY'S MOVE</Text>
             <Text style={[styles.decisionTitle, { color: dailyDecision.tone }]}>{dailyDecision.title}</Text>
             <Text style={styles.decisionDetail}>{dailyDecision.detail}</Text>
             <Text style={styles.checkInStamp}>{checkInStatus}</Text>
           </View>
         </View>
 
-        <ProgressBar value={dailyReadiness.score} colour={dailyReadiness.tone} />
+        <ProgressBar value={performance.readiness} colour={performance.readinessTone} />
 
         <View style={[styles.reasonPanel, { borderColor: `${dailyDecision.tone}55`, backgroundColor: `${dailyDecision.tone}12` }]}>
           <View style={[styles.reasonIcon, { backgroundColor: `${dailyDecision.tone}22` }]}>
@@ -412,7 +342,7 @@ export function HomeScreen({
           </View>
           <View style={styles.reasonCopy}>
             <Text style={[styles.reasonTitle, { color: dailyDecision.tone }]}>{dailyDecision.reason}</Text>
-            <Text style={styles.reasonDetail}>{dailyReadiness.explanation} {guidance}</Text>
+            <Text style={styles.reasonDetail}>{guidance}</Text>
           </View>
         </View>
 
@@ -446,10 +376,6 @@ export function HomeScreen({
           ))}
         </View>
 
-        <View style={styles.signalHeader}>
-          <Text style={styles.signalTitle}>Readiness Signals</Text>
-          <Text style={styles.signalSubtitle}>Details</Text>
-        </View>
         <View style={styles.commandGrid}>
           <View style={styles.commandTile}>
             <Text style={styles.commandLabel}>LOAD</Text>
@@ -630,53 +556,6 @@ export function HomeScreen({
         </Pressable>
       </Card>
 
-      {latestRuck ? (
-        <Card accent={latestRuck.routeConfidence === 'Low' ? colours.red : latestRuck.routeConfidence === 'Medium' ? colours.amber : colours.green}>
-          <View style={styles.lastRuckHeader}>
-            <View>
-              <Text style={styles.sectionTitle}>Last Ruck</Text>
-              <Text style={styles.body}>{latestRuck.title}</Text>
-            </View>
-            <View style={styles.lastRuckBadge}>
-              <Text style={styles.lastRuckBadgeText}>{latestRuck.routeConfidence ?? 'Manual'}</Text>
-            </View>
-          </View>
-          <View style={styles.lastRuckGrid}>
-            <View style={styles.lastRuckMetric}>
-              <Text style={styles.lastRuckValue}>{latestRuckDistance ? latestRuckDistance.toFixed(2) : '--'}km</Text>
-              <Text style={styles.lastRuckLabel}>Distance</Text>
-            </View>
-            <View style={styles.lastRuckMetric}>
-              <Text style={styles.lastRuckValue}>{latestRuck.loadKg ?? 0}kg</Text>
-              <Text style={styles.lastRuckLabel}>Load</Text>
-            </View>
-            <View style={styles.lastRuckMetric}>
-              <Text style={styles.lastRuckValue}>{latestRuck.durationMinutes}m</Text>
-              <Text style={styles.lastRuckLabel}>Time</Text>
-            </View>
-            <View style={styles.lastRuckMetric}>
-              <Text style={styles.lastRuckValue}>
-                {latestRuckDistance ? (latestRuck.durationMinutes / latestRuckDistance).toFixed(1) : '--'}
-              </Text>
-              <Text style={styles.lastRuckLabel}>Min/km</Text>
-            </View>
-          </View>
-          <Text style={styles.lastRuckQuality}>
-            {latestRuck.averageAccuracyMeters ? `GPS average +/-${latestRuck.averageAccuracyMeters}m` : 'No GPS accuracy saved'}
-            {latestRuck.rejectedPointCount != null ? ` | ${latestRuck.rejectedPointCount} rejected point${latestRuck.rejectedPointCount === 1 ? '' : 's'}` : ''}
-          </Text>
-          <Pressable
-            style={[styles.secondaryButton, { marginTop: 12 }]}
-            accessibilityLabel="Open ruck history"
-            accessibilityRole="button"
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); goToRuck(); }}
-          >
-            <Ionicons name="list" size={18} color={colours.cyan} />
-            <Text style={styles.secondaryButtonText}>Open Ruck History</Text>
-          </Pressable>
-        </Card>
-      ) : null}
-
       {/* Recent Load */}
       <View style={styles.recentHeader}>
         <Text style={styles.sectionTitle}>Recent Load</Text>
@@ -720,7 +599,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     gap: 12,
-    flexWrap: 'wrap',
   },
   kicker: {
     color: colours.cyan,
@@ -730,7 +608,7 @@ const styles = StyleSheet.create({
   },
   title: {
     color: colours.text,
-    fontSize: 28,
+    fontSize: 30,
     fontWeight: '900',
     marginTop: 4,
   },
@@ -750,7 +628,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     backgroundColor: colours.cyanDim,
-    flexShrink: 0,
   },
   opsecText: {
     color: colours.cyan,
@@ -800,7 +677,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   statusBand: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '900',
     marginBottom: 4,
   },
@@ -849,23 +726,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
-    marginTop: 8,
-  },
-  signalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginTop: 14,
-  },
-  signalTitle: {
-    color: colours.text,
-    fontSize: 13,
-    fontWeight: '900',
-  },
-  signalSubtitle: {
-    color: colours.muted,
-    fontSize: 11,
-    fontWeight: '800',
   },
   commandTile: {
     width: '48%',
@@ -1043,36 +904,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
   },
-  lastRuckHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  lastRuckBadge: {
-    minHeight: 32,
-    borderWidth: 1,
-    borderColor: colours.borderHot,
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colours.cyanDim,
-  },
-  lastRuckBadgeText: { color: colours.cyan, fontSize: 10, fontWeight: '900' },
-  lastRuckGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  lastRuckMetric: {
-    width: '47%',
-    flexGrow: 1,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 8,
-    padding: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  lastRuckValue: { color: colours.text, fontSize: 16, fontWeight: '900' },
-  lastRuckLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', marginTop: 2 },
-  lastRuckQuality: { color: colours.muted, fontSize: 11, fontWeight: '800', lineHeight: 16, marginTop: 10 },
   sessionRow: {
     minHeight: touchTarget,
     flexDirection: 'row',

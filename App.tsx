@@ -378,7 +378,9 @@ export default function App() {
   // ── Tab navigation ────────────────────────────────────────────────────────
   function switchTab(newTab: Tab) {
     if (activeTab !== newTab) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (Platform.OS !== 'web') {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      }
       setActiveTab(newTab);
     }
   }

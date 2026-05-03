@@ -8,6 +8,7 @@ import { buildCoachGuidance, buildProgrammeRecommendation, ProgrammeBuilderInput
 import { colours } from '../theme';
 import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, ProgrammeTemplate, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import { showAlert, showConfirm } from '../lib/dialogs';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
@@ -250,12 +251,12 @@ export function InstructorScreen({
     const trimmedName = newGroupName.trim();
     const trimmedFocus = newGroupFocus.trim();
     if (!trimmedName) {
-      Alert.alert('Team name required', 'Enter a team name before creating a new team.');
+      showAlert('Team name required', 'Enter a team name before creating a new team.');
       return;
     }
 
     if (groups.some((group) => group.name.toLowerCase() === trimmedName.toLowerCase())) {
-      Alert.alert('Team exists', 'A team with that name already exists.');
+      showAlert('Team exists', 'A team with that name already exists.');
       return;
     }
 
@@ -273,24 +274,15 @@ export function InstructorScreen({
   }
 
   function confirmDeleteMember(member: SquadMember) {
-    const deleteMember = () => {
-      onDeleteMember(member.id);
-      if (assignmentMemberId === member.id) {
-        setAssignmentMemberId('');
-      }
-    };
-
-    if (Platform.OS === 'web') {
-      if (window.confirm(`Remove ${member.name} from the squad dashboard?`)) {
-        deleteMember();
-      }
-      return;
-    }
-
-    Alert.alert('Delete member', `Remove ${member.name} from the squad dashboard?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: deleteMember },
-    ]);
+    showConfirm(
+      'Delete member',
+      `Remove ${member.name} from the squad dashboard?`,
+      () => {
+        onDeleteMember(member.id);
+        if (assignmentMemberId === member.id) setAssignmentMemberId('');
+      },
+      'Delete'
+    );
   }
 
   function addMember() {
@@ -298,12 +290,12 @@ export function InstructorScreen({
     const trimmedGymName = newMemberGymName.trim();
     const trimmedEmail = newMemberEmail.trim().toLowerCase();
     if (!trimmedName) {
-      Alert.alert('Name required', 'Enter a team member name before adding them.');
+      showAlert('Name required', 'Enter a team member name before adding them.');
       return;
     }
 
     if (trimmedEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      Alert.alert('Email check', 'Enter a valid email address or leave email blank for manual tracking.');
+      showAlert('Email check', 'Enter a valid email address or leave email blank for manual tracking.');
       return;
     }
 
@@ -354,32 +346,23 @@ export function InstructorScreen({
 
       Linking.openURL(mailtoUrl)
         .then(() => {
-          Alert.alert('Member invited', `${displayName} was added and an invite draft was opened.`);
+          showAlert('Member invited', `${displayName} was added and an invite draft was opened.`);
         })
         .catch(() => {
-          Alert.alert('Member added', `${displayName} was added. Copy the invite link and send it to ${trimmedEmail}.`);
+          showAlert('Member added', `${displayName} was added. Copy the invite link and send it to ${trimmedEmail}.`);
         });
     } else {
-      Alert.alert('Member added', `${displayName} is now tracked manually in this squad.`);
+      showAlert('Member added', `${displayName} is now tracked manually in this squad.`);
     }
   }
 
   function handleWearableConnect(name: string, status: string) {
     if (status === 'Planned') {
-      Alert.alert('Connection planned', `${name} needs OAuth/API credentials before live sync can be enabled.`);
+      showAlert('Connection planned', `${name} needs OAuth/API credentials before live sync can be enabled.`);
       return;
     }
 
-    Alert.alert('Connection ready', `${name} can be connected once device permissions are granted.`);
-  }
-
-  function showMessage(title: string, message: string) {
-    if (Platform.OS === 'web') {
-      window.alert(`${title}\n\n${message}`);
-      return;
-    }
-
-    Alert.alert(title, message);
+    showAlert('Connection ready', `${name} can be connected once device permissions are granted.`);
   }
 
   function toggleAssignmentPanel() {
@@ -444,14 +427,14 @@ export function InstructorScreen({
 
   function applyAssignment() {
     if (!members.length) {
-      showMessage('No members', 'Add a team member before applying an assignment.');
+      showAlert('No members', 'Add a team member before applying an assignment.');
       return;
     }
 
     const member = selectedAssignmentMember ?? members[0];
     const group = selectedAssignmentGroup ?? groups[0];
     if (!member || !group) {
-      showMessage('Pick a group', 'Create or select a group before applying an assignment.');
+      showAlert('Pick a group', 'Create or select a group before applying an assignment.');
       return;
     }
 
@@ -484,7 +467,7 @@ export function InstructorScreen({
     setAssignmentOpen(false);
     setAssignmentNote('');
     setStagedAssignmentExercises([]);
-    showMessage('Assignment saved', message);
+    showAlert('Assignment saved', message);
   }
 
   function loadProgrammeIntoStage() {
@@ -544,7 +527,7 @@ export function InstructorScreen({
     const group = groups.find((item) => item.id === groupId);
     const targetMembers = members.filter((member) => member.groupId === groupId);
     if (!group || !targetMembers.length) {
-      showMessage('No team members', 'Choose a group that has members before assigning a template.');
+      showAlert('No team members', 'Choose a group that has members before assigning a template.');
       return;
     }
 
@@ -1333,10 +1316,10 @@ export function InstructorScreen({
 
 const styles = StyleSheet.create({
   muted: { color: colours.muted, fontSize: 13 },
-  title: { color: colours.text, fontSize: 28, fontWeight: '900', marginBottom: 14 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  headerRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  cardHeader: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
+  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
+  grid: { flexDirection: 'row', gap: 12 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
+  cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   cardTitleFlush: { marginBottom: 0 },
   cloudActions: {
@@ -1639,10 +1622,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.18)',
     marginBottom: 10,
   },
-  groupTop: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  groupTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   groupScore: { alignItems: 'flex-end' },
   scoreMeta: { color: colours.soft, fontSize: 8, fontWeight: '900', letterSpacing: 1.2 },
-  groupStats: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 10 },
+  groupStats: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 10 },
   groupStat: { color: colours.muted, fontSize: 11, fontWeight: '800' },
   connectionRow: {
     flexDirection: 'row',
@@ -1750,7 +1733,7 @@ const styles = StyleSheet.create({
   },
   programmeExerciseName: { color: colours.text, fontSize: 13, fontWeight: '900' },
   programmeExerciseDose: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
-  programmeActionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
+  programmeActionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   programmeLoadButton: {
     flex: 1,
     alignItems: 'center',
