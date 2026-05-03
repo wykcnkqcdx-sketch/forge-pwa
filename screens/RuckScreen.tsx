@@ -317,6 +317,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [mapExpanded, setMapExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
+  const [mapNorthUp, setMapNorthUp] = useState(true);
   const [targetDistanceKm, setTargetDistanceKm] = useState(8);
   const [targetMinutes, setTargetMinutes] = useState(105);
   const [checkpointIntervalKm, setCheckpointIntervalKm] = useState(2);
@@ -362,9 +363,16 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const activeHeading = compassHeading ?? routeBearing;
   const currentAltitude = currentPoint?.altitude != null ? Math.round(currentPoint.altitude) : null;
   const displayRoutePoints = useMemo(() => decimateRouteForMap(routePoints), [routePoints]);
+
+  // When rotating, the viewport must be oversized to fill the corners
+  const renderViewport = useMemo(() => {
+    const maxDim = Math.max(mapViewport.width, mapViewport.height) * 1.5;
+    return { width: maxDim, height: maxDim };
+  }, [mapViewport]);
+
   const mapPoints = useMemo(
-    () => getMercatorRoutePoints(displayRoutePoints, effectiveMapCenter, mapViewport, mapZoom),
-    [displayRoutePoints, effectiveMapCenter, mapViewport, mapZoom]
+    () => getMercatorRoutePoints(displayRoutePoints, effectiveMapCenter, renderViewport, mapZoom),
+    [displayRoutePoints, effectiveMapCenter, renderViewport, mapZoom]
   );
   const placedCheckpoints = useMemo(
     () => plannedCheckpoints.filter((checkpoint): checkpoint is RuckCheckpoint & TrackPoint => (
@@ -373,12 +381,12 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     [plannedCheckpoints]
   );
   const checkpointMapPoints = useMemo(
-    () => getMercatorRoutePoints(placedCheckpoints, effectiveMapCenter, mapViewport, mapZoom),
-    [effectiveMapCenter, mapViewport, placedCheckpoints, mapZoom]
+    () => getMercatorRoutePoints(placedCheckpoints, effectiveMapCenter, renderViewport, mapZoom),
+    [effectiveMapCenter, renderViewport, placedCheckpoints, mapZoom]
   );
   const mapTiles = useMemo(
-    () => buildVisibleTiles(effectiveMapCenter, mapViewport, mapLayer, mapZoom),
-    [effectiveMapCenter, mapLayer, mapViewport, mapZoom]
+    () => buildVisibleTiles(effectiveMapCenter, renderViewport, mapLayer, mapZoom),
+    [effectiveMapCenter, mapLayer, renderViewport, mapZoom]
   );
   const activeMapLayer = mapLayerOptions.find((option) => option.key === mapLayer) ?? mapLayerOptions[0];
   const routeLinePoints = useMemo(() => mapPoints.map((point) => `${point.x},${point.y}`).join(' '), [mapPoints]);
@@ -621,6 +629,12 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const mapZoomRef = useRef(mapZoom);
   mapZoomRef.current = mapZoom;
 
+  const mapNorthUpRef = useRef(mapNorthUp);
+  mapNorthUpRef.current = mapNorthUp;
+
+  const activeHeadingRef = useRef(activeHeading);
+  activeHeadingRef.current = activeHeading;
+
   const panStartCenter = useRef<TrackPoint | null>(null);
   const pinchStartZoom = useRef(mapZoom);
   const zoomAnimFrame = useRef<number | null>(null);
@@ -642,9 +656,18 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         const viewport = mapViewportRef.current;
         if (!start || viewport.width <= 0 || viewport.height <= 0) return;
 
-        // Bound panning to reasonable viewport limits
-        const dxBound = Math.max(-viewport.width * 2, Math.min(viewport.width * 2, event.translationX));
-        const dyBound = Math.max(-viewport.height * 2, Math.min(viewport.height * 2, event.translationY));
+        let dx = event.translationX;
+        let dy = event.translationY;
+
+        // Counter-rotate the finger pan vectors when the map is rotated
+        if (!mapNorthUpRef.current && activeHeadingRef.current != null) {
+          const rad = (activeHeadingRef.current * Math.PI) / 180;
+          dx = event.translationX * Math.cos(rad) - event.translationY * Math.sin(rad);
+          dy = event.translationX * Math.sin(rad) + event.translationY * Math.cos(rad);
+        }
+
+        const dxBound = Math.max(-viewport.width * 2, Math.min(viewport.width * 2, dx));
+        const dyBound = Math.max(-viewport.height * 2, Math.min(viewport.height * 2, dy));
 
         const startPixel = latLonToWorldPixel(start.latitude, start.longitude, mapZoomRef.current);
         const next = worldPixelToLatLon(startPixel.x - dxBound, startPixel.y - dyBound, mapZoomRef.current);
@@ -1430,60 +1453,86 @@ function updateSelectedCheckpointHere() {
           ));
         }}
       >
-        {mapTiles.map((tile) => (
-          <Image key={tile.id} source={{ uri: tile.url }} style={tile.style} />
-        ))}
-        {mapTiles.length > 0 && <View style={styles.mapShade} pointerEvents="none" />}
-        <View style={styles.mapGridHorizontal} />
-        <View style={styles.mapGridVertical} />
-        <View style={[styles.mapRing, styles.mapRingOuter]} />
-        <View style={[styles.mapRing, styles.mapRingInner]} />
+          {mapTiles.length === 0 ? (
+            <View style={styles.mapEmpty}>
+              <Ionicons name="navigate-circle-outline" size={42} color={colours.cyan} />
+              <Text style={styles.mapEmptyText}>Start GPS to draw your route</Text>
+            </View>
+          ) : (
+            <Animated.View
+              style={{
+                position: 'absolute',
+                width: renderViewport.width,
+                height: renderViewport.height,
+                top: (mapViewport.height - renderViewport.height) / 2,
+                left: (mapViewport.width - renderViewport.width) / 2,
+                transform: [
+                  {
+                    rotate: mapNorthUp ? '0deg' : rotationAnim.interpolate({
+                      inputRange: [-720, 0, 360, 720],
+                      outputRange: ['720deg', '0deg', '-360deg', '-720deg'],
+                    })
+                  }
+                ]
+              }}
+            >
+              {mapTiles.map((tile) => (
+                <Image key={tile.id} source={{ uri: tile.url }} style={tile.style} />
+              ))}
+              <View style={styles.mapShade} pointerEvents="none" />
+              <View style={styles.mapGridHorizontal} />
+              <View style={styles.mapGridVertical} />
+              <View style={[styles.mapRing, styles.mapRingOuter]} />
+              <View style={[styles.mapRing, styles.mapRingInner]} />
 
-        {mapTiles.length === 0 ? (
-          <View style={styles.mapEmpty}>
-            <Ionicons name="navigate-circle-outline" size={42} color={colours.cyan} />
-            <Text style={styles.mapEmptyText}>Start GPS to draw your route</Text>
-          </View>
-        ) : (
-          <Svg
-            style={StyleSheet.absoluteFill}
-            viewBox={`0 0 ${Math.max(1, mapViewport.width)} ${Math.max(1, mapViewport.height)}`}
-            pointerEvents="none"
-          >
-            {routeLinePoints && (
-              <Polyline
-                points={routeLinePoints}
-                fill="none"
-                stroke={colours.cyan}
-                strokeWidth={4}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                opacity={0.9}
-              />
-            )}
-            {firstMapPoint && (
-              <Circle cx={firstMapPoint.x} cy={firstMapPoint.y} r={5} fill={colours.background} stroke={colours.cyan} strokeWidth={2} />
-            )}
-            {lastMapPoint && (
-              <Circle cx={lastMapPoint.x} cy={lastMapPoint.y} r={8} fill={colours.green} stroke="rgba(255,255,255,0.75)" strokeWidth={2} />
-            )}
-            {checkpointMapPoints.map((checkpoint, index) => (
-              <React.Fragment key={checkpoint.id}>
-                <Circle
-                  cx={checkpoint.x}
-                  cy={checkpoint.y}
-                  r={selectedCheckpoint?.id === checkpoint.id ? 10 : 8}
-                  fill={checkpointTone(checkpoint)}
-                  stroke="rgba(7,17,30,0.86)"
-                  strokeWidth={2}
-                />
-                <SvgText x={checkpoint.x} y={checkpoint.y + 3} textAnchor="middle" fontSize="9" fontWeight="900" fill={colours.background}>
-                  {index + 1}
-                </SvgText>
-              </React.Fragment>
-            ))}
-          </Svg>
-        )}
+              <Svg
+                style={StyleSheet.absoluteFill}
+                viewBox={`0 0 ${Math.max(1, renderViewport.width)} ${Math.max(1, renderViewport.height)}`}
+                pointerEvents="none"
+              >
+                {routeLinePoints && (
+                  <Polyline
+                    points={routeLinePoints}
+                    fill="none"
+                    stroke={colours.cyan}
+                    strokeWidth={4}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity={0.9}
+                  />
+                )}
+                {firstMapPoint && (
+                  <Circle cx={firstMapPoint.x} cy={firstMapPoint.y} r={5} fill={colours.background} stroke={colours.cyan} strokeWidth={2} />
+                )}
+                {lastMapPoint && (
+                  <Circle cx={lastMapPoint.x} cy={lastMapPoint.y} r={8} fill={colours.green} stroke="rgba(255,255,255,0.75)" strokeWidth={2} />
+                )}
+                {checkpointMapPoints.map((checkpoint, index) => (
+                  <React.Fragment key={checkpoint.id}>
+                    <Circle
+                      cx={checkpoint.x}
+                      cy={checkpoint.y}
+                      r={selectedCheckpoint?.id === checkpoint.id ? 10 : 8}
+                      fill={checkpointTone(checkpoint)}
+                      stroke="rgba(7,17,30,0.86)"
+                      strokeWidth={2}
+                    />
+                    <SvgText 
+                      x={checkpoint.x} 
+                      y={checkpoint.y + 3} 
+                      textAnchor="middle" 
+                      fontSize="9" 
+                      fontWeight="900" 
+                      fill={colours.background}
+                      transform={!mapNorthUp && activeHeading != null ? `rotate(${activeHeading}, ${checkpoint.x}, ${checkpoint.y})` : undefined}
+                    >
+                      {index + 1}
+                    </SvgText>
+                  </React.Fragment>
+                ))}
+              </Svg>
+            </Animated.View>
+          )}
 
         <View style={styles.crosshair} pointerEvents="none">
           <View style={styles.crosshairHorizontal} />
@@ -1499,12 +1548,19 @@ function updateSelectedCheckpointHere() {
             <View style={styles.mapCompassOverlay} pointerEvents="none">
               <Animated.View
                 style={{
-                  transform: [{
-                    rotate: rotationAnim.interpolate({
-                      inputRange: [-720, 0, 360, 720],
-                      outputRange: ['-720deg', '0deg', '360deg', '720deg'],
-                    }),
-                  }],
+                  transform: [
+                    {
+                      rotate: mapNorthUp 
+                        ? rotationAnim.interpolate({
+                            inputRange: [-720, 0, 360, 720],
+                            outputRange: ['-720deg', '0deg', '360deg', '720deg'],
+                          })
+                        : rotationAnim.interpolate({
+                            inputRange: [-720, 0, 360, 720],
+                            outputRange: ['720deg', '0deg', '-360deg', '-720deg'],
+                          })
+                    }
+                  ],
                 }}
               >
                 <Ionicons name="navigate" size={22} color={colours.background} />
@@ -1570,6 +1626,15 @@ function updateSelectedCheckpointHere() {
               <Ionicons name={!gpsFollowMode ? "locate-outline" : 'locate'} size={14} color={!gpsFollowMode ? colours.background : colours.cyan} />
               <Text style={[styles.mapSelectButtonText, !gpsFollowMode && styles.mapSelectButtonTextActive]}>
                 {gpsFollowMode ? 'Pan Free' : 'GPS Follow'}
+              </Text>
+            </Pressable>
+            <Pressable
+              style={[styles.mapSelectButton, !mapNorthUp && styles.mapSelectButtonActive]}
+              onPress={() => setMapNorthUp(v => !v)}
+            >
+              <Ionicons name="compass" size={14} color={!mapNorthUp ? colours.background : colours.cyan} />
+              <Text style={[styles.mapSelectButtonText, !mapNorthUp && styles.mapSelectButtonTextActive]}>
+                {mapNorthUp ? 'North Up' : 'Heading Up'}
               </Text>
             </Pressable>
             <Pressable style={styles.mapSelectButton} onPress={recenterMapOnGps}>
@@ -2668,8 +2733,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(103,232,249,0.10)',
   },
-  mapRingOuter: { width: 170, height: 170, borderRadius: 85, top: 10 },
-  mapRingInner: { width: 92, height: 92, borderRadius: 46, top: 49 },
+  mapRingOuter: { width: 170, height: 170, borderRadius: 85, top: '50%', marginTop: -85 },
+  mapRingInner: { width: 92, height: 92, borderRadius: 46, top: '50%', marginTop: -46 },
   mapEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 6 },
   mapEmptyText: { color: colours.muted, fontWeight: '700' },
   crosshair: {
