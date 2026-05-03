@@ -45,6 +45,10 @@ export type TrainingSession = {
   loadKg?: number;
   routePoints?: TrackPoint[];
   ruckMission?: RuckMissionPlan;
+  note?: string;
+  routeConfidence?: 'High' | 'Medium' | 'Low';
+  rejectedPointCount?: number;
+  averageAccuracyMeters?: number;
   completedAt?: string;
   updatedAt?: string;
 };

@@ -283,6 +283,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [customTemplates, setCustomTemplates] = useState<RuckTemplate[]>([]);
   const [templateNameInput, setTemplateNameInput] = useState('');
   const [planRestored, setPlanRestored] = useState(false);
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [ruckReviewNote, setRuckReviewNote] = useState('');
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const announcedCheckpointArrivals = useRef<Set<string>>(new Set());
@@ -873,6 +875,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const resumeTracking = async () => {
     if (isTracking || isStarting || !startTime) return;
 
+    setReviewOpen(false);
     setMapFullscreen(true);
     dispatchTracking({ type: 'resume_requested' });
 
@@ -891,6 +894,13 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       stopTracking();
       Alert.alert('GPS unavailable', 'Unable to resume GPS tracking on this device.');
     }
+  };
+
+  const openRuckReview = () => {
+    if (!startTime) return;
+    stopTracking();
+    setMapFullscreen(false);
+    setReviewOpen(true);
   };
 
   const saveTrackedRuck = () => {
@@ -918,6 +928,10 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       loadKg: weight,
       routePoints: routePoints.length > 0 ? routePoints : undefined,
       ruckMission,
+      note: ruckReviewNote.trim() || undefined,
+      routeConfidence: routeReview.confidence,
+      rejectedPointCount,
+      averageAccuracyMeters: routeReview.averageAccuracyMeters,
       completedAt: new Date().toISOString(),
     };
     addSession(session);
@@ -927,6 +941,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setPlannedCheckpoints([]);
     setSelectedCheckpointId(null);
     setMapFullscreen(false);
+    setReviewOpen(false);
+    setRuckReviewNote('');
     clearActiveRoute();
     clearActiveRuckPlan();
   };
@@ -938,6 +954,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     setPlannedCheckpoints([]);
     setSelectedCheckpointId(null);
     setMapFullscreen(false);
+    setReviewOpen(false);
+    setRuckReviewNote('');
     clearActiveRoute();
     clearActiveRuckPlan();
   };
@@ -958,6 +976,28 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     [weight, distance, plannedAscentM]
   );
   const activePace = currentDistance > 0.02 ? (elapsedSeconds / 60 / currentDistance).toFixed(1) : '--';
+  const routeReview = useMemo(() => {
+    const accuracyValues = routePoints
+      .map((point) => point.accuracy)
+      .filter((value): value is number => typeof value === 'number' && Number.isFinite(value));
+    const averageAccuracyMeters = accuracyValues.length > 0
+      ? Math.round(accuracyValues.reduce((total, value) => total + value, 0) / accuracyValues.length)
+      : undefined;
+    const weakPointCount = accuracyValues.filter((value) => value > WEAK_ACCURACY_METERS).length;
+    const confidence: 'High' | 'Medium' | 'Low' = routePoints.length < 2 || rejectedPointCount >= 8 || weakPointCount > accuracyValues.length / 2
+      ? 'Low'
+      : rejectedPointCount >= 3 || (averageAccuracyMeters ?? 0) > WEAK_ACCURACY_METERS
+        ? 'Medium'
+        : 'High';
+    const reachedCheckpoints = plannedCheckpoints.filter((checkpoint) => checkpoint.status === 'reached').length;
+
+    return {
+      averageAccuracyMeters,
+      confidence,
+      reachedCheckpoints,
+      totalCheckpoints: plannedCheckpoints.length,
+    };
+  }, [elapsedSeconds, plannedCheckpoints, rejectedPointCount, routePoints]);
 
   function changeTargetDistance(amount: number) {
     setTargetDistanceKm((current) => Math.round(Math.min(40, Math.max(1, current + amount)) * 10) / 10);
@@ -1475,8 +1515,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
                 <Ionicons name="play" size={20} color={colours.background} />
                 <Text style={styles.trackButtonText}>Resume</Text>
               </Pressable>
-              <Pressable style={[styles.saveButton, { flex: 1 }]} onPress={saveTrackedRuck}>
-                <Text style={styles.saveButtonText}>Save GPS Session</Text>
+              <Pressable style={[styles.saveButton, { flex: 1 }]} onPress={openRuckReview}>
+                <Text style={styles.saveButtonText}>Review Ruck</Text>
               </Pressable>
               <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
                 <Ionicons name="close" size={20} color={colours.text} />
@@ -1585,6 +1625,81 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         )}
       </Card>
 
+      {reviewOpen && startTime ? (
+        <Card style={styles.reviewCard}>
+          <View style={styles.navHeader}>
+            <View>
+              <Text style={styles.cardTitle}>Ruck Review</Text>
+              <Text style={styles.muted}>Confirm the session before it hits your log.</Text>
+            </View>
+            <View style={[styles.signalBadge, { borderColor: `${routeReview.confidence === 'High' ? colours.green : routeReview.confidence === 'Medium' ? colours.amber : colours.red}55`, backgroundColor: `${routeReview.confidence === 'High' ? colours.green : routeReview.confidence === 'Medium' ? colours.amber : colours.red}14` }]}>
+              <Text style={[styles.signalText, { color: routeReview.confidence === 'High' ? colours.green : routeReview.confidence === 'Medium' ? colours.amber : colours.red }]}>
+                {routeReview.confidence.toUpperCase()}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.reviewGrid}>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{currentDistance.toFixed(2)}km</Text>
+              <Text style={styles.reviewLabel}>Distance</Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{formatElapsed(elapsedSeconds)}</Text>
+              <Text style={styles.reviewLabel}>Time</Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{activePace}</Text>
+              <Text style={styles.reviewLabel}>Min/km</Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{weight}kg</Text>
+              <Text style={styles.reviewLabel}>Load</Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{routeReview.averageAccuracyMeters ? `+/-${routeReview.averageAccuracyMeters}m` : 'Unknown'}</Text>
+              <Text style={styles.reviewLabel}>Avg GPS</Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{rejectedPointCount}</Text>
+              <Text style={styles.reviewLabel}>Rejected</Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{routeReview.reachedCheckpoints}/{routeReview.totalCheckpoints}</Text>
+              <Text style={styles.reviewLabel}>Checkpoints</Text>
+            </View>
+            <View style={styles.reviewItem}>
+              <Text style={styles.reviewValue}>{splits.length}</Text>
+              <Text style={styles.reviewLabel}>Splits</Text>
+            </View>
+          </View>
+
+          <TextInput
+            value={ruckReviewNote}
+            onChangeText={setRuckReviewNote}
+            placeholder="Session note, kit issue, terrain, pain, weather..."
+            placeholderTextColor={colours.soft}
+            style={styles.reviewNoteInput}
+            multiline
+          />
+
+          <View style={styles.reviewActions}>
+            <Pressable style={styles.saveButton} onPress={saveTrackedRuck}>
+              <Text style={styles.saveButtonText}>Save Ruck</Text>
+            </Pressable>
+            <Pressable style={styles.trackButton} onPress={resumeTracking}>
+              <Ionicons name="play" size={18} color={colours.background} />
+              <Text style={styles.trackButtonText}>Resume</Text>
+            </Pressable>
+            <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
+              <Ionicons name="close" size={18} color={colours.text} />
+              <Text style={[styles.trackButtonText, { color: colours.text }]}>Discard</Text>
+            </Pressable>
+          </View>
+        </Card>
+      ) : null}
+
+      {!reviewOpen ? (
       <View style={styles.trackingControls}>
         {isTracking ? (
           <View style={styles.trackingActive}>
@@ -1599,8 +1714,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
               <Ionicons name="play" size={20} color={colours.background} />
               <Text style={styles.trackButtonText}>Resume</Text>
             </Pressable>
-            <Pressable style={styles.saveButton} onPress={saveTrackedRuck}>
-              <Text style={styles.saveButtonText}>Save GPS Session</Text>
+            <Pressable style={styles.saveButton} onPress={openRuckReview}>
+              <Text style={styles.saveButtonText}>Review Ruck</Text>
             </Pressable>
             <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
               <Ionicons name="close" size={20} color={colours.text} />
@@ -1618,6 +1733,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
           </Pressable>
         )}
       </View>
+      ) : null}
 
       <Card>
         <View style={styles.navHeader}>
@@ -2593,6 +2709,30 @@ const styles = StyleSheet.create({
   saveButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
   saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   discardButton: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colours.border, borderWidth: 1 },
+  reviewCard: { borderColor: 'rgba(103,232,249,0.28)' },
+  reviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  reviewItem: {
+    width: '47%',
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    padding: 11,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  reviewValue: { color: colours.text, fontSize: 17, fontWeight: '900' },
+  reviewLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', marginTop: 3 },
+  reviewNoteInput: {
+    minHeight: 86,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    color: colours.text,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    textAlignVertical: 'top',
+  },
+  reviewActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 10, gap: 12 },
