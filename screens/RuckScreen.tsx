@@ -669,7 +669,15 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       })
       .runOnJS(true);
 
-    return Gesture.Simultaneous(panGesture, pinchGesture);
+    const doubleTapGesture = Gesture.Tap()
+      .numberOfTaps(2)
+      .enabled(Boolean(effectiveMapCenterRef.current))
+      .onEnd(() => {
+        setMapZoom(15);
+      })
+      .runOnJS(true);
+
+    return Gesture.Simultaneous(panGesture, pinchGesture, doubleTapGesture);
   }, []);
 
   useEffect(() => {
