@@ -1501,7 +1501,7 @@ function updateSelectedCheckpointHere() {
                 if (gpsFollowMode && currentPoint) setMapCenter(currentPoint);
               }}
             >
-              <Ionicons name={!gpsFollowMode ? "location-off" : 'locate'} size={14} color={!gpsFollowMode ? colours.background : colours.cyan} />
+              <Ionicons name={!gpsFollowMode ? "locate-outline" : 'locate'} size={14} color={!gpsFollowMode ? colours.background : colours.cyan} />
               <Text style={[styles.mapSelectButtonText, !gpsFollowMode && styles.mapSelectButtonTextActive]}>
                 {gpsFollowMode ? 'Pan Free' : 'GPS Follow'}
               </Text>
