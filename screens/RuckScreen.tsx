@@ -142,6 +142,8 @@ type TrackingState = {
 type TrackingAction =
   | { type: 'start_requested' }
   | { type: 'start_succeeded'; firstPoint: TrackPoint }
+  | { type: 'resume_requested' }
+  | { type: 'resume_succeeded' }
   | { type: 'restore'; points: TrackPoint[]; currentDistance: number; elapsedSeconds: number; isTracking: boolean; rejectedPointCount: number; lastRejectedReason: string | null }
   | { type: 'point_recorded'; point: TrackPoint }
   | { type: 'tick'; elapsedSeconds: number }
@@ -163,6 +165,9 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
     case 'start_requested':
       return { ...state, status: 'starting' };
 
+    case 'resume_requested':
+      return { ...state, status: 'starting' };
+
     case 'start_succeeded':
       return {
         status: 'tracking',
@@ -172,6 +177,13 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
         startTime: new Date(action.firstPoint.timestamp),
         rejectedPointCount: 0,
         lastRejectedReason: null,
+      };
+
+    case 'resume_succeeded':
+      return {
+        ...state,
+        status: 'tracking',
+        startTime: new Date(Date.now() - state.elapsedSeconds * 1000),
       };
 
     case 'restore': {
@@ -699,6 +711,38 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     }
   };
 
+  const startLocationSubscription = async () => {
+    if (supportsBackgroundLocation) {
+      const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
+      if (bgStatus === 'granted') {
+        await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 3000,
+          distanceInterval: 5,
+          showsBackgroundLocationIndicator: true,
+          foregroundService: {
+            notificationTitle: 'FORGE Ruck Tracker',
+            notificationBody: 'GPS tracking active',
+            notificationColor: colours.cyan,
+          },
+        });
+        return 'background';
+      }
+
+      Alert.alert('Foreground tracking active', 'Background permission was not granted, so GPS will track while this screen stays open.');
+    }
+
+    foregroundLocationSubscription.current = await Location.watchPositionAsync(
+      {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 3000,
+        distanceInterval: 5,
+      },
+      recordLocation
+    );
+    return 'foreground';
+  };
+
   const startTracking = async (overrideReadiness = false) => {
     if (isTracking || isStarting) return;
 
@@ -727,6 +771,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       if (status !== 'granted') {
         Alert.alert('Permission denied', 'Location permission is required for GPS tracking.');
         dispatchTracking({ type: 'stopped' });
+        setMapFullscreen(false);
         return;
       }
 
@@ -734,34 +779,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       const firstPoint = toTrackPoint(firstPosition);
 
       await resetActiveRoute(firstPoint);
-
-      foregroundLocationSubscription.current = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 3000,
-          distanceInterval: 5,
-        },
-        recordLocation
-      );
-
-      if (supportsBackgroundLocation) {
-        const { status: bgStatus } = await Location.requestBackgroundPermissionsAsync();
-        if (bgStatus === 'granted') {
-          await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
-            accuracy: Location.Accuracy.High,
-            timeInterval: 3000,
-            distanceInterval: 5,
-            showsBackgroundLocationIndicator: true,
-            foregroundService: {
-              notificationTitle: 'FORGE Ruck Tracker',
-              notificationBody: 'GPS tracking active',
-              notificationColor: colours.cyan,
-            },
-          });
-        } else {
-          Alert.alert('Foreground tracking active', 'Background permission was not granted, so GPS will track while this screen stays open.');
-        }
-      }
+      await startLocationSubscription();
 
       dispatchTracking({ type: 'start_succeeded', firstPoint });
     } catch (error) {
@@ -772,11 +790,34 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     }
   };
 
+  const resumeTracking = async () => {
+    if (isTracking || isStarting || !startTime) return;
+
+    setMapFullscreen(true);
+    dispatchTracking({ type: 'resume_requested' });
+
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission denied', 'Location permission is required to resume GPS tracking.');
+        dispatchTracking({ type: 'stopped' });
+        return;
+      }
+
+      await startLocationSubscription();
+      dispatchTracking({ type: 'resume_succeeded' });
+    } catch (error) {
+      console.error('Failed to resume GPS tracking', error);
+      stopTracking();
+      Alert.alert('GPS unavailable', 'Unable to resume GPS tracking on this device.');
+    }
+  };
+
   const saveTrackedRuck = () => {
     if (!startTime) return;
     stopTracking();
 
-    const duration = Math.max(1, (new Date().getTime() - startTime.getTime()) / (1000 * 60)); // minutes
+    const duration = Math.max(1, elapsedSeconds / 60);
     const ruckMission: RuckMissionPlan = {
       targetDistanceKm,
       targetMinutes,
@@ -2650,25 +2691,4 @@ const styles = StyleSheet.create({
     minHeight: 40,
     flex: 1,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  clearCheckpointText: { color: colours.muted, fontSize: 12, fontWeight: '900' },
-  undoMarkButton: {
-    minHeight: 40,
-    width: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
-  primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
-  primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
-});
+    bo
