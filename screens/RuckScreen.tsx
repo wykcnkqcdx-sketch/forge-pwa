@@ -168,7 +168,6 @@ type TrackingAction =
   | { type: 'resume_succeeded' }
   | { type: 'restore'; points: TrackPoint[]; currentDistance: number; elapsedSeconds: number; isTracking: boolean; rejectedPointCount: number; lastRejectedReason: string | null }
   | { type: 'point_recorded'; point: TrackPoint }
-  | { type: 'tick'; elapsedSeconds: number }
   | { type: 'stopped' }
   | { type: 'reset' };
 
@@ -237,14 +236,16 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
         currentDistance: state.currentDistance + result.distanceKm,
         routePoints: [...state.routePoints, action.point],
         lastRejectedReason: null,
+        elapsedSeconds: state.startTime ? Math.max(0, Math.floor((action.point.timestamp - state.startTime.getTime()) / 1000)) : state.elapsedSeconds,
       };
     }
 
-    case 'tick':
-      return { ...state, elapsedSeconds: action.elapsedSeconds };
-
     case 'stopped':
-      return { ...state, status: state.startTime ? 'paused' : 'idle' };
+      return { 
+        ...state, 
+        status: state.startTime ? 'paused' : 'idle',
+        elapsedSeconds: state.startTime && state.status === 'tracking' ? Math.max(0, Math.floor((Date.now() - state.startTime.getTime()) / 1000)) : state.elapsedSeconds 
+      };
 
     case 'reset':
       return initialTrackingState;
@@ -273,6 +274,24 @@ if (supportsBackgroundLocation) {
       DeviceEventEmitter.emit('onLocationUpdate', locations);
     }
   });
+}
+
+function LiveTimerText({ startTime, isTracking, staticSeconds, style }: { startTime: Date | null; isTracking: boolean; staticSeconds: number; style: any }) {
+  const [elapsed, setElapsed] = useState(staticSeconds);
+
+  useEffect(() => {
+    if (!isTracking || !startTime) {
+      setElapsed(staticSeconds);
+      return;
+    }
+    setElapsed(Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000)));
+    const timer = setInterval(() => {
+      setElapsed(Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000)));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [isTracking, startTime, staticSeconds]);
+
+  return <Text style={style}>{formatElapsed(elapsed)}</Text>;
 }
 
 export function RuckScreen({
@@ -764,19 +783,6 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       console.error('Failed to persist active ruck plan', error);
     });
   }, [checkpointIndex, checkpointIntervalKm, finishMode, planRestored, plannedCheckpoints, selectedCheckpointId, targetDistanceKm, targetMinutes]);
-
-  useEffect(() => {
-    if (!isTracking || !startTime) return undefined;
-
-    const timer = setInterval(() => {
-      dispatchTracking({
-        type: 'tick',
-        elapsedSeconds: Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000)),
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [isTracking, startTime]);
 
   useEffect(() => {
     if (!isTracking) return;
@@ -1643,7 +1649,7 @@ function updateSelectedCheckpointHere() {
             <Text style={styles.liveLabel}>KM</Text>
           </View>
           <View style={styles.liveStat}>
-            <Text style={styles.liveValue}>{formatElapsed(elapsedSeconds)}</Text>
+            <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.liveValue} />
             <Text style={styles.liveLabel}>TIME</Text>
           </View>
           <View style={styles.liveStat}>
