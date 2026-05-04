@@ -1416,6 +1416,35 @@ function updateSelectedCheckpointHere() {
     }
   }
 
+  function confirmClearOfflineMap() {
+    Alert.alert(
+      'Clear Map Cache',
+      'This will delete all downloaded offline map tiles and free up storage space. Proceed?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Clear', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              if (Platform.OS === 'web') {
+                if ('caches' in window) {
+                  await caches.delete('forge-map-tiles-v1');
+                }
+              } else {
+                await ExpoImage.clearDiskCache();
+              }
+              Alert.alert('Cache Cleared', 'Offline map tiles have been removed from storage.');
+            } catch (err) {
+              console.error('Failed to clear map cache', err);
+              Alert.alert('Error', 'Failed to clear map cache.');
+            }
+          }
+        }
+      ]
+    );
+  }
+
   function recenterMapOnGps() {
     if (!currentPoint) {
       Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before recentring.');
@@ -1770,6 +1799,10 @@ function updateSelectedCheckpointHere() {
                 <Text style={styles.mapSelectButtonText}>Offline</Text>
               </Pressable>
             )}
+            <Pressable style={styles.mapSelectButton} onPress={confirmClearOfflineMap}>
+              <Ionicons name="trash-outline" size={14} color={colours.red} />
+              <Text style={[styles.mapSelectButtonText, { color: colours.red }]}>Clear</Text>
+            </Pressable>
             <Pressable style={styles.mapSelectButton} onPress={() => {
               if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
               setMapZoom((z) => Math.max(2, z - 1));
