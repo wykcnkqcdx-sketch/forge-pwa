@@ -1,6 +1,8 @@
 import { colours } from '../theme';
 import { TrackPoint, TrainingSession } from './domain';
 
+export type { TrackPoint, TrainingSession } from './domain';
+
 export type SquadMember = {
   id: string;
   name: string;
