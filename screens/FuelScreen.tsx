@@ -5,7 +5,8 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { colours } from '../theme';
+import { colours, typography } from '../theme';
+import { responsiveSpacing, statusColors } from '../utils/styling';
 import { fuelProfile, TrainingSession } from '../data/mockData';
 import type { ReadinessLog } from '../data/domain';
 import { buildPerformanceProfile } from '../lib/performance';
@@ -130,8 +131,8 @@ export function FuelScreen({ sessions, readinessLogs = [] }: { sessions: Trainin
               style={[
                 styles.goalTab,
                 {
-                  borderColor: active ? `${item.tone}80` : colours.borderSoft,
-                  backgroundColor: active ? `${item.tone}16` : 'rgba(255,255,255,0.04)',
+                  borderColor: active ? statusColors(item.tone).borderMed : colours.borderSoft,
+                  backgroundColor: active ? statusColors(item.tone).bgMed : 'rgba(255,255,255,0.04)',
                 },
               ]}
               onPress={() => setGoal(item.id)}
@@ -301,9 +302,9 @@ export function FuelScreen({ sessions, readinessLogs = [] }: { sessions: Trainin
 }
 
 const styles = StyleSheet.create({
-  muted: { color: colours.muted, fontSize: 13 },
-  title: { color: colours.text, fontSize: 30, fontWeight: '900', marginBottom: 14 },
-  goalTabs: { flexDirection: 'row', gap: 8 },
+  muted: { color: colours.muted, ...typography.caption },
+  title: { color: colours.text, fontSize: 30, fontWeight: '900', marginBottom: responsiveSpacing('md') },
+  goalTabs: { flexDirection: 'row', gap: responsiveSpacing('sm') },
   goalTab: {
     flex: 1,
     borderWidth: 1,
@@ -311,22 +312,22 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     alignItems: 'center',
   },
-  goalText: { fontSize: 12, fontWeight: '900' },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  goalText: { ...typography.caption, fontWeight: '900' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('md') },
   cardTitle: { color: colours.text, fontSize: 18, fontWeight: '900' },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },
-  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: responsiveSpacing('md') },
+  metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   metricControl: {
     flexBasis: '47%',
     flexGrow: 1,
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 12,
-    padding: 10,
+    padding: responsiveSpacing('sm'),
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  metricLabel: { color: colours.muted, fontSize: 11, fontWeight: '900', marginBottom: 8 },
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metricLabel: { color: colours.muted, ...typography.label, marginBottom: responsiveSpacing('xs') },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: responsiveSpacing('sm') },
   stepButton: {
     width: 34,
     height: 34,
@@ -337,26 +338,26 @@ const styles = StyleSheet.create({
   },
   stepText: { color: colours.background, fontSize: 18, fontWeight: '900' },
   weightValue: { color: colours.text, fontWeight: '900', minWidth: 50, textAlign: 'center' },
-  macroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
+  macroGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   macroItem: {
     flex: 1,
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 12,
-    padding: 12,
+    padding: responsiveSpacing('md'),
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   macroValue: { color: colours.cyan, fontSize: 22, fontWeight: '900' },
-  macroLabel: { color: colours.muted, fontSize: 11, fontWeight: '900', marginTop: 3 },
-  guidance: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 12 },
-  zoneRow: { marginTop: 14 },
-  zoneTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
-  zoneLabel: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  zoneBpm: { color: colours.textSoft, fontSize: 12, fontWeight: '800' },
-  zoneRange: { color: colours.muted, fontSize: 11, fontWeight: '700', marginTop: 5 },
+  macroLabel: { color: colours.muted, ...typography.label, marginTop: 3 },
+  guidance: { color: colours.textSoft, ...typography.caption, lineHeight: 19, marginTop: responsiveSpacing('md') },
+  zoneRow: { marginTop: responsiveSpacing('md') },
+  zoneTop: { flexDirection: 'row', justifyContent: 'space-between', gap: responsiveSpacing('sm'), marginBottom: responsiveSpacing('xs') },
+  zoneLabel: { color: colours.text, ...typography.caption, fontWeight: '900' },
+  zoneBpm: { color: colours.textSoft, ...typography.caption, fontWeight: '800' },
+  zoneRange: { color: colours.muted, ...typography.label, marginTop: 5 },
   rpeRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: responsiveSpacing('md'),
     borderBottomWidth: 1,
     borderBottomColor: colours.borderSoft,
     paddingVertical: 11,
@@ -370,23 +371,23 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyan,
     textAlign: 'center',
     textAlignVertical: 'center',
-    fontSize: 12,
+    ...typography.caption,
     fontWeight: '900',
     paddingTop: 7,
   },
   rpeCopy: { flex: 1 },
-  rpeLabel: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  rpeGuidance: { color: colours.textSoft, fontSize: 12, lineHeight: 17, marginTop: 2 },
+  rpeLabel: { color: colours.text, ...typography.caption, fontWeight: '900' },
+  rpeGuidance: { color: colours.textSoft, ...typography.caption, lineHeight: 17, marginTop: 2 },
   hydrationValue: { color: colours.cyan, fontWeight: '900' },
-  hydrationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  hydrationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   hydrationButton: {
     flex: 1,
     borderWidth: 1,
-    borderColor: `${colours.cyan}40`,
+    borderColor: statusColors(colours.cyan).borderMed,
     borderRadius: 10,
     paddingVertical: 9,
     alignItems: 'center',
-    backgroundColor: colours.cyanDim,
+    backgroundColor: statusColors(colours.cyan).bgMed,
   },
-  hydrationButtonText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
+  hydrationButtonText: { color: colours.cyan, ...typography.caption, fontWeight: '900' },
 });
