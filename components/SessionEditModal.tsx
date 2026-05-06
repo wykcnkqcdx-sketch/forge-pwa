@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Modal, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colours, shadow } from '../theme';
-import { TrainingSession } from '../types';
+import type { TrainingSession } from '../data/mockData';
 
 export type SessionEditModalProps = {
   visible: boolean;
@@ -137,4 +137,3 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
 });
-
