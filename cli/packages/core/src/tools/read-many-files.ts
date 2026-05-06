@@ -324,11 +324,16 @@ ${finalExclusionPatternsForDescription
     }
 
     const sortedFiles = Array.from(filesToConsider).sort();
-    const file_line_limit =
-      DEFAULT_MAX_LINES_TEXT_FILE / Math.max(1, sortedFiles.length);
+    const file_line_limit = Math.floor(
+      DEFAULT_MAX_LINES_TEXT_FILE / Math.max(1, sortedFiles.length)
+    );
 
-    const fileProcessingPromises = sortedFiles.map(
-      async (filePath): Promise<FileProcessingResult> => {
+    const CONCURRENCY_LIMIT = 50;
+    const executing = new Set<Promise<FileProcessingResult>>();
+    const fileProcessingPromises: Promise<FileProcessingResult>[] = [];
+
+    for (const filePath of sortedFiles) {
+      const p = (async (): Promise<FileProcessingResult> => {
         try {
           const relativePathForDisplay = path
             .relative(this.config.getTargetDir(), filePath)
@@ -395,8 +400,16 @@ ${finalExclusionPatternsForDescription
             reason: `Unexpected error: ${error instanceof Error ? error.message : String(error)}`,
           };
         }
-      },
-    );
+      })();
+
+      fileProcessingPromises.push(p);
+      executing.add(p);
+      void p.finally(() => { executing.delete(p); });
+
+      if (executing.size >= CONCURRENCY_LIMIT) {
+        await Promise.race(executing);
+      }
+    }
 
     const results = await Promise.allSettled(fileProcessingPromises);
 

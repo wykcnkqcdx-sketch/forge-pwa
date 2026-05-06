@@ -1,9 +1,11 @@
+import React from 'react';
 import { vi } from 'vitest';
 
 // ── React Native ──────────────────────────────────────────────────────────────
 vi.mock('react-native', () => ({
   Alert: { alert: vi.fn() },
   Animated: {
+    View: ({ children }: { children?: React.ReactNode }) => React.createElement('div', null, children),
     Value: class {
       _value: number;
       constructor(v: number) { this._value = v; }

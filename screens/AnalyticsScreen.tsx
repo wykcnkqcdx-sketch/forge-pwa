@@ -1,12 +1,13 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions, Share } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Dimensions, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { colours, shadow } from '../theme';
+import { colours, shadow, typography } from '../theme';
+import { responsiveSpacing, statusColors } from '../utils/styling';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { ReadinessLog } from '../data/domain';
 import { formatCoordinate } from '../utils/coordinates';
@@ -16,87 +17,9 @@ import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/Body
 import { calculateWHtR } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { showAlert, showConfirm } from '../lib/dialogs';
-
-function sessionIcon(type: TrainingSession['type']) {
-  switch (type) {
-    case 'Ruck':
-      return 'footsteps-outline';
-    case 'Strength':
-    case 'Resistance':
-      return 'barbell-outline';
-    case 'Cardio':
-      return 'heart-outline';
-    case 'Mobility':
-      return 'body-outline';
-    case 'Run':
-      return 'walk-outline';
-    case 'Workout':
-    default:
-      return 'fitness-outline';
-  }
-}
-
-function formatElapsed(seconds: number) {
-  const hrs = Math.floor(seconds / 3600);
-  const mins = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
-  if (hrs > 0) return `${hrs}:${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
-  return `${mins}:${String(secs).padStart(2, '0')}`;
-}
-
-function routeDistanceKm(points: TrackPoint[] | undefined) {
-  if (!points || points.length < 2) return 0;
-  return points.slice(1).reduce((total, point, index) => total + distanceBetween(points[index], point), 0);
-}
-
-function formatDuration(minutes: number) {
-  const hrs = Math.floor(minutes / 60);
-  const mins = Math.round(minutes % 60);
-  if (hrs <= 0) return `${mins} min`;
-  return `${hrs}h ${String(mins).padStart(2, '0')}m`;
-}
-
-function buildRuckAar(session: TrainingSession) {
-  const mission = session.ruckMission;
-  const distanceKm = routeDistanceKm(session.routePoints);
-  const actualPace = distanceKm > 0 ? session.durationMinutes / distanceKm : 0;
-  const lines = [
-    'RUCK AAR',
-    session.title,
-    `Distance: ${distanceKm.toFixed(2)}km`,
-    `Duration: ${formatDuration(session.durationMinutes)}`,
-    `Load: ${session.loadKg ?? 0}kg`,
-    `Pace: ${actualPace > 0 ? actualPace.toFixed(1) : '--'} min/km`,
-  ];
-
-  if (mission) {
-    const targetPace = mission.targetMinutes / Math.max(0.1, mission.targetDistanceKm);
-    lines.push(
-      `Target: ${mission.targetDistanceKm.toFixed(1)}km in ${formatDuration(mission.targetMinutes)}`,
-      `Target pace: ${targetPace.toFixed(1)} min/km`,
-      `Result: ${session.durationMinutes <= mission.targetMinutes ? 'On target' : 'Missed target'}`
-    );
-
-    if (mission.plannedCheckpoints.length > 0) {
-      lines.push('', 'Checkpoints:');
-      mission.plannedCheckpoints.forEach((checkpoint, index) => {
-        const coordinate = checkpoint.latitude == null || checkpoint.longitude == null
-          ? 'NEEDS GRID'
-          : formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs');
-        lines.push(`${index + 1}. ${checkpoint.label} - ${checkpoint.status.toUpperCase()} - ${coordinate}`);
-      });
-    }
-
-    if (mission.splits && mission.splits.length > 0) {
-      lines.push('', 'Splits:');
-      mission.splits.forEach((split) => {
-        lines.push(`KM ${split.km} - ${formatElapsed(split.splitSeconds)} (${formatElapsed(split.elapsedSeconds)} total)`);
-      });
-    }
-  }
-
-  return lines.join('\n');
-}
+import { SessionCard } from '../components/SessionCard';
+import { SessionEditModal } from '../components/SessionEditModal';
+import { ReadinessModal } from '../components/ReadinessModal';
 
 export function AnalyticsScreen({ 
   sessions,
@@ -129,9 +52,6 @@ export function AnalyticsScreen({
   }, [readinessLogs]);
   const latestReadinessIsStale = useMemo(() => isReadinessStale(getLatestReadinessLog(readinessLogs)), [readinessLogs]);
   const [loggingReadiness, setLoggingReadiness] = useState(false);
-  const [sleepInput, setSleepInput] = useState('3');
-  const [sorenessInput, setSorenessInput] = useState('3');
-  const [stressInput, setStressInput] = useState('3');
 
   const trendChartData = useMemo(() => {
     const now = new Date();
@@ -191,7 +111,6 @@ export function AnalyticsScreen({
   const [filterType, setFilterType] = useState<TrainingSession['type'] | 'All'>('All');
   const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
   const [displayLimit, setDisplayLimit] = useState(10);
-  const [expandedRuckId, setExpandedRuckId] = useState<string | null>(null);
 
   useEffect(() => {
     setDisplayLimit(10);
@@ -211,8 +130,6 @@ export function AnalyticsScreen({
   const displayedSessions = filteredSessions.slice(0, displayLimit);
 
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
-  const [editScore, setEditScore] = useState('');
-  const [editDuration, setEditDuration] = useState('');
 
   // Body Metrics state
   const [waistCm, setWaistCm] = useState('88');
@@ -252,55 +169,6 @@ export function AnalyticsScreen({
 
   function openEdit(session: TrainingSession) {
     setEditingSession(session);
-    setEditScore(String(session.score));
-    setEditDuration(String(session.durationMinutes));
-  }
-
-  function saveEdit() {
-    if (!editingSession) return;
-    const newScore = parseInt(editScore, 10);
-    const newDuration = parseInt(editDuration, 10);
-
-    if (isNaN(newScore) || isNaN(newDuration)) {
-      showAlert('Invalid Input', 'Score and duration must be numbers.');
-      return;
-    }
-
-    editSession(editingSession.id, { score: newScore, durationMinutes: newDuration });
-    setEditingSession(null);
-  }
-
-  async function copyRuckAar(session: TrainingSession) {
-    const text = buildRuckAar(session);
-    const clipboard = typeof navigator !== 'undefined' ? navigator.clipboard : undefined;
-
-    try {
-      if (!clipboard?.writeText) throw new Error('Clipboard unavailable');
-      await clipboard.writeText(text);
-      showAlert('AAR copied', 'Ruck summary copied to clipboard.');
-    } catch {
-      showAlert('Copy unavailable', text);
-    }
-  }
-
-  async function shareRuckAar(session: TrainingSession) {
-    try {
-      await Share.share({ message: buildRuckAar(session) });
-    } catch {
-      showAlert('Share unavailable', 'Unable to open the share sheet on this device.');
-    }
-  }
-
-  function saveReadiness() {
-    addReadinessLog({
-      id: `readiness-${Date.now()}`,
-      date: new Date().toISOString(),
-      sleepQuality: (parseInt(sleepInput) || 3) as ReadinessLog['sleepQuality'],
-      soreness: (parseInt(sorenessInput) || 3) as ReadinessLog['soreness'],
-      stress: (parseInt(stressInput) || 3) as ReadinessLog['stress'],
-      hydration: 'Adequate',
-    });
-    setLoggingReadiness(false);
   }
 
   return (
@@ -316,7 +184,7 @@ export function AnalyticsScreen({
       <Card>
         <View style={styles.levelHeader}>
           <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Operator Level</Text>
-          <View style={[styles.levelBadge, { backgroundColor: badgeDim, borderColor: `${badgeColor}40` }]}>
+          <View style={[styles.levelBadge, { backgroundColor: statusColors(badgeColor).bgMed, borderColor: statusColors(badgeColor).borderMed }]}>
             <Text style={[styles.levelBadgeText, { color: badgeColor }]}>LVL {currentLevel}</Text>
           </View>
         </View>
@@ -360,12 +228,12 @@ export function AnalyticsScreen({
       <Card>
         <Text style={styles.cardTitle}>Risk Monitor</Text>
         {hasSessions ? (
-          <View style={styles.warning}>
+          <View style={[styles.warning, shadow.subtle, { borderColor: statusColors(performance.riskTone).borderMed, backgroundColor: statusColors(performance.riskTone).bgMed }]}>
             <Text style={[styles.warningTitle, { color: performance.riskTone }]}>{riskLevel}</Text>
             <Text style={styles.muted}>{riskCopy}</Text>
           </View>
         ) : (
-          <View style={styles.emptyState}>
+          <View style={[styles.emptyState, shadow.subtle]}>
             <Text style={styles.emptyTitle}>No sessions logged</Text>
             <Text style={styles.muted}>Complete a workout or ruck to build your analytics baseline.</Text>
           </View>
@@ -389,7 +257,7 @@ export function AnalyticsScreen({
           </Pressable>
         </View>
         {latestReadinessIsStale ? (
-          <View style={styles.staleNotice}>
+          <View style={[styles.staleNotice, shadow.subtle, { borderColor: statusColors(colours.amber).borderMed, backgroundColor: statusColors(colours.amber).bgMed }]}>
             <Ionicons name="warning-outline" size={14} color={colours.amber} />
             <Text style={styles.staleNoticeText}>Latest check-in is stale. Log today before using these factors.</Text>
           </View>
@@ -435,195 +303,51 @@ export function AnalyticsScreen({
       </View>
 
       {hasSessions && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContainer}>
-          {['All', 'Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility', 'Run'].map((type) => {
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterContainer}
+          data={['All', 'Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility', 'Run'] as const}
+          keyExtractor={(item) => item}
+          renderItem={({ item: type }) => {
             const isActive = filterType === type;
             return (
               <Pressable
-                key={type}
-                style={[styles.filterPill, isActive && styles.filterPillActive]}
+                style={[
+                  styles.filterPill,
+                  isActive && { borderColor: statusColors(colours.cyan).borderMed, backgroundColor: statusColors(colours.cyan).bgMed }
+                ]}
                 onPress={() => setFilterType(type as TrainingSession['type'] | 'All')}
               >
                 <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{type}</Text>
               </Pressable>
             );
-          })}
-        </ScrollView>
+          }}
+        />
       )}
 
       {hasSessions ? (
         displayedSessions.length > 0 ? (
-          <React.Fragment>
-            {displayedSessions.map((session) => (
-              <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
-                <View style={styles.sessionRow}>
-                  <View style={styles.sessionIconWrap}>
-                    <Ionicons
-                      name={sessionIcon(session.type)}
-                      size={18}
-                      color={colours.cyan}
-                    />
-                  </View>
-                  <View style={styles.sessionCopy}>
-                    <Text style={styles.sessionTitle}>{session.title}</Text>
-                    <Text style={styles.sessionMeta}>
-                      {session.type} · {session.durationMinutes} min · RPE {session.rpe}
-                    </Text>
-                  </View>
-                  <View style={styles.sessionRight}>
-                    <Text style={styles.score}>{session.score}</Text>
-                    <Text style={styles.scoreLabel}>SCORE</Text>
-                  </View>
-                  <View style={styles.actions}>
-                    <Pressable onPress={() => openEdit(session)} style={styles.actionBtn}>
-                      <Ionicons name="pencil" size={18} color={colours.cyan} />
-                    </Pressable>
-                    <Pressable onPress={() => confirmDelete(session.id)} style={styles.actionBtn}>
-                      <Ionicons name="trash-outline" size={18} color={colours.red} />
-                    </Pressable>
-                  </View>
-                </View>
-                
-                {session.routePoints && session.routePoints.length > 0 && (
-                  <View style={styles.miniMapStage}>
-                    {getMapPoints(session.routePoints).map((point: TrackPoint & { x: number; y: number }, index: number) => (
-                      <View
-                        key={index}
-                        style={[styles.trailDot, { left: `${point.x}%`, top: `${point.y}%` }]}
-                      />
-                    ))}
-                  </View>
-                )}
-
-                {session.ruckMission && (() => {
-                  const expanded = expandedRuckId === session.id;
-                  const actualDistanceKm = routeDistanceKm(session.routePoints);
-                  const actualPace = actualDistanceKm > 0 ? session.durationMinutes / actualDistanceKm : 0;
-                  const targetPace = session.ruckMission.targetMinutes / Math.max(0.1, session.ruckMission.targetDistanceKm);
-                  const splits = session.ruckMission.splits ?? [];
-                  const bestSplit = splits.length > 0 ? splits.reduce((best, split) => split.splitSeconds < best.splitSeconds ? split : best, splits[0]) : null;
-                  const slowestSplit = splits.length > 0 ? splits.reduce((slowest, split) => split.splitSeconds > slowest.splitSeconds ? split : slowest, splits[0]) : null;
-                  const reachedCount = session.ruckMission.plannedCheckpoints.filter((checkpoint) => checkpoint.status === 'reached').length;
-                  const finishOnTarget = session.durationMinutes <= session.ruckMission.targetMinutes;
-
-                  return (
-                    <>
-                      <Pressable style={styles.ruckReview} onPress={() => setExpandedRuckId((current) => current === session.id ? null : session.id)}>
-                        <View style={styles.ruckReviewItem}>
-                          <Text style={styles.ruckReviewValue}>{session.ruckMission.targetDistanceKm.toFixed(1)}km</Text>
-                          <Text style={styles.ruckReviewLabel}>TARGET</Text>
-                        </View>
-                        <View style={styles.ruckReviewItem}>
-                          <Text style={styles.ruckReviewValue}>{reachedCount}/{session.ruckMission.plannedCheckpoints.length}</Text>
-                          <Text style={styles.ruckReviewLabel}>CHECKPOINTS</Text>
-                        </View>
-                        <View style={styles.ruckReviewItem}>
-                          <Text style={styles.ruckReviewValue}>{splits.length}</Text>
-                          <Text style={styles.ruckReviewLabel}>SPLITS</Text>
-                        </View>
-                        <View style={styles.ruckReviewItem}>
-                          <Text style={styles.ruckReviewValue}>{expanded ? 'HIDE' : 'VIEW'}</Text>
-                          <Text style={styles.ruckReviewLabel}>AAR</Text>
-                        </View>
-                      </Pressable>
-
-                      {expanded && (
-                        <View style={styles.ruckDetail}>
-                          <View style={styles.ruckDetailGrid}>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={styles.ruckDetailValue}>{actualDistanceKm.toFixed(2)}km</Text>
-                              <Text style={styles.ruckReviewLabel}>ROUTE</Text>
-                            </View>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={styles.ruckDetailValue}>{actualPace > 0 ? actualPace.toFixed(1) : '--'}</Text>
-                              <Text style={styles.ruckReviewLabel}>ACTUAL /KM</Text>
-                            </View>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={styles.ruckDetailValue}>{targetPace.toFixed(1)}</Text>
-                              <Text style={styles.ruckReviewLabel}>TARGET /KM</Text>
-                            </View>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={[styles.ruckDetailValue, { color: finishOnTarget ? colours.green : colours.amber }]}>{finishOnTarget ? 'ON' : 'MISS'}</Text>
-                              <Text style={styles.ruckReviewLabel}>TARGET</Text>
-                            </View>
-                          </View>
-
-                          <View style={styles.ruckDetailGrid}>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={styles.ruckDetailValue}>{Math.round(actualDistanceKm * (session.loadKg ?? 0))}</Text>
-                              <Text style={styles.ruckReviewLabel}>KG-KM</Text>
-                            </View>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={styles.ruckDetailValue}>{bestSplit ? formatElapsed(bestSplit.splitSeconds) : '--'}</Text>
-                              <Text style={styles.ruckReviewLabel}>BEST SPLIT</Text>
-                            </View>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={styles.ruckDetailValue}>{slowestSplit ? formatElapsed(slowestSplit.splitSeconds) : '--'}</Text>
-                              <Text style={styles.ruckReviewLabel}>SLOW SPLIT</Text>
-                            </View>
-                            <View style={styles.ruckDetailItem}>
-                              <Text style={styles.ruckDetailValue}>{session.loadKg ?? 0}kg</Text>
-                              <Text style={styles.ruckReviewLabel}>LOAD</Text>
-                            </View>
-                          </View>
-
-                          <View style={styles.aarActions}>
-                            <Pressable style={styles.aarButton} onPress={() => copyRuckAar(session)}>
-                              <Ionicons name="copy-outline" size={15} color={colours.background} />
-                              <Text style={styles.aarButtonText}>Copy AAR</Text>
-                            </Pressable>
-                            <Pressable style={styles.aarButton} onPress={() => shareRuckAar(session)}>
-                              <Ionicons name="share-outline" size={15} color={colours.background} />
-                              <Text style={styles.aarButtonText}>Share</Text>
-                            </Pressable>
-                          </View>
-
-                          {session.ruckMission.plannedCheckpoints.length > 0 && (
-                            <View style={styles.ruckSection}>
-                              <Text style={styles.ruckSectionTitle}>Checkpoints</Text>
-                              {session.ruckMission.plannedCheckpoints.map((checkpoint, index) => (
-                                <View key={checkpoint.id} style={styles.ruckCheckpointRow}>
-                                  <View style={[styles.statusDot, { backgroundColor: checkpoint.status === 'reached' ? colours.green : checkpoint.status === 'skipped' ? colours.red : colours.cyan }]} />
-                                  <View style={styles.ruckCheckpointCopy}>
-                                    <Text style={styles.ruckCheckpointTitle}>{index + 1}. {checkpoint.label}</Text>
-                                    <Text style={styles.ruckCheckpointCoord}>
-                                      {checkpoint.latitude == null || checkpoint.longitude == null
-                                        ? 'NEEDS GRID'
-                                        : formatCoordinate(checkpoint.latitude, checkpoint.longitude, 'mgrs')}
-                                    </Text>
-                                  </View>
-                                  <Text style={styles.ruckCheckpointStatus}>{checkpoint.status.toUpperCase()}</Text>
-                                </View>
-                              ))}
-                            </View>
-                          )}
-
-                          {splits.length > 0 && (
-                            <View style={styles.ruckSection}>
-                              <Text style={styles.ruckSectionTitle}>Splits</Text>
-                              {splits.map((split) => (
-                                <View key={split.km} style={styles.ruckSplitRow}>
-                                  <Text style={styles.ruckSplitKm}>KM {split.km}</Text>
-                                  <Text style={styles.ruckSplitValue}>{formatElapsed(split.splitSeconds)}</Text>
-                                  <Text style={styles.ruckSplitMeta}>{formatElapsed(split.elapsedSeconds)} total</Text>
-                                </View>
-                              ))}
-                            </View>
-                          )}
-                        </View>
-                      )}
-                    </>
-                  );
-                })()}
-              </View>
-            ))}
-
-            {displayLimit < filteredSessions.length && (
-              <Pressable style={styles.loadMoreBtn} onPress={() => setDisplayLimit((curr) => curr + 10)}>
-                <Text style={styles.loadMoreText}>Load More</Text>
-              </Pressable>
+          <FlatList
+            data={displayedSessions}
+            keyExtractor={(session) => session.id}
+            scrollEnabled={false} // Embeds nicely in outer Screen container
+            renderItem={({ item: session }) => (
+              <SessionCard
+                session={session}
+                onEdit={openEdit}
+                onDelete={confirmDelete}
+              />
             )}
-          </React.Fragment>
+            ListFooterComponent={
+              displayLimit < filteredSessions.length ? (
+                <Pressable style={styles.loadMoreBtn} onPress={() => setDisplayLimit((curr) => curr + 10)}>
+                  <Text style={styles.loadMoreText}>Load More</Text>
+                </Pressable>
+              ) : null
+            }
+          />
         ) : (
           <View style={[styles.logEmptyState, shadow.subtle]}>
             <Ionicons name="funnel-outline" size={22} color={colours.cyan} />
@@ -695,7 +419,7 @@ export function AnalyticsScreen({
           onChangeView={setBodyMapView}
           onSelect={markInjury}
         />
-        <View style={styles.hotspotPanel}>
+        <View style={[styles.hotspotPanel, shadow.subtle]}>
           <Text style={styles.hotspotTitle}>HPT Hotspots</Text>
           {hotspots.length ? (
             hotspots.map((seg) => (
@@ -717,285 +441,109 @@ export function AnalyticsScreen({
         </View>
       </Card>
 
-      {/* Edit Modal */}
-      <Modal visible={!!editingSession} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalPanel, shadow.card]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Edit Session</Text>
-              <Pressable onPress={() => setEditingSession(null)} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color={colours.text} />
-              </Pressable>
-            </View>
-            <Text style={styles.inputLabel}>SCORE</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" value={editScore} onChangeText={setEditScore} />
-            <Text style={styles.inputLabel}>DURATION (MINS)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" value={editDuration} onChangeText={setEditDuration} />
-            <Pressable style={styles.saveBtn} onPress={saveEdit}>
-              <Text style={styles.saveBtnText}>Save Changes</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <SessionEditModal
+        visible={!!editingSession}
+        session={editingSession}
+        onClose={() => setEditingSession(null)}
+        onSave={(id, score, duration) => {
+          editSession(id, { score, durationMinutes: duration });
+          setEditingSession(null);
+        }}
+      />
 
-      {/* Readiness Modal */}
-      <Modal visible={loggingReadiness} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalPanel, shadow.card]}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Daily Readiness</Text>
-              <Pressable onPress={() => setLoggingReadiness(false)} style={styles.closeBtn}>
-                <Ionicons name="close" size={20} color={colours.text} />
-              </Pressable>
-            </View>
-            <Text style={styles.inputLabel}>SLEEP QUALITY (1-5)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" maxLength={1} value={sleepInput} onChangeText={setSleepInput} />
-            <Text style={styles.inputLabel}>MUSCLE SORENESS (1-5)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" maxLength={1} value={sorenessInput} onChangeText={setSorenessInput} />
-            <Text style={styles.inputLabel}>OVERALL STRESS (1-5)</Text>
-            <TextInput style={styles.input} keyboardType="number-pad" maxLength={1} value={stressInput} onChangeText={setStressInput} />
-            <Pressable style={styles.saveBtn} onPress={saveReadiness}>
-              <Text style={styles.saveBtnText}>Save Log</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+      <ReadinessModal
+        visible={loggingReadiness}
+        onClose={() => setLoggingReadiness(false)}
+        onSave={(log) => {
+          addReadinessLog(log);
+          setLoggingReadiness(false);
+        }}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  muted: { color: colours.muted, fontSize: 13 },
-  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
-  grid: { flexDirection: 'row', gap: 12 },
-  cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 16 },
-  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
-  levelBadgeText: { fontSize: 12, fontWeight: '900' },
-  lineChart: { marginVertical: 8, marginLeft: -12 },
-  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
+  muted: { ...typography.caption, color: colours.muted },
+  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: responsiveSpacing('md') },
+  grid: { flexDirection: 'row', gap: responsiveSpacing('md') },
+  cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
+  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: responsiveSpacing('md') },
+  levelBadge: { paddingHorizontal: responsiveSpacing('sm'), paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  levelBadgeText: { ...typography.caption, fontWeight: '900' },
+  lineChart: { marginVertical: responsiveSpacing('sm'), marginLeft: -12 },
+  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: responsiveSpacing('md') },
   trendToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 },
-  trendBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
+  trendBtn: { paddingHorizontal: responsiveSpacing('md'), paddingVertical: 6, borderRadius: 6 },
   trendBtnActive: { backgroundColor: colours.cyan },
-  trendBtnText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  trendBtnText: { ...typography.label, color: colours.muted },
   trendBtnTextActive: { color: colours.background },
-  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  factorItem: { width: '23%', flexGrow: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 4 },
-  factorValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  staleNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: `${colours.amber}40`, borderRadius: 8, padding: 9, backgroundColor: `${colours.amber}12`, marginBottom: 8 },
-  staleNoticeText: { flex: 1, color: colours.amber, fontSize: 12, fontWeight: '800', lineHeight: 16 },
-  medicalDisclaimer: { color: colours.amber, fontSize: 10, fontStyle: 'italic', marginTop: 16, lineHeight: 14 },
+  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('sm') },
+  factorItem: { width: '23%', flexGrow: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: responsiveSpacing('sm'), alignItems: 'center' },
+  factorLabel: { ...typography.label, color: colours.muted, marginBottom: 4 },
+  factorValue: { ...typography.caption, color: colours.text, fontWeight: '900' },
+  staleNotice: { flexDirection: 'row', alignItems: 'center', gap: responsiveSpacing('sm'), borderWidth: 1, borderRadius: 8, padding: responsiveSpacing('sm'), marginBottom: responsiveSpacing('sm') },
+  staleNoticeText: { flex: 1, ...typography.caption, color: colours.amber, fontWeight: '800', lineHeight: 16 },
+  medicalDisclaimer: { ...typography.caption, color: colours.amber, fontStyle: 'italic', marginTop: responsiveSpacing('md'), lineHeight: 14 },
   warning: {
-    borderColor: 'rgba(253,230,138,0.25)',
     borderWidth: 1,
     borderRadius: 18,
-    padding: 13,
-    backgroundColor: 'rgba(253,230,138,0.08)',
-    marginBottom: 18,
+    padding: responsiveSpacing('md'),
+    marginBottom: responsiveSpacing('lg'),
   },
   warningTitle: { color: colours.amber, fontWeight: '900' },
-  loadIntel: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
+  loadIntel: { ...typography.caption, color: colours.textSoft, lineHeight: 18, marginTop: responsiveSpacing('sm') },
   emptyState: {
     borderColor: colours.border,
     borderWidth: 1,
     borderRadius: 18,
-    padding: 13,
+    padding: responsiveSpacing('md'),
     backgroundColor: 'rgba(255,255,255,0.04)',
-    marginBottom: 18,
+    marginBottom: responsiveSpacing('lg'),
   },
   emptyTitle: { color: colours.text, fontWeight: '900' },
-  metricLabel: { color: colours.text, marginTop: 15, marginBottom: 8, fontWeight: '800' },
+  metricLabel: { color: colours.text, marginTop: responsiveSpacing('md'), marginBottom: responsiveSpacing('sm'), fontWeight: '800' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 2,
-    marginTop: 12,
+    marginTop: responsiveSpacing('md'),
   },
-  sectionTitle: { color: colours.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.2 },
-  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyanDim, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: `${colours.cyan}40` },
-  sortBtnText: { color: colours.cyan, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  filterScroll: { flexGrow: 0, marginBottom: 12, marginHorizontal: -20 },
-  filterContainer: { gap: 8, paddingHorizontal: 20 },
-  filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
-  filterPillActive: { borderColor: `${colours.cyan}80`, backgroundColor: colours.cyanDim },
-  filterText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  sectionTitle: { ...typography.h4, color: colours.text, letterSpacing: 0.2 },
+  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: statusColors(colours.cyan).bgMed, paddingHorizontal: responsiveSpacing('sm'), paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: statusColors(colours.cyan).borderMed },
+  sortBtnText: { ...typography.label, color: colours.cyan, letterSpacing: 0.5 },
+  filterScroll: { flexGrow: 0, marginBottom: responsiveSpacing('md'), marginHorizontal: -20 },
+  filterContainer: { gap: responsiveSpacing('sm'), paddingHorizontal: 20 },
+  filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: responsiveSpacing('md'), paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
+  filterText: { ...typography.label, color: colours.muted },
   filterTextActive: { color: colours.cyan },
-  sessionCard: {
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 16,
-    backgroundColor: 'rgba(10, 20, 35, 0.70)',
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  sessionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    padding: 12,
-  },
-  sessionIconWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 12,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexShrink: 0,
-    backgroundColor: colours.cyanDim,
-    borderColor: colours.border,
-  },
-  sessionCopy: { flex: 1 },
-  sessionTitle: { color: colours.text, fontWeight: '800', fontSize: 13 },
-  sessionMeta: { color: colours.muted, fontSize: 11, marginTop: 2 },
-  sessionRight: { alignItems: 'flex-end' },
-  score: { color: colours.cyan, fontSize: 20, fontWeight: '900' },
-  scoreLabel: { color: colours.soft, fontSize: 8, fontWeight: '900', letterSpacing: 1.5, marginTop: 1 },
-  actions: { flexDirection: 'row', marginLeft: 4 },
-  actionBtn: { marginLeft: 2, padding: 6, justifyContent: 'center' },
-  logEmptyState: { alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 16, padding: 18, backgroundColor: 'rgba(10, 20, 35, 0.70)' },
-  logEmptyText: { color: colours.muted, fontSize: 12, textAlign: 'center', lineHeight: 17 },
-  miniMapStage: {
-    height: 80,
-    backgroundColor: 'rgba(4,8,15,0.4)',
-    borderTopWidth: 1,
-    borderColor: colours.borderSoft,
-    position: 'relative',
-  },
-  trailDot: {
-    position: 'absolute',
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    marginLeft: -2,
-    marginTop: -2,
-    backgroundColor: colours.cyan,
-    opacity: 0.8,
-  },
-  ruckReview: {
-    flexDirection: 'row',
-    gap: 8,
-    borderTopWidth: 1,
-    borderColor: colours.borderSoft,
-    padding: 10,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-  },
-  ruckReviewItem: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  ruckReviewValue: { color: colours.cyan, fontSize: 13, fontWeight: '900' },
-  ruckReviewLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
-  ruckDetail: {
-    borderTopWidth: 1,
-    borderColor: colours.borderSoft,
-    padding: 10,
-    gap: 10,
-    backgroundColor: 'rgba(4,8,15,0.22)',
-  },
-  ruckDetailGrid: { flexDirection: 'row', gap: 8 },
-  ruckDetailItem: {
-    flex: 1,
-    minHeight: 46,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  ruckDetailValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  aarActions: { flexDirection: 'row', gap: 8 },
-  aarButton: {
-    flex: 1,
-    minHeight: 42,
-    borderRadius: 8,
-    backgroundColor: colours.cyan,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  aarButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
-  ruckSection: {
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.035)',
-    overflow: 'hidden',
-  },
-  ruckSectionTitle: { color: colours.text, fontSize: 12, fontWeight: '900', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 6 },
-  ruckCheckpointRow: {
-    minHeight: 48,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderTopWidth: 1,
-    borderColor: colours.borderSoft,
-  },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  ruckCheckpointCopy: { flex: 1 },
-  ruckCheckpointTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
-  ruckCheckpointCoord: { color: colours.muted, fontSize: 10, fontWeight: '800', marginTop: 2 },
-  ruckCheckpointStatus: { color: colours.muted, fontSize: 9, fontWeight: '900' },
-  ruckSplitRow: {
-    minHeight: 38,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 8,
-    paddingHorizontal: 10,
-    borderTopWidth: 1,
-    borderColor: colours.borderSoft,
-  },
-  ruckSplitKm: { color: colours.text, fontSize: 11, fontWeight: '900', width: 50 },
-  ruckSplitValue: { color: colours.cyan, fontSize: 13, fontWeight: '900', flex: 1, textAlign: 'center' },
-  ruckSplitMeta: { color: colours.muted, fontSize: 10, fontWeight: '800', width: 82, textAlign: 'right' },
-  modalOverlay: { flex: 1, justifyContent: 'center', padding: 20, backgroundColor: 'rgba(0,0,0,0.62)' },
-  modalPanel: { borderWidth: 1, borderColor: colours.border, borderRadius: 20, padding: 18, backgroundColor: colours.surface },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
-  modalTitle: { color: colours.text, fontSize: 20, fontWeight: '900' },
-  closeBtn: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)' },
-  inputLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', marginBottom: 6, letterSpacing: 1.2 },
-  input: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 14, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 14, paddingVertical: 12, marginBottom: 16, fontSize: 16, fontWeight: '800' },
-  saveBtn: { alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 16, paddingVertical: 13, marginTop: 4 },
-  saveBtnText: { color: colours.background, fontSize: 15, fontWeight: '900' },
-  bodyInputRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
+  logEmptyState: { alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 16, padding: responsiveSpacing('lg'), backgroundColor: 'rgba(10, 20, 35, 0.70)' },
+  logEmptyText: { ...typography.caption, color: colours.muted, textAlign: 'center', lineHeight: 17 },
+  bodyInputRow: { flexDirection: 'row', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('sm') },
   bodyInputGroup: { flex: 1 },
-  bodyInputLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginBottom: 4 },
+  bodyInputLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.2, marginBottom: 4 },
   bodyInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, color: colours.text, backgroundColor: 'rgba(0,0,0,0.22)', paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '900' },
-  whtrResult: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
+  whtrResult: { flexDirection: 'row', alignItems: 'center', gap: responsiveSpacing('md'), marginTop: responsiveSpacing('md') },
   whtrValue: { fontSize: 30, fontWeight: '900' },
-  intensityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 12 },
+  intensityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginVertical: responsiveSpacing('md') },
   intensityButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   intensityText: { color: colours.text, fontSize: 14, fontWeight: '900' },
-  hotspotPanel: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, padding: 12, backgroundColor: 'rgba(10,18,30,0.6)', marginTop: 12, gap: 6 },
-  hotspotTitle: { color: colours.text, fontSize: 16, fontWeight: '900', marginBottom: 4 },
-  hotspotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 6, borderTopWidth: 1, borderColor: colours.borderSoft },
-  hotspotName: { flex: 1, color: colours.textSoft, fontSize: 13, fontWeight: '800' },
-  hotspotScore: { fontSize: 13, fontWeight: '900' },
-  hotspotAlert: { color: colours.red, fontSize: 12, fontWeight: '900', lineHeight: 17, marginTop: 4 },
+  hotspotPanel: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, padding: responsiveSpacing('md'), backgroundColor: 'rgba(10,18,30,0.6)', marginTop: responsiveSpacing('md'), gap: 6 },
+  hotspotTitle: { ...typography.h4, color: colours.text, marginBottom: 4 },
+  hotspotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: responsiveSpacing('md'), paddingVertical: 6, borderTopWidth: 1, borderColor: colours.borderSoft },
+  hotspotName: { flex: 1, ...typography.caption, color: colours.textSoft, fontWeight: '800' },
+  hotspotScore: { ...typography.caption, fontWeight: '900' },
+  hotspotAlert: { ...typography.caption, color: colours.red, fontWeight: '900', lineHeight: 17, marginTop: 4 },
   loadMoreBtn: {
     alignItems: 'center',
-    paddingVertical: 14,
-    marginTop: 4,
-    marginBottom: 20,
+    paddingVertical: responsiveSpacing('md'),
+    marginTop: responsiveSpacing('xs'),
+    marginBottom: responsiveSpacing('lg'),
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    backgroundColor: statusColors(colours.cyan).bgMed,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.2)',
+    borderColor: statusColors(colours.cyan).borderMed,
   },
   loadMoreText: { color: colours.cyan, fontSize: 13, fontWeight: '800' },
 });

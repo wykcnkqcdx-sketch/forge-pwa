@@ -1,7 +1,8 @@
 module.exports = ({ config }) => ({
   ...config,
   plugins: [
-    "expo-font"
+    "expo-font",
+    "expo-image"
   ],
   experiments: {
     ...config.experiments,

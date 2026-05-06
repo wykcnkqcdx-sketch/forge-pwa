@@ -3,7 +3,8 @@ import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { Screen } from '../components/Screen';
-import { colours, touchTarget } from '../theme';
+import { colours, touchTarget, typography } from '../theme';
+import { responsiveSpacing, statusColors } from '../utils/styling';
 import { exerciseLibrary, SquadMember, TrainingGroup, TrainingSession, trainingModes } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
 
@@ -331,7 +332,7 @@ export function MemberScreen({
       <Card>
         <View style={styles.syncRow}>
           <View style={styles.syncCopy}>
-            <View style={[styles.syncBadge, { borderColor: `${cloudTone}40`, backgroundColor: `${cloudTone}12` }]}>
+            <View style={[styles.syncBadge, { borderColor: statusColors(cloudTone).borderMed, backgroundColor: statusColors(cloudTone).bgMed }]}>
               <Text style={[styles.syncBadgeText, { color: cloudTone }]}>{cloudLabel}</Text>
             </View>
             <Text style={styles.syncText}>
@@ -566,15 +567,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: responsiveSpacing('md'),
   },
   headerCopy: {
     flex: 1,
   },
   kicker: {
+    ...typography.label,
     color: colours.cyan,
-    fontSize: 10,
-    fontWeight: '900',
     letterSpacing: 2,
   },
   title: {
@@ -582,22 +582,22 @@ const styles = StyleSheet.create({
     fontSize: 30,
     lineHeight: 34,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: responsiveSpacing('xs'),
   },
   badgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('sm'),
   },
   syncRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: responsiveSpacing('md'),
   },
   syncCopy: {
     flex: 1,
-    gap: 8,
+    gap: responsiveSpacing('sm'),
   },
   syncBadge: {
     alignSelf: 'flex-start',
@@ -607,21 +607,21 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   syncBadgeText: {
-    fontSize: 11,
+    ...typography.caption,
     fontWeight: '900',
   },
   syncText: {
+    ...typography.caption,
     color: colours.textSoft,
-    fontSize: 13,
     lineHeight: 18,
     fontWeight: '800',
   },
   syncButton: {
     minHeight: touchTarget,
     borderWidth: 1,
-    borderColor: `${colours.cyan}40`,
+    borderColor: statusColors(colours.cyan).borderMed,
     borderRadius: 10,
-    backgroundColor: colours.cyanDim,
+    backgroundColor: statusColors(colours.cyan).bgMed,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 14,
@@ -641,28 +641,27 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   statusBadgeText: {
+    ...typography.caption,
     color: colours.background,
-    fontSize: 11,
     fontWeight: '900',
   },
   statusBadgeMuted: {
     borderWidth: 1,
-    borderColor: colours.borderHot,
+    borderColor: statusColors(colours.cyan).borderMed,
     borderRadius: 8,
-    backgroundColor: colours.cyanDim,
+    backgroundColor: statusColors(colours.cyan).bgMed,
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
   statusBadgeMutedText: {
+    ...typography.caption,
     color: colours.cyan,
-    fontSize: 11,
     fontWeight: '900',
   },
   cardTitle: {
     color: colours.text,
-    fontSize: 20,
-    fontWeight: '900',
-    marginBottom: 10,
+    ...typography.h4,
+    marginBottom: responsiveSpacing('md'),
   },
   body: {
     color: colours.textSoft,
@@ -692,8 +691,8 @@ const styles = StyleSheet.create({
     minHeight: touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
-    marginTop: 12,
+    gap: responsiveSpacing('md'),
+    marginTop: responsiveSpacing('md'),
   },
   toggleDot: {
     width: 24,
@@ -708,8 +707,8 @@ const styles = StyleSheet.create({
   },
   ghostText: {
     flex: 1,
+    ...typography.caption,
     color: colours.textSoft,
-    fontSize: 13,
     fontWeight: '800',
   },
   assignmentTitle: {
@@ -718,31 +717,31 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   assignmentStatus: {
+    ...typography.caption,
     color: colours.amber,
-    fontSize: 12,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: responsiveSpacing('xs'),
   },
   assignmentNote: {
+    ...typography.caption,
     color: colours.textSoft,
-    fontSize: 13,
     lineHeight: 19,
-    marginTop: 8,
+    marginTop: responsiveSpacing('sm'),
   },
   exerciseList: {
-    gap: 8,
-    marginTop: 14,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
   },
   exerciseRow: {
     minHeight: 48,
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: responsiveSpacing('md'),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: responsiveSpacing('md'),
     backgroundColor: 'rgba(0,0,0,0.16)',
   },
   exerciseName: {
@@ -759,40 +758,37 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   coachPick: {
+    ...typography.label,
     color: colours.amber,
-    fontSize: 10,
-    fontWeight: '900',
     marginTop: 3,
   },
   prescribedDose: {
+    ...typography.label,
     color: colours.green,
-    fontSize: 10,
-    fontWeight: '900',
     marginTop: 3,
   },
   exerciseDose: {
+    ...typography.caption,
     color: colours.muted,
-    fontSize: 12,
     fontWeight: '900',
   },
   hitButton: {
     minHeight: 32,
     borderWidth: 1,
-    borderColor: `${colours.cyan}40`,
+    borderColor: statusColors(colours.cyan).borderMed,
     borderRadius: 8,
     paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colours.cyanDim,
+    backgroundColor: statusColors(colours.cyan).bgMed,
   },
   hitButtonDone: {
-    borderColor: `${colours.green}40`,
-    backgroundColor: colours.greenDim,
+    borderColor: statusColors(colours.green).borderMed,
+    backgroundColor: statusColors(colours.green).bgMed,
   },
   hitButtonText: {
+    ...typography.label,
     color: colours.cyan,
-    fontSize: 10,
-    fontWeight: '900',
   },
   hitButtonTextDone: {
     color: colours.green,
@@ -808,13 +804,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 15,
     fontWeight: '800',
-    marginTop: 14,
+    marginTop: responsiveSpacing('md'),
     textAlignVertical: 'top',
   },
   finishGrid: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
   },
   finishButton: {
     minHeight: touchTarget,
@@ -831,16 +827,16 @@ const styles = StyleSheet.create({
     backgroundColor: colours.green,
   },
   finishButtonText: {
+    ...typography.caption,
     color: colours.background,
-    fontSize: 12,
     fontWeight: '900',
     textAlign: 'center',
   },
   kindGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
   },
   kindPill: {
     borderWidth: 1,
@@ -851,29 +847,27 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   kindPillActive: {
-    borderColor: `${colours.amber}70`,
-    backgroundColor: colours.amberDim,
+    borderColor: statusColors(colours.amber).borderMed,
+    backgroundColor: statusColors(colours.amber).bgMed,
   },
   kindPillText: {
+    ...typography.label,
     color: colours.muted,
-    fontSize: 11,
-    fontWeight: '900',
   },
   kindPillTextActive: {
     color: colours.amber,
   },
   quickLogRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
+    gap: responsiveSpacing('md'),
+    marginTop: responsiveSpacing('md'),
   },
   quickLogField: {
     flex: 1,
   },
   fieldLabel: {
+    ...typography.label,
     color: colours.muted,
-    fontSize: 11,
-    fontWeight: '900',
     marginBottom: 6,
   },
   quickLogInput: {
@@ -888,10 +882,10 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   fieldHint: {
+    ...typography.caption,
     color: colours.muted,
-    fontSize: 12,
     lineHeight: 18,
-    marginTop: 8,
+    marginTop: responsiveSpacing('sm'),
   },
   logButton: {
     minHeight: touchTarget,
@@ -899,23 +893,23 @@ const styles = StyleSheet.create({
     backgroundColor: colours.amber,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: responsiveSpacing('md'),
   },
   logButtonText: {
+    ...typography.caption,
     color: colours.background,
-    fontSize: 13,
     fontWeight: '900',
   },
   finishFeedback: {
+    ...typography.caption,
     color: colours.green,
-    fontSize: 13,
     fontWeight: '900',
-    marginTop: 10,
+    marginTop: responsiveSpacing('md'),
   },
   pulseHero: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    gap: 10,
+    gap: responsiveSpacing('md'),
   },
   pulseNumber: {
     color: colours.text,
@@ -925,8 +919,8 @@ const styles = StyleSheet.create({
   },
   pulseCopy: {
     flex: 1,
+    ...typography.caption,
     color: colours.textSoft,
-    fontSize: 14,
     lineHeight: 19,
     fontWeight: '800',
     paddingBottom: 8,
@@ -934,12 +928,12 @@ const styles = StyleSheet.create({
   teamStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    gap: 8,
-    marginTop: 12,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
   },
   teamStat: {
+    ...typography.caption,
     color: colours.muted,
-    fontSize: 12,
     fontWeight: '900',
   },
   activityRow: {
@@ -947,10 +941,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: 12,
+    gap: responsiveSpacing('md'),
     borderTopWidth: 1,
     borderColor: colours.borderSoft,
-    paddingVertical: 10,
+    paddingVertical: responsiveSpacing('sm'),
   },
   activityCopy: {
     flex: 1,
@@ -961,29 +955,29 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   activityMeta: {
+    ...typography.caption,
     color: colours.muted,
-    fontSize: 12,
     fontWeight: '800',
     marginTop: 3,
   },
   hypeButton: {
     minHeight: 42,
     borderWidth: 1,
-    borderColor: colours.borderHot,
+    borderColor: statusColors(colours.cyan).borderMed,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 12,
-    backgroundColor: colours.cyanDim,
+    backgroundColor: statusColors(colours.cyan).bgMed,
   },
   hypeButtonText: {
+    ...typography.caption,
     color: colours.cyan,
-    fontSize: 12,
     fontWeight: '900',
   },
   selfTag: {
+    ...typography.caption,
     color: colours.green,
-    fontSize: 12,
     fontWeight: '900',
   },
 });

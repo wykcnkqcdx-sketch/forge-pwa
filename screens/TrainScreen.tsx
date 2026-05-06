@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
@@ -7,6 +7,7 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession, ExerciseCategory, Exercise, MovementPattern, exerciseLibrary, trainingModes } from '../data/mockData';
+import { showAlert } from '../lib/dialogs';
 
 const categories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 const timeTargets = [20, 30, 45, 60];
@@ -53,7 +54,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
       if (currentLevel >= 10) {
         const hasSeen = await AsyncStorage.getItem('forge:elite_unlocked_alert');
         if (!hasSeen) {
-          Alert.alert(
+          showAlert(
             'Tier 1 Operator Unlocked',
             'Congratulations! You have reached Level 10 and unlocked the Elite training block.'
           );
@@ -163,7 +164,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
     addSession(session);
     setSavedKeys((current) => [...current, activeMode.key]);
-    Alert.alert('Session saved', `${selectedExercises.length} exercises have been added to your training log.`);
+    showAlert('Session saved', `${selectedExercises.length} exercises have been added to your training log.`);
   }
 
   function quickLogSession(template: typeof quickLogTemplates[number]) {
@@ -179,7 +180,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
     };
 
     addSession(session);
-    Alert.alert('Session saved', `${template.label} logged. It will appear on Today and Recent Load.`);
+    showAlert('Session saved', `${template.label} logged. It will appear on Today and Recent Load.`);
   }
 
   return (

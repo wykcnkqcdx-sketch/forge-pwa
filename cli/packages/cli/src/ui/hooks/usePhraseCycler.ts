@@ -167,14 +167,17 @@ export const usePhraseCycler = (isActive: boolean, isWaiting: boolean) => {
       const initialRandomIndex = Math.floor(
         Math.random() * WITTY_LOADING_PHRASES.length,
       );
+      let currentIndex = initialRandomIndex;
       setCurrentLoadingPhrase(WITTY_LOADING_PHRASES[initialRandomIndex]);
 
       phraseIntervalRef.current = setInterval(() => {
         // Select a new random phrase
-        const randomIndex = Math.floor(
-          Math.random() * WITTY_LOADING_PHRASES.length,
-        );
-        setCurrentLoadingPhrase(WITTY_LOADING_PHRASES[randomIndex]);
+        let randomIndex;
+        do {
+          randomIndex = Math.floor(Math.random() * WITTY_LOADING_PHRASES.length);
+        } while (randomIndex === currentIndex && WITTY_LOADING_PHRASES.length > 1);
+        currentIndex = randomIndex;
+        setCurrentLoadingPhrase(WITTY_LOADING_PHRASES[currentIndex]);
       }, PHRASE_CHANGE_INTERVAL_MS);
     } else {
       // Idle or other states, clear the phrase interval

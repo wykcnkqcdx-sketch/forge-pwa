@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, View, Text, StyleSheet, Pressable, TextInput, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Screen } from '../components/Screen';
@@ -9,6 +9,7 @@ import { colours, touchTarget } from '../theme';
 import { SquadMember } from '../data/mockData';
 import type { ReadinessLog } from '../data/domain';
 import { getLatestReadinessLog, isReadinessCheckedInToday, isReadinessStale } from '../lib/readiness';
+import { showAlert } from '../lib/dialogs';
 
 function calculateMemberReadiness(check: {
   sleepQuality: number;
@@ -159,17 +160,17 @@ export function ReadinessScreen({
       deviceSyncStatus: capability.status === 'module_pending' ? 'Ready' : 'Unsupported',
       deviceConnectedAt: new Date().toISOString(),
     });
-    Alert.alert('Apple Health', capability.message);
+    showAlert('Apple Health', capability.message);
   }
 
   function syncAppleHealth() {
     if (!onUpdateMember) return;
     const capability = getAppleHealthCapability();
     if (capability.status !== 'module_pending') {
-      Alert.alert('Apple Health Sync', capability.message);
+      showAlert('Apple Health Sync', capability.message);
       return;
     }
-    Alert.alert(
+    showAlert(
       'Apple Health Sync',
       'The app shell is ready, but the native HealthKit adapter is still the next build step. Once installed, sleep, resting HR, HRV, and workouts can sync here.',
     );

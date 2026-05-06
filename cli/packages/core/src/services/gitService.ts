@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { CheckRepoActions, simpleGit, type SimpleGit } from 'simple-git';
@@ -42,7 +42,7 @@ export class GitService {
 
   verifyGitAvailability(): Promise<boolean> {
     return new Promise((resolve) => {
-      exec('git --version', (error) => {
+      execFile('git', ['--version'], (error) => {
         if (error) {
           resolve(false);
         } else {

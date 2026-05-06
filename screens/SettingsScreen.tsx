@@ -1,9 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { Alert, Linking, Platform, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
+import React from 'react';
+import { Text, View, StyleSheet } from 'react-native';
 import { Screen } from '../components/Screen';
-import { Card } from '../components/Card';
-import { MetricCard } from '../components/MetricCard';
-import { ProgressBar } from '../components/ProgressBar';
 import { InstructorScreen } from './InstructorScreen';
 import { colours } from '../theme';
 
@@ -35,4 +32,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-

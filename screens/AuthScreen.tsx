@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colours } from '../theme';
+import { colours, shadow } from '../theme';
 
 type Props = {
   loading: boolean;
@@ -16,7 +16,7 @@ export function AuthScreen({ loading, error, onSignIn, onSignUp }: Props) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.panel}>
+      <View style={[styles.panel, shadow.card]}>
         <Text style={styles.kicker}>CLOUD ACCESS</Text>
         <Text style={styles.title}>Sign in to FORGE</Text>
         <Text style={styles.copy}>

@@ -8,7 +8,8 @@ import { ProgressBar } from '../components/ProgressBar';
 import { buildPerformanceProfile, buildWeeklyLoadSeries, sortSessionsByDate } from '../lib/performance';
 import { buildH2FDomains, buildPrescriptiveGuidance } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
-import { colours, touchTarget } from '../theme';
+import { colours, touchTarget, shadow, typography } from '../theme';
+import { responsiveSpacing, statusColors } from '../utils/styling';
 import { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
@@ -507,13 +508,13 @@ export function HomeScreen({
           return (
             <Pressable
               key={domain.id}
-              style={({ pressed }) => [styles.domainCard, pressed && tappable && { opacity: 0.75 }]}
+            style={({ pressed }) => [styles.domainCard, shadow.subtle, pressed && tappable && { opacity: 0.75 }]}
               onPress={() => domainPressHandler(domain.id)}
               disabled={!tappable}
             >
               {/* Card header: icon left, status dot right */}
               <View style={styles.domainHeader}>
-                <View style={[styles.domainIconWrap, { backgroundColor: `${tone}18`, borderColor: `${tone}28` }]}>
+              <View style={[styles.domainIconWrap, { backgroundColor: statusColors(tone).bgMed, borderColor: statusColors(tone).borderMed }]}>
                   <Ionicons
                     name={domain.icon as keyof typeof Ionicons.glyphMap}
                     size={13}
@@ -567,7 +568,7 @@ export function HomeScreen({
 
       {recentSessions.length ? (
         recentSessions.map((session) => (
-          <View key={session.id} style={styles.sessionRow}>
+          <View key={session.id} style={[styles.sessionRow, shadow.subtle]}>
             <View style={styles.sessionIcon}>
               <Ionicons name={sessionTypeIcon(session.type)} size={16} color={colours.cyan} />
             </View>
@@ -582,7 +583,7 @@ export function HomeScreen({
           </View>
         ))
       ) : (
-        <View style={styles.sessionRow}>
+        <View style={[styles.sessionRow, shadow.subtle]}>
           <View style={styles.sessionCopy}>
             <Text style={styles.sessionTitle}>No training logged yet</Text>
             <Text style={styles.sessionMeta}>Start with a ruck or strength block to populate your log.</Text>
@@ -598,24 +599,20 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    gap: 12,
+    gap: responsiveSpacing('md'),
   },
   kicker: {
-    color: colours.cyan,
-    fontSize: 10,
-    fontWeight: '900',
+    ...typography.label, color: colours.cyan,
     letterSpacing: 2,
   },
   title: {
     color: colours.text,
     fontSize: 30,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: responsiveSpacing('xs'),
   },
   noCheckIn: {
-    color: colours.amber,
-    fontSize: 11,
-    fontWeight: '700',
+    ...typography.caption, color: colours.amber,
     marginTop: 3,
   },
   opsecBadge: {
@@ -623,21 +620,20 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colours.borderHot,
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: responsiveSpacing('md'),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: responsiveSpacing('sm'),
     backgroundColor: colours.cyanDim,
   },
   opsecText: {
-    color: colours.cyan,
-    fontSize: 11,
+    ...typography.caption, color: colours.cyan,
     fontWeight: '900',
   },
   decisionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: responsiveSpacing('lg'),
   },
   readinessPuck: {
     width: 104,
@@ -648,7 +644,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(0,0,0,0.18)',
-    paddingVertical: 10,
+    paddingVertical: responsiveSpacing('sm'),
   },
   decisionCopy: {
     flex: 1,
@@ -656,20 +652,16 @@ const styles = StyleSheet.create({
   decisionTitle: {
     fontSize: 24,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: responsiveSpacing('xs'),
   },
   decisionDetail: {
-    color: colours.textSoft,
-    fontSize: 13,
-    fontWeight: '800',
+    ...typography.caption, color: colours.textSoft,
     lineHeight: 18,
-    marginTop: 4,
+    marginTop: responsiveSpacing('xs'),
   },
   checkInStamp: {
-    color: colours.muted,
-    fontSize: 11,
-    fontWeight: '800',
-    marginTop: 8,
+    ...typography.caption, color: colours.muted,
+    marginTop: responsiveSpacing('sm'),
   },
   readinessValue: {
     fontSize: 64,
@@ -679,13 +671,10 @@ const styles = StyleSheet.create({
   statusBand: {
     fontSize: 15,
     fontWeight: '900',
-    marginBottom: 4,
+    marginBottom: responsiveSpacing('xs'),
   },
   label: {
-    color: colours.muted,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1.4,
+    ...typography.label, color: colours.muted,
   },
   body: {
     color: colours.textSoft,
@@ -696,11 +685,11 @@ const styles = StyleSheet.create({
     minHeight: 76,
     borderWidth: 1,
     borderRadius: 8,
-    padding: 12,
-    marginTop: 12,
+    padding: responsiveSpacing('md'),
+    marginTop: responsiveSpacing('md'),
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: responsiveSpacing('md'),
   },
   reasonIcon: {
     width: 42,
@@ -713,20 +702,17 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   reasonTitle: {
-    fontSize: 13,
-    fontWeight: '900',
+    ...typography.h4,
   },
   reasonDetail: {
-    color: colours.textSoft,
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 4,
+    ...typography.caption, color: colours.textSoft,
+    marginTop: responsiveSpacing('xs'),
   },
   commandGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 14,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
   },
   commandTile: {
     width: '48%',
@@ -734,37 +720,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 8,
-    padding: 10,
+    padding: responsiveSpacing('sm'),
     backgroundColor: 'rgba(0,0,0,0.18)',
   },
   commandLabel: {
-    color: colours.muted,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+    ...typography.label, color: colours.muted,
   },
   commandValue: {
     color: colours.text,
     fontSize: 22,
     fontWeight: '900',
-    marginTop: 4,
+    marginTop: responsiveSpacing('xs'),
   },
   commandSub: {
-    color: colours.textSoft,
-    fontSize: 11,
-    fontWeight: '800',
-    marginTop: 2,
+    ...typography.caption, color: colours.textSoft,
+    marginTop: responsiveSpacing('xs'),
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 10,
-    marginTop: 14,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
   },
   blockerGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
   },
   blockerTile: {
     width: '48%',
@@ -780,10 +761,7 @@ const styles = StyleSheet.create({
     backgroundColor: `${colours.amber}10`,
   },
   blockerLabel: {
-    color: colours.muted,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1,
+    ...typography.label, color: colours.muted,
   },
   blockerValue: {
     color: colours.text,
@@ -828,7 +806,7 @@ const styles = StyleSheet.create({
   domainGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: responsiveSpacing('sm'),
   },
   domainCard: {
     width: '48%',
@@ -836,7 +814,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 10,
-    padding: 12,
+    padding: responsiveSpacing('md'),
     backgroundColor: colours.panel,
     gap: 3,
   },
@@ -860,33 +838,22 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   domainLabel: {
-    color: colours.muted,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
+    ...typography.label, color: colours.muted,
   },
   domainValue: {
-    fontSize: 15,
-    fontWeight: '900',
+    ...typography.h4,
     marginTop: 2,
   },
   domainDetail: {
-    color: colours.textSoft,
-    fontSize: 11,
-    lineHeight: 15,
+    ...typography.caption, color: colours.textSoft,
     marginTop: 3,
   },
   domainAction: {
-    color: colours.cyan,
-    fontSize: 10,
-    fontWeight: '900',
+    ...typography.label, color: colours.cyan,
     marginTop: 6,
-    letterSpacing: 0.3,
   },
   sectionTitle: {
-    color: colours.text,
-    fontSize: 18,
-    fontWeight: '900',
+    ...typography.h4, color: colours.text,
     marginBottom: 6,
   },
   recentHeader: {
@@ -908,11 +875,11 @@ const styles = StyleSheet.create({
     minHeight: touchTarget,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: responsiveSpacing('md'),
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 8,
-    padding: 12,
+    padding: responsiveSpacing('md'),
     backgroundColor: colours.panel,
   },
   sessionIcon: {
@@ -948,10 +915,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   scoreLabel: {
-    color: colours.muted,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+    ...typography.label, color: colours.muted,
   },
   // Activity strip
   stripContainer: {

@@ -134,7 +134,7 @@ export function calculateWHtR(waistCm: number, heightCm: number) {
 export function calculateEnhancedPandolf(input: RuckInputs): RuckEstimate {
   const speedMs = input.speedKph / 3.6;
   const bodyWithLoad = input.bodyMassKg + input.loadKg;
-  const grade = input.gradePercent / 100;
+  const grade = input.gradePercent;
   const terrain = Math.max(1, input.terrainFactor);
   const base = 1.5 * input.bodyMassKg + 2 * bodyWithLoad * Math.pow(input.loadKg / input.bodyMassKg, 2);
   const movement = terrain * bodyWithLoad * (1.5 * Math.pow(speedMs, 2) + 0.35 * speedMs * grade);
