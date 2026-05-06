@@ -4,7 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppRouter } from './AppRouter';
 import * as AppProviders from './AppProviders';
 
-vi.mock('./AppProviders');
+vi.mock('./AppProviders', () => ({
+  useApp: vi.fn(),
+}));
 vi.mock('react-native-gesture-handler', () => ({
   GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));

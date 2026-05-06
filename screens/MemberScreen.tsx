@@ -573,8 +573,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   kicker: {
-    color: colours.cyan,
     ...typography.label,
+    color: colours.cyan,
     letterSpacing: 2,
   },
   title: {
@@ -611,8 +611,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   syncText: {
-    color: colours.textSoft,
     ...typography.caption,
+    color: colours.textSoft,
     lineHeight: 18,
     fontWeight: '800',
   },
@@ -641,8 +641,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   statusBadgeText: {
-    color: colours.background,
     ...typography.caption,
+    color: colours.background,
     fontWeight: '900',
   },
   statusBadgeMuted: {
@@ -654,8 +654,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   statusBadgeMutedText: {
-    color: colours.cyan,
     ...typography.caption,
+    color: colours.cyan,
     fontWeight: '900',
   },
   cardTitle: {
@@ -707,8 +707,8 @@ const styles = StyleSheet.create({
   },
   ghostText: {
     flex: 1,
-    color: colours.textSoft,
     ...typography.caption,
+    color: colours.textSoft,
     fontWeight: '800',
   },
   assignmentTitle: {
@@ -717,14 +717,14 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   assignmentStatus: {
-    color: colours.amber,
     ...typography.caption,
+    color: colours.amber,
     fontWeight: '900',
     marginTop: responsiveSpacing('xs'),
   },
   assignmentNote: {
-    color: colours.textSoft,
     ...typography.caption,
+    color: colours.textSoft,
     lineHeight: 19,
     marginTop: responsiveSpacing('sm'),
   },
@@ -758,18 +758,18 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   coachPick: {
-    color: colours.amber,
     ...typography.label,
+    color: colours.amber,
     marginTop: 3,
   },
   prescribedDose: {
-    color: colours.green,
     ...typography.label,
+    color: colours.green,
     marginTop: 3,
   },
   exerciseDose: {
-    color: colours.muted,
     ...typography.caption,
+    color: colours.muted,
     fontWeight: '900',
   },
   hitButton: {
@@ -787,8 +787,8 @@ const styles = StyleSheet.create({
     backgroundColor: statusColors(colours.green).bgMed,
   },
   hitButtonText: {
-    color: colours.cyan,
     ...typography.label,
+    color: colours.cyan,
   },
   hitButtonTextDone: {
     color: colours.green,
@@ -827,8 +827,8 @@ const styles = StyleSheet.create({
     backgroundColor: colours.green,
   },
   finishButtonText: {
-    color: colours.background,
     ...typography.caption,
+    color: colours.background,
     fontWeight: '900',
     textAlign: 'center',
   },
@@ -851,8 +851,8 @@ const styles = StyleSheet.create({
     backgroundColor: statusColors(colours.amber).bgMed,
   },
   kindPillText: {
-    color: colours.muted,
     ...typography.label,
+    color: colours.muted,
   },
   kindPillTextActive: {
     color: colours.amber,
@@ -866,8 +866,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   fieldLabel: {
-    color: colours.muted,
     ...typography.label,
+    color: colours.muted,
     marginBottom: 6,
   },
   quickLogInput: {
@@ -882,8 +882,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   fieldHint: {
-    color: colours.muted,
     ...typography.caption,
+    color: colours.muted,
     lineHeight: 18,
     marginTop: responsiveSpacing('sm'),
   },
@@ -896,13 +896,13 @@ const styles = StyleSheet.create({
     marginTop: responsiveSpacing('md'),
   },
   logButtonText: {
-    color: colours.background,
     ...typography.caption,
+    color: colours.background,
     fontWeight: '900',
   },
   finishFeedback: {
-    color: colours.green,
     ...typography.caption,
+    color: colours.green,
     fontWeight: '900',
     marginTop: responsiveSpacing('md'),
   },
@@ -919,8 +919,8 @@ const styles = StyleSheet.create({
   },
   pulseCopy: {
     flex: 1,
-    color: colours.textSoft,
     ...typography.caption,
+    color: colours.textSoft,
     lineHeight: 19,
     fontWeight: '800',
     paddingBottom: 8,
@@ -932,8 +932,8 @@ const styles = StyleSheet.create({
     marginTop: responsiveSpacing('md'),
   },
   teamStat: {
-    color: colours.muted,
     ...typography.caption,
+    color: colours.muted,
     fontWeight: '900',
   },
   activityRow: {
@@ -955,8 +955,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   activityMeta: {
-    color: colours.muted,
     ...typography.caption,
+    color: colours.muted,
     fontWeight: '800',
     marginTop: 3,
   },
@@ -971,13 +971,13 @@ const styles = StyleSheet.create({
     backgroundColor: statusColors(colours.cyan).bgMed,
   },
   hypeButtonText: {
-    color: colours.cyan,
     ...typography.caption,
+    color: colours.cyan,
     fontWeight: '900',
   },
   selfTag: {
-    color: colours.green,
     ...typography.caption,
+    color: colours.green,
     fontWeight: '900',
   },
 });
