@@ -602,8 +602,7 @@ const styles = StyleSheet.create({
     gap: responsiveSpacing('md'),
   },
   kicker: {
-    color: colours.cyan,
-    ...typography.label,
+    ...typography.label, color: colours.cyan,
     letterSpacing: 2,
   },
   title: {
@@ -613,8 +612,7 @@ const styles = StyleSheet.create({
     marginTop: responsiveSpacing('xs'),
   },
   noCheckIn: {
-    color: colours.amber,
-    ...typography.caption,
+    ...typography.caption, color: colours.amber,
     marginTop: 3,
   },
   opsecBadge: {
@@ -629,8 +627,7 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyanDim,
   },
   opsecText: {
-    color: colours.cyan,
-    ...typography.caption,
+    ...typography.caption, color: colours.cyan,
     fontWeight: '900',
   },
   decisionHeader: {
@@ -658,14 +655,12 @@ const styles = StyleSheet.create({
     marginTop: responsiveSpacing('xs'),
   },
   decisionDetail: {
-    color: colours.textSoft,
-    ...typography.caption,
+    ...typography.caption, color: colours.textSoft,
     lineHeight: 18,
     marginTop: responsiveSpacing('xs'),
   },
   checkInStamp: {
-    color: colours.muted,
-    ...typography.caption,
+    ...typography.caption, color: colours.muted,
     marginTop: responsiveSpacing('sm'),
   },
   readinessValue: {
@@ -679,8 +674,7 @@ const styles = StyleSheet.create({
     marginBottom: responsiveSpacing('xs'),
   },
   label: {
-    color: colours.muted,
-    ...typography.label,
+    ...typography.label, color: colours.muted,
   },
   body: {
     color: colours.textSoft,
@@ -711,8 +705,7 @@ const styles = StyleSheet.create({
     ...typography.h4,
   },
   reasonDetail: {
-    color: colours.textSoft,
-    ...typography.caption,
+    ...typography.caption, color: colours.textSoft,
     marginTop: responsiveSpacing('xs'),
   },
   commandGrid: {
@@ -731,8 +724,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.18)',
   },
   commandLabel: {
-    color: colours.muted,
-    ...typography.label,
+    ...typography.label, color: colours.muted,
   },
   commandValue: {
     color: colours.text,
@@ -741,8 +733,7 @@ const styles = StyleSheet.create({
     marginTop: responsiveSpacing('xs'),
   },
   commandSub: {
-    color: colours.textSoft,
-    ...typography.caption,
+    ...typography.caption, color: colours.textSoft,
     marginTop: responsiveSpacing('xs'),
   },
   actionRow: {
@@ -770,8 +761,7 @@ const styles = StyleSheet.create({
     backgroundColor: `${colours.amber}10`,
   },
   blockerLabel: {
-    color: colours.muted,
-    ...typography.label,
+    ...typography.label, color: colours.muted,
   },
   blockerValue: {
     color: colours.text,
@@ -848,26 +838,22 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   domainLabel: {
-    color: colours.muted,
-    ...typography.label,
+    ...typography.label, color: colours.muted,
   },
   domainValue: {
     ...typography.h4,
     marginTop: 2,
   },
   domainDetail: {
-    color: colours.textSoft,
-    ...typography.caption,
+    ...typography.caption, color: colours.textSoft,
     marginTop: 3,
   },
   domainAction: {
-    color: colours.cyan,
-    ...typography.label,
+    ...typography.label, color: colours.cyan,
     marginTop: 6,
   },
   sectionTitle: {
-    color: colours.text,
-    ...typography.h4,
+    ...typography.h4, color: colours.text,
     marginBottom: 6,
   },
   recentHeader: {
@@ -929,8 +915,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   scoreLabel: {
-    color: colours.muted,
-    ...typography.label,
+    ...typography.label, color: colours.muted,
   },
   // Activity strip
   stripContainer: {

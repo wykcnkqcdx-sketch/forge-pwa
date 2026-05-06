@@ -302,7 +302,7 @@ export function FuelScreen({ sessions, readinessLogs = [] }: { sessions: Trainin
 }
 
 const styles = StyleSheet.create({
-  muted: { color: colours.muted, ...typography.caption },
+  muted: { ...typography.caption, color: colours.muted },
   title: { color: colours.text, fontSize: 30, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   goalTabs: { flexDirection: 'row', gap: responsiveSpacing('sm') },
   goalTab: {
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     padding: responsiveSpacing('sm'),
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  metricLabel: { color: colours.muted, ...typography.label, marginBottom: responsiveSpacing('xs') },
+  metricLabel: { ...typography.label, color: colours.muted, marginBottom: responsiveSpacing('xs') },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: responsiveSpacing('sm') },
   stepButton: {
     width: 34,
@@ -348,13 +348,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   macroValue: { color: colours.cyan, fontSize: 22, fontWeight: '900' },
-  macroLabel: { color: colours.muted, ...typography.label, marginTop: 3 },
-  guidance: { color: colours.textSoft, ...typography.caption, lineHeight: 19, marginTop: responsiveSpacing('md') },
+  macroLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
+  guidance: { ...typography.caption, color: colours.textSoft, lineHeight: 19, marginTop: responsiveSpacing('md') },
   zoneRow: { marginTop: responsiveSpacing('md') },
   zoneTop: { flexDirection: 'row', justifyContent: 'space-between', gap: responsiveSpacing('sm'), marginBottom: responsiveSpacing('xs') },
-  zoneLabel: { color: colours.text, ...typography.caption, fontWeight: '900' },
-  zoneBpm: { color: colours.textSoft, ...typography.caption, fontWeight: '800' },
-  zoneRange: { color: colours.muted, ...typography.label, marginTop: 5 },
+  zoneLabel: { ...typography.caption, color: colours.text, fontWeight: '900' },
+  zoneBpm: { ...typography.caption, color: colours.textSoft, fontWeight: '800' },
+  zoneRange: { ...typography.label, color: colours.muted, marginTop: 5 },
   rpeRow: {
     flexDirection: 'row',
     gap: responsiveSpacing('md'),
@@ -367,17 +367,17 @@ const styles = StyleSheet.create({
     height: 30,
     borderRadius: 9,
     overflow: 'hidden',
-    color: colours.background,
     backgroundColor: colours.cyan,
     textAlign: 'center',
     textAlignVertical: 'center',
     ...typography.caption,
+    color: colours.background,
     fontWeight: '900',
     paddingTop: 7,
   },
   rpeCopy: { flex: 1 },
-  rpeLabel: { color: colours.text, ...typography.caption, fontWeight: '900' },
-  rpeGuidance: { color: colours.textSoft, ...typography.caption, lineHeight: 17, marginTop: 2 },
+  rpeLabel: { ...typography.caption, color: colours.text, fontWeight: '900' },
+  rpeGuidance: { ...typography.caption, color: colours.textSoft, lineHeight: 17, marginTop: 2 },
   hydrationValue: { color: colours.cyan, fontWeight: '900' },
   hydrationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   hydrationButton: {
@@ -389,5 +389,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: statusColors(colours.cyan).bgMed,
   },
-  hydrationButtonText: { color: colours.cyan, ...typography.caption, fontWeight: '900' },
+  hydrationButtonText: { ...typography.caption, color: colours.cyan, fontWeight: '900' },
 });

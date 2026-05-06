@@ -106,7 +106,8 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   pinSetupClose: {
-    ...touchTarget.min,
+    minHeight: touchTarget,
+    minWidth: touchTarget,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: -4,

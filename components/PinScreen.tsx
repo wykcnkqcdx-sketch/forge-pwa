@@ -5,7 +5,7 @@ import { colours } from '../theme';
 interface PinScreenProps {
   pinLength: number;
   pinInput: string;
-  pinError: string;
+  pinError: boolean;
   onPinInput: (input: string) => void;
 }
 

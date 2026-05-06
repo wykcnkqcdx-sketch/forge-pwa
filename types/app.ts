@@ -1,3 +1,6 @@
+import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
+import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+
 export type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'settings' | 'readiness';
 export type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
 
@@ -47,5 +50,5 @@ export type AppActions = {
 };
 
 // Re-export types from other modules for convenience
-export type { TrainingSession, SquadMember, TrainingGroup, ProgrammeTemplate, ReadinessLog, WorkoutCompletion } from './data/mockData';
-export type { ReadinessLog as ReadinessLogType, WorkoutCompletion } from './data/domain';
+export type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
+export type { ReadinessLog, WorkoutCompletion } from '../data/domain';

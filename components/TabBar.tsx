@@ -4,20 +4,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { colours, shadow, touchTarget } from '../theme';
 import type { Tab, MemberTab } from '../types/app';
 
-interface TabItem {
-  id: Tab | MemberTab;
+interface TabItem<TTab extends Tab | MemberTab = Tab | MemberTab> {
+  id: TTab;
   label: string;
   icon: keyof typeof Ionicons.glyphMap;
   iconActive: keyof typeof Ionicons.glyphMap;
 }
 
-interface TabBarProps {
-  tabs: TabItem[];
-  activeTab: Tab | MemberTab;
-  onTabPress: (tabId: Tab | MemberTab) => void;
+interface TabBarProps<TTab extends Tab | MemberTab> {
+  tabs: TabItem<TTab>[];
+  activeTab: TTab;
+  onTabPress: (tabId: TTab) => void;
 }
 
-export function TabBar({ tabs, activeTab, onTabPress }: TabBarProps) {
+export function TabBar<TTab extends Tab | MemberTab>({ tabs, activeTab, onTabPress }: TabBarProps<TTab>) {
   return (
     <View style={[styles.tabBar, shadow.card]}>
       <View style={styles.tabBarHighlight} />
@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    ...touchTarget.min,
+    minHeight: touchTarget,
   },
   tabItemPressed: {
     opacity: 0.7,

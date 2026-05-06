@@ -2575,14 +2575,14 @@ function updateSelectedCheckpointHere() {
 }
 
 const styles = StyleSheet.create({
-  muted: { color: colours.muted, ...typography.caption },
+  muted: { ...typography.caption, color: colours.muted },
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: responsiveSpacing('md') },
-  platformNote: { color: colours.amber, ...typography.caption, lineHeight: 18, marginTop: -8, marginBottom: 8 },
+  platformNote: { ...typography.caption, color: colours.amber, lineHeight: 18, marginTop: -8, marginBottom: 8 },
   mapCard: { backgroundColor: '#0F1F35' },
   mapHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('md') },
-  mapLabel: { color: colours.cyan, ...typography.label, letterSpacing: 1.8 },
+  mapLabel: { ...typography.label, color: colours.cyan, letterSpacing: 1.8 },
   mapText: { color: colours.text, fontWeight: '900', marginTop: 2 },
-  mapSubText: { color: colours.muted, ...typography.caption, marginTop: 3 },
+  mapSubText: { ...typography.caption, color: colours.muted, marginTop: 3 },
   signalBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2595,7 +2595,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
-  signalText: { color: colours.muted, ...typography.label, letterSpacing: 1 },
+  signalText: { ...typography.label, color: colours.muted, letterSpacing: 1 },
   coordinateSelector: {
     flexDirection: 'row',
     gap: 6,
@@ -2615,7 +2615,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   coordinateOptionActive: { backgroundColor: colours.cyan },
-  coordinateOptionText: { color: colours.muted, ...typography.label },
+  coordinateOptionText: { ...typography.label, color: colours.muted },
   coordinateOptionTextActive: { color: colours.background },
   layerSelector: {
     flexDirection: 'row',
@@ -2637,7 +2637,7 @@ const styles = StyleSheet.create({
     borderColor: statusColors(colours.green).borderMed,
     backgroundColor: statusColors(colours.green).bgMed,
   },
-  layerOptionText: { color: colours.muted, ...typography.label },
+  layerOptionText: { ...typography.label, color: colours.muted },
   layerOptionTextActive: { color: colours.green },
   fullscreenContainer: {
     flex: 1,
@@ -2672,7 +2672,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   fullscreenStatusLabel: { ...typography.caption, fontWeight: '900', letterSpacing: 0.8 },
-  fullscreenStatusDetail: { color: colours.textSoft, ...typography.caption, fontWeight: '800', marginTop: 2 },
+  fullscreenStatusDetail: { ...typography.caption, color: colours.textSoft, fontWeight: '800', marginTop: 2 },
   fullscreenCollapseBtn: {
     width: 44,
     height: 44,
@@ -2775,7 +2775,7 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyan,
     borderColor: colours.cyan,
   },
-  mapSelectButtonText: { color: colours.cyan, ...typography.label },
+  mapSelectButtonText: { ...typography.label, color: colours.cyan },
   mapSelectButtonTextActive: { color: colours.background },
   mapGridOverlay: {
     position: 'absolute',
@@ -2789,7 +2789,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  mapOverlayLabel: { color: colours.muted, ...typography.label, letterSpacing: 1.4 },
+  mapOverlayLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.4 },
   mapOverlayValue: { color: colours.text, fontSize: 12, fontWeight: '900', marginTop: 2 },
   mapCompassOverlay: {
     position: 'absolute',
@@ -2804,7 +2804,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: 'rgba(255,255,255,0.44)',
   },
-  mapCompassValue: { color: colours.background, ...typography.label, marginTop: 1 },
+  mapCompassValue: { ...typography.label, color: colours.background, marginTop: 1 },
   mapCompassLabel: { color: 'rgba(7,17,30,0.72)', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
   mapTelemetry: {
     position: 'absolute',
@@ -2826,7 +2826,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   mapTelemetryValue: { color: colours.text, fontSize: 14, fontWeight: '900' },
-  mapTelemetryLabel: { color: colours.muted, ...typography.label, letterSpacing: 1, marginTop: 2 },
+  mapTelemetryLabel: { ...typography.label, color: colours.muted, letterSpacing: 1, marginTop: 2 },
   templateGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -2853,7 +2853,7 @@ const styles = StyleSheet.create({
   },
   templateTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
   templateTitleActive: { color: colours.cyan },
-  templateDetail: { color: colours.muted, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  templateDetail: { ...typography.caption, color: colours.muted, fontWeight: '800', marginTop: 3 },
   templateDelete: {
     position: 'absolute',
     top: 5,
@@ -2879,8 +2879,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colours.borderSoft,
     backgroundColor: 'rgba(255,255,255,0.05)',
-    color: colours.text,
-    ...typography.caption,
+    ...typography.caption, color: colours.text,
     fontWeight: '800',
     paddingHorizontal: 12,
   },
@@ -2894,7 +2893,7 @@ const styles = StyleSheet.create({
     gap: 7,
     paddingHorizontal: 12,
   },
-  templateSaveText: { color: colours.background, ...typography.caption, fontWeight: '900' },
+  templateSaveText: { ...typography.caption, color: colours.background, fontWeight: '900' },
   mapMissionStrip: {
     position: 'absolute',
     left: 10,
@@ -2911,7 +2910,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 8,
   },
-  mapMissionText: { color: colours.text, ...typography.label },
+  mapMissionText: { ...typography.label, color: colours.text },
   bearingGuidanceStrip: {
     position: 'absolute',
     left: 10,
@@ -2927,7 +2926,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   bearingGuidanceLabel: { ...typography.caption, fontWeight: '900' },
-  bearingGuidanceDetail: { color: colours.text, ...typography.label, flex: 1, textAlign: 'right' },
+  bearingGuidanceDetail: { ...typography.label, color: colours.text, flex: 1, textAlign: 'right' },
   finishStrip: {
     position: 'absolute',
     left: 10,
@@ -2944,7 +2943,7 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 8,
   },
-  finishStripText: { color: colours.text, ...typography.label },
+  finishStripText: { ...typography.label, color: colours.text },
   expandMapButton: {
     minHeight: 40,
     marginTop: 10,
@@ -2975,8 +2974,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
   liveValue: { color: colours.cyan, fontSize: 18, fontWeight: '900' },
-  liveLabel: { color: colours.muted, ...typography.label, letterSpacing: 1.3, marginTop: 2 },
-  coordinateText: { color: colours.muted, ...typography.caption, textAlign: 'center', marginTop: 10 },
+  liveLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.3, marginTop: 2 },
+  coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 10 },
   trackingControls: { marginBottom: 16 },
   trackButton: { minHeight: touchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colours.green, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
   trackButtonDisabled: { opacity: 0.62 },
@@ -2997,7 +2996,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   reviewValue: { color: colours.text, fontSize: 17, fontWeight: '900' },
-  reviewLabel: { color: colours.muted, ...typography.label, marginTop: 3 },
+  reviewLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
   reviewNoteInput: {
     minHeight: 86,
     borderWidth: 1,
@@ -3043,7 +3042,7 @@ const styles = StyleSheet.create({
   },
   historyDetailCopy: { flex: 1 },
   historyTitle: { color: colours.text, fontSize: 15, fontWeight: '900' },
-  historyMeta: { color: colours.muted, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  historyMeta: { ...typography.caption, color: colours.muted, fontWeight: '800', marginTop: 3 },
   historyMetricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   historyMetric: {
     width: '47%',
@@ -3055,17 +3054,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.16)',
   },
   historyMetricValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
-  historyMetricLabel: { color: colours.muted, ...typography.label, marginTop: 2 },
+  historyMetricLabel: { ...typography.label, color: colours.muted, marginTop: 2 },
   historyNote: {
-    color: colours.textSoft,
-    ...typography.caption,
+    ...typography.caption, color: colours.textSoft,
     lineHeight: 18,
     borderLeftWidth: 2,
     borderLeftColor: colours.cyan,
     paddingLeft: 10,
     marginTop: 12,
   },
-  historyQuality: { color: colours.muted, ...typography.caption, fontWeight: '800', lineHeight: 16, marginTop: 10 },
+  historyQuality: { ...typography.caption, color: colours.muted, fontWeight: '800', lineHeight: 16, marginTop: 10 },
   historyList: { gap: 8, marginTop: 12 },
   historyRow: {
     minHeight: touchTarget,
@@ -3081,7 +3079,7 @@ const styles = StyleSheet.create({
   historyRowActive: { borderColor: statusColors(colours.cyan).borderMed, backgroundColor: statusColors(colours.cyan).bgMed },
   historyRowCopy: { flex: 1 },
   historyRowTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
-  historyRowMeta: { color: colours.muted, ...typography.label, marginTop: 2 },
+  historyRowMeta: { ...typography.label, color: colours.muted, marginTop: 2 },
   emptyHistory: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
@@ -3107,7 +3105,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colours.cyan,
   },
-  compassText: { color: colours.background, ...typography.label, marginTop: 1 },
+  compassText: { ...typography.label, color: colours.background, marginTop: 1 },
   navGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   navItem: {
     width: '47%',
@@ -3118,7 +3116,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   navValue: { color: colours.cyan, fontSize: 17, fontWeight: '900' },
-  navLabel: { color: colours.muted, ...typography.label, marginTop: 3 },
+  navLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
   navGuide: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 12 },
   splitBadge: {
     minWidth: 58,
@@ -3132,7 +3130,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   splitBadgeValue: { color: colours.cyan, fontSize: 15, fontWeight: '900' },
-  splitBadgeLabel: { color: colours.muted, ...typography.label, letterSpacing: 1 },
+  splitBadgeLabel: { ...typography.label, color: colours.muted, letterSpacing: 1 },
   splitList: { marginTop: 12, gap: 8 },
   splitRow: {
     minHeight: 42,
@@ -3146,9 +3144,9 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 10,
   },
-  splitKm: { color: colours.text, ...typography.caption, fontWeight: '900', width: 52 },
+  splitKm: { ...typography.caption, color: colours.text, fontWeight: '900', width: 52 },
   splitValue: { color: colours.cyan, fontSize: 15, fontWeight: '900', flex: 1, textAlign: 'center' },
-  splitMeta: { color: colours.muted, ...typography.caption, fontWeight: '800', width: 84, textAlign: 'right' },
+  splitMeta: { ...typography.caption, color: colours.muted, fontWeight: '800', width: 84, textAlign: 'right' },
   finishModeRow: {
     flexDirection: 'row',
     gap: 8,
@@ -3169,7 +3167,7 @@ const styles = StyleSheet.create({
     borderColor: statusColors(colours.cyan).borderMed,
     backgroundColor: statusColors(colours.cyan).bgMed,
   },
-  finishModeText: { color: colours.muted, ...typography.caption, fontWeight: '900' },
+  finishModeText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
   finishModeTextActive: { color: colours.cyan },
   finishPanel: {
     borderRadius: 8,
@@ -3193,7 +3191,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
   },
   finishMetricValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  finishMetricLabel: { color: colours.muted, ...typography.label, letterSpacing: 0.8, marginTop: 2 },
+  finishMetricLabel: { ...typography.label, color: colours.muted, letterSpacing: 0.8, marginTop: 2 },
   readinessBadge: {
     minHeight: 34,
     borderRadius: 999,
@@ -3221,7 +3219,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   readinessDot: { width: 8, height: 8, borderRadius: 4 },
-  readinessLabel: { color: colours.text, ...typography.caption, fontWeight: '900', flex: 1 },
+  readinessLabel: { ...typography.caption, color: colours.text, fontWeight: '900', flex: 1 },
   readinessValue: { ...typography.caption, fontWeight: '900', textAlign: 'right' },
   checkpointButton: {
     minHeight: 40,
@@ -3234,7 +3232,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   checkpointButtonDisabled: { opacity: 0.5 },
-  checkpointButtonText: { color: colours.background, ...typography.caption, fontWeight: '900' },
+  checkpointButtonText: { ...typography.caption, color: colours.background, fontWeight: '900' },
   bearingPanel: {
     minHeight: 58,
     borderRadius: 8,
@@ -3248,10 +3246,10 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   bearingPanelTitle: { fontSize: 13, fontWeight: '900' },
-  bearingPanelDetail: { color: colours.textSoft, ...typography.caption, fontWeight: '800', marginTop: 2 },
+  bearingPanelDetail: { ...typography.caption, color: colours.textSoft, fontWeight: '800', marginTop: 2 },
   bearingPanelMetric: { alignItems: 'flex-end' },
   bearingPanelValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
-  bearingPanelLabel: { color: colours.muted, ...typography.label, letterSpacing: 1 },
+  bearingPanelLabel: { ...typography.label, color: colours.muted, letterSpacing: 1 },
   coordinateEntry: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -3265,8 +3263,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colours.borderSoft,
     backgroundColor: 'rgba(255,255,255,0.05)',
-    color: colours.text,
-    ...typography.caption,
+    ...typography.caption, color: colours.text,
     fontWeight: '800',
     paddingHorizontal: 12,
   },
@@ -3284,8 +3281,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colours.borderSoft,
     backgroundColor: 'rgba(255,255,255,0.05)',
-    color: colours.text,
-    ...typography.caption,
+    ...typography.caption, color: colours.text,
     fontWeight: '800',
     lineHeight: 18,
     paddingHorizontal: 12,
@@ -3323,7 +3319,7 @@ const styles = StyleSheet.create({
     borderColor: statusColors(colours.green).borderMed,
     backgroundColor: statusColors(colours.green).bgMed,
   },
-  statusButtonText: { color: colours.muted, ...typography.label },
+  statusButtonText: { ...typography.label, color: colours.muted },
   statusButtonTextActive: { color: colours.green },
   checkpointList: {
     flexDirection: 'row',
@@ -3345,7 +3341,7 @@ const styles = StyleSheet.create({
     borderColor: statusColors(colours.amber).borderMed,
     backgroundColor: statusColors(colours.amber).bgMed,
   },
-  checkpointPillText: { color: colours.muted, ...typography.caption, fontWeight: '900' },
+  checkpointPillText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
   checkpointPillTextActive: { color: colours.amber },
   checkpointActions: {
     flexDirection: 'row',
@@ -3363,7 +3359,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 8,
   },
-  clearCheckpointText: { color: colours.muted, ...typography.caption, fontWeight: '900' },
+  clearCheckpointText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
   undoMarkButton: {
     minHeight: 40,
     width: 44,
