@@ -435,8 +435,14 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       onPanResponderRelease: (_, g) => {
         if (Math.abs(g.dx) > 60) {
           const idx = tabs.findIndex((t) => t.id === activeTab);
-          if (g.dx < 0 && idx < tabs.length - 1) setActiveTab(tabs[idx + 1].id);
-          else if (g.dx > 0 && idx > 0) setActiveTab(tabs[idx - 1].id);
+          if (g.dx < 0 && idx < tabs.length - 1) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setActiveTab(tabs[idx + 1].id);
+          }
+          else if (g.dx > 0 && idx > 0) {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setActiveTab(tabs[idx - 1].id);
+          }
         }
       },
     }),

@@ -10,6 +10,7 @@ import { FuelScreen } from '../screens/FuelScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AuthScreen } from '../screens/AuthScreen';
+import * as Haptics from 'expo-haptics';
 import { SplashScreen } from './SplashScreen';
 import { PinScreen } from './PinScreen';
 import { PinSetupModal } from './PinSetupModal';
@@ -52,6 +53,7 @@ export function AppRouter() {
   // ── Tab navigation ────────────────────────────────────────────────────────
   function switchTab(newTab: typeof navigation.activeTab) {
     if (navigation.activeTab !== newTab) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       navigation.setActiveTab(newTab);
     }
   }
@@ -201,7 +203,12 @@ export function AppRouter() {
           <TabBar
             tabs={memberTabs}
             activeTab={navigation.activeMemberTab}
-            onTabPress={navigation.setActiveMemberTab}
+            onTabPress={(newTab) => {
+              if (navigation.activeMemberTab !== newTab) {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                navigation.setActiveMemberTab(newTab);
+              }
+            }}
           />
         </View>
       </GestureHandlerRootView>
@@ -233,7 +240,7 @@ export function AppRouter() {
         <TabBar
           tabs={tabs}
           activeTab={navigation.activeTab}
-          onTabPress={navigation.setActiveTab}
+          onTabPress={switchTab}
         />
       </View>
     </GestureHandlerRootView>
