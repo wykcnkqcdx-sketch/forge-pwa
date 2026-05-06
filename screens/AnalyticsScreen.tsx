@@ -6,7 +6,6 @@ import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { colours, shadow } from '../theme';
 import { colours, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { TrainingSession, TrackPoint } from '../data/mockData';
@@ -185,7 +184,6 @@ export function AnalyticsScreen({
       <Card>
         <View style={styles.levelHeader}>
           <Text style={[styles.cardTitle, { marginBottom: 0 }]}>Operator Level</Text>
-          <View style={[styles.levelBadge, { backgroundColor: badgeDim, borderColor: `${badgeColor}40` }]}>
           <View style={[styles.levelBadge, { backgroundColor: statusColors(badgeColor).bgMed, borderColor: statusColors(badgeColor).borderMed }]}>
             <Text style={[styles.levelBadgeText, { color: badgeColor }]}>LVL {currentLevel}</Text>
           </View>
@@ -230,13 +228,11 @@ export function AnalyticsScreen({
       <Card>
         <Text style={styles.cardTitle}>Risk Monitor</Text>
         {hasSessions ? (
-          <View style={styles.warning}>
           <View style={[styles.warning, shadow.subtle, { borderColor: statusColors(performance.riskTone).borderMed, backgroundColor: statusColors(performance.riskTone).bgMed }]}>
             <Text style={[styles.warningTitle, { color: performance.riskTone }]}>{riskLevel}</Text>
             <Text style={styles.muted}>{riskCopy}</Text>
           </View>
         ) : (
-          <View style={styles.emptyState}>
           <View style={[styles.emptyState, shadow.subtle]}>
             <Text style={styles.emptyTitle}>No sessions logged</Text>
             <Text style={styles.muted}>Complete a workout or ruck to build your analytics baseline.</Text>
@@ -261,7 +257,6 @@ export function AnalyticsScreen({
           </Pressable>
         </View>
         {latestReadinessIsStale ? (
-          <View style={styles.staleNotice}>
           <View style={[styles.staleNotice, shadow.subtle, { borderColor: statusColors(colours.amber).borderMed, backgroundColor: statusColors(colours.amber).bgMed }]}>
             <Ionicons name="warning-outline" size={14} color={colours.amber} />
             <Text style={styles.staleNoticeText}>Latest check-in is stale. Log today before using these factors.</Text>
@@ -319,7 +314,6 @@ export function AnalyticsScreen({
             const isActive = filterType === type;
             return (
               <Pressable
-                style={[styles.filterPill, isActive && styles.filterPillActive]}
                 style={[
                   styles.filterPill,
                   isActive && { borderColor: statusColors(colours.cyan).borderMed, backgroundColor: statusColors(colours.cyan).bgMed }
@@ -425,7 +419,6 @@ export function AnalyticsScreen({
           onChangeView={setBodyMapView}
           onSelect={markInjury}
         />
-        <View style={styles.hotspotPanel}>
         <View style={[styles.hotspotPanel, shadow.subtle]}>
           <Text style={styles.hotspotTitle}>HPT Hotspots</Text>
           {hotspots.length ? (
@@ -471,15 +464,6 @@ export function AnalyticsScreen({
 }
 
 const styles = StyleSheet.create({
-  muted: { color: colours.muted, fontSize: 13 },
-  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: 16 },
-  grid: { flexDirection: 'row', gap: 12 },
-  cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 16 },
-  levelHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  levelBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
-  levelBadgeText: { fontSize: 12, fontWeight: '900' },
-  lineChart: { marginVertical: 8, marginLeft: -12 },
-  chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 },
   muted: { color: colours.muted, ...typography.caption },
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   grid: { flexDirection: 'row', gap: responsiveSpacing('md') },
@@ -490,19 +474,10 @@ const styles = StyleSheet.create({
   lineChart: { marginVertical: responsiveSpacing('sm'), marginLeft: -12 },
   chartHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: responsiveSpacing('md') },
   trendToggle: { flexDirection: 'row', backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, padding: 2 },
-  trendBtn: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 6 },
   trendBtn: { paddingHorizontal: responsiveSpacing('md'), paddingVertical: 6, borderRadius: 6 },
   trendBtnActive: { backgroundColor: colours.cyan },
-  trendBtnText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
   trendBtnText: { color: colours.muted, ...typography.label },
   trendBtnTextActive: { color: colours.background },
-  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-  factorItem: { width: '23%', flexGrow: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 10, alignItems: 'center' },
-  factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 4 },
-  factorValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  staleNotice: { flexDirection: 'row', alignItems: 'center', gap: 7, borderWidth: 1, borderColor: `${colours.amber}40`, borderRadius: 8, padding: 9, backgroundColor: `${colours.amber}12`, marginBottom: 8 },
-  staleNoticeText: { flex: 1, color: colours.amber, fontSize: 12, fontWeight: '800', lineHeight: 16 },
-  medicalDisclaimer: { color: colours.amber, fontSize: 10, fontStyle: 'italic', marginTop: 16, lineHeight: 14 },
   factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('sm') },
   factorItem: { width: '23%', flexGrow: 1, backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: responsiveSpacing('sm'), alignItems: 'center' },
   factorLabel: { color: colours.muted, ...typography.label, marginBottom: 4 },
@@ -511,47 +486,30 @@ const styles = StyleSheet.create({
   staleNoticeText: { flex: 1, color: colours.amber, ...typography.caption, fontWeight: '800', lineHeight: 16 },
   medicalDisclaimer: { color: colours.amber, ...typography.caption, fontStyle: 'italic', marginTop: responsiveSpacing('md'), lineHeight: 14 },
   warning: {
-    borderColor: 'rgba(253,230,138,0.25)',
     borderWidth: 1,
     borderRadius: 18,
-    padding: 13,
-    backgroundColor: 'rgba(253,230,138,0.08)',
-    marginBottom: 18,
     padding: responsiveSpacing('md'),
     marginBottom: responsiveSpacing('lg'),
   },
   warningTitle: { color: colours.amber, fontWeight: '900' },
-  loadIntel: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
   loadIntel: { color: colours.textSoft, ...typography.caption, lineHeight: 18, marginTop: responsiveSpacing('sm') },
   emptyState: {
     borderColor: colours.border,
     borderWidth: 1,
     borderRadius: 18,
-    padding: 13,
     padding: responsiveSpacing('md'),
     backgroundColor: 'rgba(255,255,255,0.04)',
-    marginBottom: 18,
     marginBottom: responsiveSpacing('lg'),
   },
   emptyTitle: { color: colours.text, fontWeight: '900' },
-  metricLabel: { color: colours.text, marginTop: 15, marginBottom: 8, fontWeight: '800' },
   metricLabel: { color: colours.text, marginTop: responsiveSpacing('md'), marginBottom: responsiveSpacing('sm'), fontWeight: '800' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 2,
-    marginTop: 12,
     marginTop: responsiveSpacing('md'),
   },
-  sectionTitle: { color: colours.text, fontSize: 16, fontWeight: '900', letterSpacing: 0.2 },
-  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyanDim, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: `${colours.cyan}40` },
-  sortBtnText: { color: colours.cyan, fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  filterScroll: { flexGrow: 0, marginBottom: 12, marginHorizontal: -20 },
-  filterContainer: { gap: 8, paddingHorizontal: 20 },
-  filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
-  filterPillActive: { borderColor: `${colours.cyan}80`, backgroundColor: colours.cyanDim },
-  filterText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
   sectionTitle: { color: colours.text, ...typography.h4, letterSpacing: 0.2 },
   sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: statusColors(colours.cyan).bgMed, paddingHorizontal: responsiveSpacing('sm'), paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: statusColors(colours.cyan).borderMed },
   sortBtnText: { color: colours.cyan, ...typography.label, letterSpacing: 0.5 },
@@ -560,29 +518,17 @@ const styles = StyleSheet.create({
   filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: responsiveSpacing('md'), paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
   filterText: { color: colours.muted, ...typography.label },
   filterTextActive: { color: colours.cyan },
-  logEmptyState: { alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 16, padding: 18, backgroundColor: 'rgba(10, 20, 35, 0.70)' },
-  logEmptyText: { color: colours.muted, fontSize: 12, textAlign: 'center', lineHeight: 17 },
-  bodyInputRow: { flexDirection: 'row', gap: 10, marginTop: 10 },
   logEmptyState: { alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 16, padding: responsiveSpacing('lg'), backgroundColor: 'rgba(10, 20, 35, 0.70)' },
   logEmptyText: { color: colours.muted, ...typography.caption, textAlign: 'center', lineHeight: 17 },
   bodyInputRow: { flexDirection: 'row', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('sm') },
   bodyInputGroup: { flex: 1 },
-  bodyInputLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginBottom: 4 },
   bodyInputLabel: { color: colours.muted, ...typography.label, letterSpacing: 1.2, marginBottom: 4 },
   bodyInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, color: colours.text, backgroundColor: 'rgba(0,0,0,0.22)', paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, fontWeight: '900' },
-  whtrResult: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 12 },
   whtrResult: { flexDirection: 'row', alignItems: 'center', gap: responsiveSpacing('md'), marginTop: responsiveSpacing('md') },
   whtrValue: { fontSize: 30, fontWeight: '900' },
-  intensityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 12 },
   intensityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginVertical: responsiveSpacing('md') },
   intensityButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   intensityText: { color: colours.text, fontSize: 14, fontWeight: '900' },
-  hotspotPanel: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, padding: 12, backgroundColor: 'rgba(10,18,30,0.6)', marginTop: 12, gap: 6 },
-  hotspotTitle: { color: colours.text, fontSize: 16, fontWeight: '900', marginBottom: 4 },
-  hotspotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingVertical: 6, borderTopWidth: 1, borderColor: colours.borderSoft },
-  hotspotName: { flex: 1, color: colours.textSoft, fontSize: 13, fontWeight: '800' },
-  hotspotScore: { fontSize: 13, fontWeight: '900' },
-  hotspotAlert: { color: colours.red, fontSize: 12, fontWeight: '900', lineHeight: 17, marginTop: 4 },
   hotspotPanel: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, padding: responsiveSpacing('md'), backgroundColor: 'rgba(10,18,30,0.6)', marginTop: responsiveSpacing('md'), gap: 6 },
   hotspotTitle: { color: colours.text, ...typography.h4, marginBottom: 4 },
   hotspotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: responsiveSpacing('md'), paddingVertical: 6, borderTopWidth: 1, borderColor: colours.borderSoft },
@@ -591,17 +537,12 @@ const styles = StyleSheet.create({
   hotspotAlert: { color: colours.red, ...typography.caption, fontWeight: '900', lineHeight: 17, marginTop: 4 },
   loadMoreBtn: {
     alignItems: 'center',
-    paddingVertical: 14,
-    marginTop: 4,
-    marginBottom: 20,
     paddingVertical: responsiveSpacing('md'),
     marginTop: responsiveSpacing('xs'),
     marginBottom: responsiveSpacing('lg'),
     borderRadius: 16,
-    backgroundColor: 'rgba(0, 229, 255, 0.08)',
     backgroundColor: statusColors(colours.cyan).bgMed,
     borderWidth: 1,
-    borderColor: 'rgba(0, 229, 255, 0.2)',
     borderColor: statusColors(colours.cyan).borderMed,
   },
   loadMoreText: { color: colours.cyan, fontSize: 13, fontWeight: '800' },
