@@ -10,6 +10,7 @@ import { MetricCard } from '../components/MetricCard';
 import { colours } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/domain';
 import { getMapPoints, distanceBetween, bearingBetween } from '../utils/mapUtils';
+import { calculateRuckScore } from '../utils/ruckScore';
 
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
@@ -84,8 +85,8 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
   const [routePoints, setRoutePoints] = useState<TrackPoint[]>([]);
   const [compassHeading, setCompassHeading] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<Date | null>(null);
-  const [weather, setWeather] = useState<TrainingSession['weather']>('Mild');
-  const [terrain, setTerrain] = useState<TrainingSession['terrain']>('Pavement');
+  const [weather, setWeather] = useState<NonNullable<TrainingSession['weather']>>('Mild');
+  const [terrain, setTerrain] = useState<NonNullable<TrainingSession['terrain']>>('Pavement');
   const [calibrationFactor, setCalibrationFactor] = useState(1.0);
   const [bodyWeightKg, setBodyWeightKg] = useState(82);
 
@@ -274,7 +275,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
         return;
       }
 
-      const isPrecise = Platform.OS === 'ios' ? fgResponse.ios?.scope === 'fine' : fgResponse.android?.accuracy === 'fine';
+      const isPrecise = Platform.OS === 'android' ? fgResponse.android?.accuracy === 'fine' : fgResponse.status === 'granted';
       if (!isPrecise && Platform.OS !== 'web') {
         Alert.alert('Precise Location Required', 'Ruck tracking requires precise GPS. Your route map and distance will be highly inaccurate.');
       }
@@ -333,17 +334,31 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     }
   };
 
-  const saveTrackedRuck = () => {
+  const saveTrackedRuck = async () => {
     if (!startTime) return;
-    stopTracking();
+    await stopTracking();
 
-    const duration = Math.max(1, (new Date().getTime() - startTime.getTime()) / (1000 * 60)); // minutes
-    
-    const loadFraction = weight / bodyWeightKg;
-    const highLoadPenalty = loadFraction > 0.3 ? (loadFraction - 0.3) * 60 : 0;
-    const baseScore = 95 - (weight * 0.5) - (currentDistance * 0.4);
-    const terrainAdjusted = baseScore - ((terrainMultiplier - 1) * 30);
-    const trackedScore = Math.max(55, Math.round((terrainAdjusted - highLoadPenalty) * calibrationFactor));
+    const duration = Math.max(1, (new Date().getTime() - startTime.getTime()) / (1000 * 60));
+
+    // Read the full route from AsyncStorage (in-memory is capped to 120 pts for display)
+    let fullRoute: TrackPoint[] = routePoints;
+    try {
+      const stored = await AsyncStorage.getItem('forge:ruck_route');
+      if (stored) {
+        const parsed: TrackPoint[] = JSON.parse(stored);
+        if (parsed.length > 0) fullRoute = parsed;
+      }
+    } catch (e) {
+      // fall back to in-memory route
+    }
+
+    const trackedScore = calculateRuckScore({
+      weightKg: weight,
+      distanceKm: currentDistance,
+      bodyWeightKg,
+      terrainMultiplier,
+      calibrationFactor,
+    });
 
     const session: TrainingSession = {
       id: Date.now().toString(),
@@ -353,7 +368,7 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
       durationMinutes: Math.round(duration),
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
-      routePoints: routePoints.length > 0 ? routePoints : undefined,
+      routePoints: fullRoute.length > 0 ? fullRoute : undefined,
     };
     addSession(session);
     Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
@@ -382,15 +397,15 @@ export function RuckScreen({ addSession }: { addSession: (session: TrainingSessi
     [distance, plannedAscentM]
   );
   const score = useMemo(
-    () => {
-      const loadFraction = weight / bodyWeightKg;
-      const highLoadPenalty = loadFraction > 0.3 ? (loadFraction - 0.3) * 60 : 0;
-      const baseScore = 95 - (weight * 0.5) - (distance * 0.4) - (plannedAscentM / 160);
-      const terrainAdjusted = baseScore - ((terrainMultiplier - 1) * 30);
-      const calibrated = (terrainAdjusted - highLoadPenalty) * calibrationFactor;
-      return Math.max(55, Math.round(calibrated));
-    },
-    [weight, distance, plannedAscentM, terrainMultiplier, calibrationFactor]
+    () => calculateRuckScore({
+      weightKg: weight,
+      distanceKm: distance,
+      bodyWeightKg,
+      terrainMultiplier,
+      calibrationFactor,
+      ascentM: plannedAscentM,
+    }),
+    [weight, distance, plannedAscentM, terrainMultiplier, calibrationFactor, bodyWeightKg]
   );
   const activePace = currentDistance > 0.02 ? (elapsedSeconds / 60 / currentDistance).toFixed(1) : '--';
 

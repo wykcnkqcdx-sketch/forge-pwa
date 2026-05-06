@@ -1,9 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Animated, PanResponder, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Animated, PanResponder, Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import type { Session } from '@supabase/supabase-js';
 import { HomeScreen } from './screens/HomeScreen';
 import { AnalyticsScreen } from './screens/AnalyticsScreen';
@@ -48,7 +51,7 @@ const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
-  const [sessions, setSessions] = useState<TrainingSession[]>(initialSessions);
+  const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [members, setMembers] = useState<SquadMember[]>(squadMembers);
   const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
   const [cloudSession, setCloudSession] = useState<Session | null>(null);
@@ -420,7 +423,7 @@ export default function App() {
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase?.removeChannel(channel);
     };
   }, [cloudSession?.user?.id, isReady]);
 
@@ -515,10 +518,11 @@ export default function App() {
   }
 
   function editSession(id: string, updates: Partial<TrainingSession>) {
-    setSessions((current) =>
-      current.map((s) => (s.id === id ? { ...s, ...updates } : s))
-    );
-    const existing = sessions.find((s) => s.id === id);
+    let existing: TrainingSession | undefined;
+    setSessions((current) => {
+      existing = current.find((s) => s.id === id);
+      return current.map((s) => (s.id === id ? { ...s, ...updates } : s));
+    });
     if (existing) {
       handleCloudMutation({ type: 'push_session', payload: { ...existing, ...updates } });
     }
@@ -621,12 +625,7 @@ export default function App() {
     return imported.length === value.length ? imported : null;
   }
 
-  function exportData() {
-    if (typeof document === 'undefined') {
-      Alert.alert('Export unavailable', 'Data export is available in the web app.');
-      return;
-    }
-
+  async function exportData() {
     const backup: ForgeBackup = {
       version: 1,
       exportedAt: new Date().toISOString(),
@@ -634,56 +633,93 @@ export default function App() {
       members,
       readinessLogs,
     };
-    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `forge-backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
-  }
+    const json = JSON.stringify(backup, null, 2);
+    const filename = `forge-backup-${new Date().toISOString().slice(0, 10)}.json`;
 
-  function importData() {
-    if (typeof document === 'undefined') {
-      Alert.alert('Import unavailable', 'Data import is available in the web app.');
+    if (Platform.OS === 'web') {
+      if (typeof document === 'undefined') return;
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
       return;
     }
 
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'application/json,.json';
-    input.onchange = () => {
-      const file = input.files?.[0];
-      if (!file) return;
+    try {
+      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(fileUri, json, { encoding: FileSystem.EncodingType.UTF8 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(fileUri, { mimeType: 'application/json', dialogTitle: 'Export FORGE Backup' });
+      } else {
+        Alert.alert('Export unavailable', 'File sharing is not available on this device.');
+      }
+    } catch (error) {
+      console.error('Failed to export backup', error);
+      Alert.alert('Export failed', 'Unable to create the backup file.');
+    }
+  }
 
-      const reader = new FileReader();
-      reader.onload = () => {
-        try {
-          const parsed = JSON.parse(String(reader.result));
-          const imported = validateImportedSessions(Array.isArray(parsed) ? parsed : parsed.sessions);
-          const importedMembers = !Array.isArray(parsed) && parsed.members
-            ? validateImportedMembers(parsed.members)
-            : null;
-
-          if (!imported) {
-            Alert.alert('Import failed', 'That file does not look like a valid FORGE backup.');
-            return;
+  async function importData() {
+    if (Platform.OS === 'web') {
+      if (typeof document === 'undefined') return;
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'application/json,.json';
+      input.onchange = () => {
+        const file = input.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            applyImport(String(reader.result));
+          } catch (error) {
+            console.error('Failed to import backup', error);
+            Alert.alert('Import failed', 'The selected backup file could not be read.');
           }
-
-          setSessions(imported);
-          if (importedMembers) setMembers(importedMembers);
-          if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
-          Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
-        } catch (error) {
-          console.error('Failed to import backup', error);
-          Alert.alert('Import failed', 'The selected backup file could not be read.');
-        }
+        };
+        reader.readAsText(file);
       };
-      reader.readAsText(file);
-    };
-    input.click();
+      input.click();
+      return;
+    }
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/plain'],
+        copyToCacheDirectory: true,
+      });
+      if (result.canceled) return;
+      const content = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      applyImport(content);
+    } catch (error) {
+      console.error('Failed to import backup', error);
+      Alert.alert('Import failed', 'The selected backup file could not be read.');
+    }
+  }
+
+  function applyImport(rawJson: string) {
+    const parsed = JSON.parse(rawJson);
+    const imported = validateImportedSessions(Array.isArray(parsed) ? parsed : parsed.sessions);
+    const importedMembers = !Array.isArray(parsed) && parsed.members
+      ? validateImportedMembers(parsed.members)
+      : null;
+
+    if (!imported) {
+      Alert.alert('Import failed', 'That file does not look like a valid FORGE backup.');
+      return;
+    }
+
+    setSessions(imported);
+    if (importedMembers) setMembers(importedMembers);
+    if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
+    Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
   }
 
   const activeTabRef = useRef(activeTab);
@@ -743,10 +779,8 @@ export default function App() {
         return <FuelScreen sessions={sessions} />;
       case 'analytics':
         return (
-          <AnalyticsScreen 
+          <AnalyticsScreen
             sessions={sessions}
-            readinessLogs={readinessLogs}
-            addReadinessLog={addReadinessLog}
             deleteSession={deleteSession}
             editSession={editSession}
           />
@@ -857,7 +891,7 @@ export default function App() {
   }
   
   const renderUpdateBanner = () => {
-    if (!updateAvailable) return null;
+    if (!updateAvailable || Platform.OS !== 'web' || typeof window === 'undefined') return null;
     return (
       <Pressable style={styles.updateBanner} onPress={() => window.location.reload()}>
         <Text style={styles.updateBannerText}>APP UPDATE AVAILABLE \u2014 TAP TO RELOAD</Text>

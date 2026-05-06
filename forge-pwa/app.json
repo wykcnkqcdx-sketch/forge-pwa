@@ -5,19 +5,28 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#04080F"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.forge.tacticalfitness",
+      "buildNumber": "1",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "FORGE uses your location to track GPS ruck sessions.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "FORGE uses background location to continue tracking rucks while the app is locked."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "FORGE uses background location to continue tracking rucks while the app is in the background.",
+        "UIBackgroundModes": ["location", "fetch"]
       }
     },
     "android": {
       "package": "com.forge.tacticalfitness",
+      "versionCode": 1,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -26,11 +35,22 @@
         "FOREGROUND_SERVICE_LOCATION"
       ],
       "adaptiveIcon": {
-        "backgroundColor": "#070B12"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#04080F"
       }
     },
     "web": {
       "bundler": "metro"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "FORGE uses background location to continue tracking rucks while the app is in the background.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ]
+    ]
   }
 }

@@ -1,4 +1,4 @@
-import { TrackPoint } from '../data/mockData';
+import { TrackPoint } from '../data/domain';
 
 export function getMapPoints<T extends TrackPoint>(points: T[] | undefined): (T & { x: number; y: number })[] {
   if (!points || points.length === 0) return [];

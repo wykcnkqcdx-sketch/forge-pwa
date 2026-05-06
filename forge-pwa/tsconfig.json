@@ -18,5 +18,5 @@
     "types/**/*.ts",
     "utils/**/*.ts"
   ],
-  "exclude": ["_expo", "dist", "web-build", "node_modules", "public"]
+  "exclude": ["_expo", "dist", "web-build", "node_modules", "public", "**/*.test.ts", "**/*.test.tsx"]
 }

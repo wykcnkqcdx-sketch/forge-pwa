@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
 import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, PanResponder, StyleProp, TextStyle } from 'react-native';
-import { Image } from 'expo-image';
+import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -17,7 +17,7 @@ import type { RuckCheckpoint, RuckMissionPlan, RuckSplit } from '../data/domain'
 import { distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, evaluateRoutePoint, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
 import { CoordinateFormat, coordinateFormatOptions, formatCoordinate, parseCoordinate } from '../utils/coordinates';
-import { buildVisibleTiles, getMercatorRoutePoints, latLonToWorldPixel, MapLayerKey, mapLayerOptions, MapViewport, worldPixelToLatLon } from '../utils/mapTiles';
+import { buildVisibleTiles, getMercatorRoutePoints, latLonToWorldPixel, MapLayerKey, mapLayerOptions, MapViewport, worldPixelToLatLon, MapTile } from '../utils/mapTiles';
 import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadActiveRoute, loadActiveRuckPlan, replaceActiveRoute, resetActiveRoute, saveActiveRuckPlan } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
 import { secureGetItem, secureSetItem } from '../lib/secureStorage';
@@ -307,6 +307,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [mapExpanded, setMapExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
   const [mapNorthUp, setMapNorthUp] = useState(true);
+  const [isDownloadingMap, setIsDownloadingMap] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
   const [targetDistanceKm, setTargetDistanceKm] = useState(8);
   const [targetMinutes, setTargetMinutes] = useState(105);
   const [checkpointIntervalKm, setCheckpointIntervalKm] = useState(2);
@@ -1301,6 +1303,131 @@ function updateSelectedCheckpointHere() {
     });
   }
 
+  async function downloadOfflineMap() {
+    if (!effectiveMapCenter) {
+      showAlert('No Position', 'Start GPS or pan to a location first.');
+      return;
+    }
+
+    setIsDownloadingMap(true);
+    setDownloadProgress(0);
+
+    try {
+      const tilesToDownload: MapTile[] = [];
+
+      // Calculate tiles needed for the current geographical area
+      // across zoom levels 13 to 16
+      for (let z = 13; z <= 16; z++) {
+        const zoomOffset = z - mapZoom;
+        const scale = Math.pow(2, zoomOffset);
+        const targetViewport = {
+          width: renderViewport.width * scale,
+          height: renderViewport.height * scale,
+        };
+
+        const tiles = buildVisibleTiles(effectiveMapCenter, targetViewport, mapLayer, z);
+        tilesToDownload.push(...tiles);
+      }
+
+      // Deduplicate tiles by URL
+      const uniqueUrls = Array.from(new Set(tilesToDownload.map(t => t.url)));
+
+      const executeDownload = async () => {
+        try {
+          let downloaded = 0;
+
+          if (Platform.OS === 'web') {
+            if ('caches' in window) {
+              const cache = await caches.open('forge-map-tiles-v1');
+              const batchSize = 10;
+
+              for (let i = 0; i < uniqueUrls.length; i += batchSize) {
+                const batch = uniqueUrls.slice(i, i + batchSize);
+                await Promise.all(
+                  batch.map(async (url) => {
+                    try {
+                      const match = await cache.match(url);
+                      if (!match) await cache.add(url);
+                    } catch (err) {
+                      console.warn('Failed to cache tile', url, err);
+                    }
+                  })
+                );
+                downloaded += batch.length;
+                setDownloadProgress(Math.round((downloaded / uniqueUrls.length) * 100));
+              }
+            }
+          } else {
+            const batchSize = 10;
+            for (let i = 0; i < uniqueUrls.length; i += batchSize) {
+              const batch = uniqueUrls.slice(i, i + batchSize);
+              try {
+                await ExpoImage.prefetch(batch, 'disk');
+              } catch (err) {
+                console.warn('Failed to prefetch some native tiles', err);
+              }
+              downloaded += batch.length;
+              setDownloadProgress(Math.round((downloaded / uniqueUrls.length) * 100));
+            }
+          }
+
+          showAlert('Download Complete', `Successfully cached ${uniqueUrls.length.toLocaleString()} map tiles for offline use.`);
+        } catch (err) {
+          console.error('Offline map download failed', err);
+          showAlert('Download Failed', 'There was an error downloading the offline map.');
+        } finally {
+          setIsDownloadingMap(false);
+          setDownloadProgress(0);
+        }
+      };
+
+      if (uniqueUrls.length > 5000) {
+        setIsDownloadingMap(false);
+        setDownloadProgress(0);
+        showConfirm(
+          'Large Download Warning',
+          `You are about to download ${uniqueUrls.length.toLocaleString()} tiles. This may consume significant storage space and take a while.\n\nDo you want to proceed?`,
+          () => {
+            setIsDownloadingMap(true);
+            setDownloadProgress(0);
+            void executeDownload();
+          },
+          'Download'
+        );
+      } else {
+        await executeDownload();
+      }
+    } catch (err) {
+      console.error('Offline map preparation failed', err);
+      showAlert('Error', 'There was an error calculating map tiles.');
+      setIsDownloadingMap(false);
+      setDownloadProgress(0);
+    }
+  }
+
+  function confirmClearOfflineMap() {
+    showConfirm(
+      'Clear Map Cache',
+      'This will delete all downloaded offline map tiles and free up storage space. Proceed?',
+      async () => {
+        try {
+          if (Platform.OS === 'web') {
+            if ('caches' in window) {
+              await caches.delete('forge-map-tiles-v1');
+            }
+          } else {
+            await ExpoImage.clearDiskCache();
+          }
+          showAlert('Cache Cleared', 'Offline map tiles have been removed from storage.');
+        } catch (err) {
+          console.error('Failed to clear map cache', err);
+          showAlert('Error', 'Failed to clear map cache.');
+        }
+      },
+      'Clear'
+    );
+  }
+
   function recenterMapOnGps() {
     if (!currentPoint) {
       showAlert('No GPS fix', 'Start GPS tracking or wait for a location fix before recentring.');
@@ -1466,7 +1593,7 @@ function updateSelectedCheckpointHere() {
               }}
             >
               {mapTiles.map((tile) => (
-                <Image 
+                <ExpoImage
                   key={tile.id} 
                   source={{ uri: tile.url }} 
                   style={tile.style} 
@@ -1645,7 +1772,21 @@ function updateSelectedCheckpointHere() {
                 <Text style={styles.mapSelectButtonText}>Move CP</Text>
               </Pressable>
             ) : null}
-            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={() => {
+            {isDownloadingMap ? (
+              <View style={[styles.mapSelectButton, { backgroundColor: colours.cyan }]}>
+                <Text style={[styles.mapSelectButtonText, { color: colours.background }]}>{downloadProgress}%</Text>
+              </View>
+            ) : (
+              <Pressable style={styles.mapSelectButton} onPress={downloadOfflineMap}>
+                <Ionicons name="cloud-download" size={14} color={colours.cyan} />
+                <Text style={styles.mapSelectButtonText}>Offline</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.mapSelectButton} onPress={confirmClearOfflineMap}>
+              <Ionicons name="trash-outline" size={14} color={colours.red} />
+              <Text style={[styles.mapSelectButtonText, { color: colours.red }]}>Clear</Text>
+            </Pressable>
+            <Pressable style={styles.mapSelectButton} onPress={() => {
               if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
               setMapZoom((z) => Math.max(2, z - 1));
             }}>
