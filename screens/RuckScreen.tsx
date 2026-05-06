@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, Alert, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, PanResponder } from 'react-native';
+import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, PanResponder, StyleProp, TextStyle } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -9,7 +9,8 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
-import { colours, touchTarget } from '../theme';
+import { colours, touchTarget, shadow } from '../theme';
+import { showAlert, showConfirm } from '../lib/dialogs';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import type { RuckCheckpoint, RuckMissionPlan, RuckSplit } from '../data/domain';
 import { distanceBetween, bearingBetween } from '../utils/mapUtils';
@@ -263,7 +264,7 @@ function trackingReducer(state: TrackingState, action: TrackingAction): Tracking
   }
 }
 
-function LiveTimerText({ startTime, isTracking, staticSeconds, style }: { startTime: Date | null; isTracking: boolean; staticSeconds: number; style: any }) {
+function LiveTimerText({ startTime, isTracking, staticSeconds, style }: { startTime: Date | null; isTracking: boolean; staticSeconds: number; style: StyleProp<TextStyle> }) {
   const [elapsed, setElapsed] = useState(staticSeconds);
 
   useEffect(() => {
@@ -724,11 +725,13 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     if (delta < -180) delta += 360;
 
     prevHeading.current += delta;
-    Animated.timing(rotationAnim, {
+    const anim = Animated.timing(rotationAnim, {
       toValue: prevHeading.current,
       duration: 300,
       useNativeDriver: true,
-    }).start();
+    });
+    anim.start();
+    return () => anim.stop();
   }, [activeHeading, rotationAnim]);
 
   useEffect(() => {
@@ -926,7 +929,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         return 'background';
       }
 
-      Alert.alert('Foreground tracking active', 'Background permission was not granted, so GPS will track while this screen stays open.');
+      showAlert('Foreground tracking active', 'Background permission was not granted, so GPS will track while this screen stays open.');
     }
 
     foregroundLocationSubscription.current = await Location.watchPositionAsync(
@@ -949,13 +952,11 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         .map((check) => `${check.label}: ${check.value}`)
         .join('\n');
 
-      Alert.alert(
+      showConfirm(
         'Check route plan',
         issues,
-        [
-          { text: 'Review Plan', style: 'cancel' },
-          { text: 'Start Anyway', style: 'destructive', onPress: () => startTracking(true) },
-        ]
+        () => startTracking(true),
+        'Start Anyway'
       );
       return;
     }
@@ -966,7 +967,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required for GPS tracking.');
+        showAlert('Permission denied', 'Location permission is required for GPS tracking.');
         dispatchTracking({ type: 'stopped' });
         setMapFullscreen(false);
         return;
@@ -983,7 +984,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       console.error('Failed to start GPS tracking', error);
       stopTracking();
       setMapFullscreen(false);
-      Alert.alert('GPS unavailable', 'Unable to start GPS tracking on this device.');
+      showAlert('GPS unavailable', 'Unable to start GPS tracking on this device.');
     }
   };
 
@@ -997,7 +998,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permission denied', 'Location permission is required to resume GPS tracking.');
+        showAlert('Permission denied', 'Location permission is required to resume GPS tracking.');
         dispatchTracking({ type: 'stopped' });
         return;
       }
@@ -1007,7 +1008,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     } catch (error) {
       console.error('Failed to resume GPS tracking', error);
       stopTracking();
-      Alert.alert('GPS unavailable', 'Unable to resume GPS tracking on this device.');
+      showAlert('GPS unavailable', 'Unable to resume GPS tracking on this device.');
     }
   };
 
@@ -1050,7 +1051,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       completedAt: new Date().toISOString(),
     };
     addSession(session);
-    Alert.alert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
+    showAlert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
     dispatchTracking({ type: 'reset' });
     setCheckpointIndex(0);
     setPlannedCheckpoints([]);
@@ -1203,20 +1204,14 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   }
 
   function deleteCustomTemplate(templateId: string) {
-    Alert.alert(
+    showConfirm(
       'Delete Template',
       'Remove this saved route card template?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: () => {
-            setCustomTemplates((current) => current.filter((template) => template.id !== templateId));
-            setActiveTemplateId((current) => current === templateId ? null : current);
-          },
-        },
-      ]
+      () => {
+        setCustomTemplates((current) => current.filter((template) => template.id !== templateId));
+        setActiveTemplateId((current) => current === templateId ? null : current);
+      },
+      'Delete'
     );
   }
 
@@ -1253,7 +1248,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
 
 function addCheckpointHere() {
     if (!effectiveMapCenter) {
-      Alert.alert('No map position', 'Start GPS tracking or wait for a location fix before adding a checkpoint here.');
+      showAlert('No map position', 'Start GPS tracking or wait for a location fix before adding a checkpoint here.');
       return;
     }
     addCheckpoint(effectiveMapCenter, mapCenter ? 'manual' : 'current');
@@ -1262,7 +1257,7 @@ function addCheckpointHere() {
   function addCheckpointFromInput() {
     const parsed = parseCoordinate(checkpointCoordinateInput, coordinateFormat);
     if (!parsed) {
-      Alert.alert('Coordinate not recognised', 'Use LAT/LON, DMS, UTM, or MGRS. Example: 29U 682123E 5912345N or 29U PV 82123 12345.');
+      showAlert('Coordinate not recognised', 'Use LAT/LON, DMS, UTM, or MGRS. Example: 29U 682123E 5912345N or 29U PV 82123 12345.');
       return;
     }
 
@@ -1274,7 +1269,7 @@ function addCheckpointHere() {
     if (!selectedCheckpoint) return;
     const parsed = parseCoordinate(checkpointCoordinateInput, coordinateFormat);
     if (!parsed) {
-      Alert.alert('Coordinate not recognised', 'Use LAT/LON, DMS, UTM, or MGRS. Example: 29U 682123E 5912345N or 29U PV 82123 12345.');
+      showAlert('Coordinate not recognised', 'Use LAT/LON, DMS, UTM, or MGRS. Example: 29U 682123E 5912345N or 29U PV 82123 12345.');
       return;
     }
 
@@ -1291,7 +1286,7 @@ function addCheckpointHere() {
 function updateSelectedCheckpointHere() {
     if (!selectedCheckpoint) return;
     if (!effectiveMapCenter) {
-      Alert.alert('No map position', 'Start GPS tracking or wait for a location fix before moving the checkpoint here.');
+      showAlert('No map position', 'Start GPS tracking or wait for a location fix before moving the checkpoint here.');
       return;
     }
 
@@ -1307,7 +1302,7 @@ function updateSelectedCheckpointHere() {
 
   function recenterMapOnGps() {
     if (!currentPoint) {
-      Alert.alert('No GPS fix', 'Start GPS tracking or wait for a location fix before recentring.');
+      showAlert('No GPS fix', 'Start GPS tracking or wait for a location fix before recentring.');
       return;
     }
     setGpsFollowMode(true);
@@ -1365,7 +1360,7 @@ function updateSelectedCheckpointHere() {
     }
 
     if (failed.length > 0) {
-      Alert.alert('Some checkpoints were skipped', `${failed.length} line(s) could not be parsed.`);
+      showAlert('Some checkpoints were skipped', `${failed.length} line(s) could not be parsed.`);
     }
   }
 
@@ -1421,7 +1416,7 @@ function updateSelectedCheckpointHere() {
     };
 
     addSession(session);
-    Alert.alert('Ruck saved', 'Your ruck session has been added to your training log.');
+    showAlert('Ruck saved', 'Your ruck session has been added to your training log.');
   }
 
   function checkpointTone(checkpoint: RuckCheckpoint) {
@@ -1539,11 +1534,11 @@ function updateSelectedCheckpointHere() {
 
         {showOverlays && (
           <>
-            <View style={styles.mapGridOverlay} pointerEvents="none">
+            <View style={[styles.mapGridOverlay, shadow.subtle]} pointerEvents="none">
               <Text style={styles.mapOverlayLabel}>{gpsFollowMode ? 'GPS GRID' : 'MAP CENTER'}</Text>
               <Text style={styles.mapOverlayValue}>{gpsFollowMode ? currentCoordinate ?? 'Awaiting fix' : mapCenterCoordinate ?? 'Awaiting fix'}</Text>
             </View>
-            <View style={styles.mapCompassOverlay} pointerEvents="none">
+            <View style={[styles.mapCompassOverlay, shadow.subtle]} pointerEvents="none">
               <Animated.View
                 style={{
                   transform: [
@@ -1566,7 +1561,7 @@ function updateSelectedCheckpointHere() {
               <Text style={styles.mapCompassValue}>{displayHeading == null ? '---' : formatHeading(displayHeading)}</Text>
               <Text style={styles.mapCompassLabel}>{displayHeading == null ? 'HDG' : cardinalDirection(displayHeading)}</Text>
             </View>
-            <View style={[styles.mapTelemetry, fullscreen && styles.mapTelemetryFullscreen]} pointerEvents="none">
+            <View style={[styles.mapTelemetry, fullscreen && styles.mapTelemetryFullscreen, shadow.subtle]} pointerEvents="none">
               <View style={styles.mapTelemetryItem}>
                 <Text style={styles.mapTelemetryValue}>{currentDistance.toFixed(2)}</Text>
                 <Text style={styles.mapTelemetryLabel}>KM</Text>
@@ -1584,21 +1579,21 @@ function updateSelectedCheckpointHere() {
                 <Text style={styles.mapTelemetryLabel}>ALT M</Text>
               </View>
             </View>
-            <View style={[styles.mapMissionStrip, fullscreen && styles.mapMissionStripFullscreen]} pointerEvents="none">
+            <View style={[styles.mapMissionStrip, fullscreen && styles.mapMissionStripFullscreen, shadow.subtle]} pointerEvents="none">
               <Text style={styles.mapMissionText}>{arrivalCheckpoint ? 'ARRIVED' : formatSignedMinutes(targetDeltaMinutes)}</Text>
               <Text style={styles.mapMissionText}>{selectedCheckpoint?.label ?? checkpointStatus}</Text>
               <Text style={styles.mapMissionText}>
                 {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
               </Text>
             </View>
-            <View style={[styles.finishStrip, fullscreen && styles.finishStripFullscreen]} pointerEvents="none">
+            <View style={[styles.finishStrip, fullscreen && styles.finishStripFullscreen, shadow.subtle]} pointerEvents="none">
               <Text style={styles.finishStripText}>FINISH {finishDistanceRemainingKm.toFixed(1)}km</Text>
               <Text style={styles.finishStripText}>REQ {finishRequiredPace > 0 ? `${finishRequiredPace.toFixed(1)}/km` : '--'}</Text>
               <Text style={[styles.finishStripText, { color: finishOnTarget ? colours.green : colours.amber }]}>
                 {finishOnTarget ? 'ON TARGET' : 'AT RISK'}
               </Text>
             </View>
-            <View style={[styles.bearingGuidanceStrip, fullscreen && styles.bearingGuidanceStripFullscreen, { borderColor: `${bearingGuidance.tone}66`, backgroundColor: `${bearingGuidance.tone}18` }]} pointerEvents="none">
+            <View style={[styles.bearingGuidanceStrip, fullscreen && styles.bearingGuidanceStripFullscreen, { borderColor: `${bearingGuidance.tone}66`, backgroundColor: `${bearingGuidance.tone}18` }, shadow.subtle]} pointerEvents="none">
               <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
               <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
             </View>
@@ -1610,7 +1605,7 @@ function updateSelectedCheckpointHere() {
         {showOverlays && (
           <View style={styles.mapSelectControls}>
             <Pressable
-              style={[styles.mapSelectButton, !gpsFollowMode && styles.mapSelectButtonActive]}
+              style={[styles.mapSelectButton, !gpsFollowMode && styles.mapSelectButtonActive, shadow.subtle]}
               onPress={() => {
                 if (gpsFollowMode) {
                   setGpsFollowMode(false);
@@ -1627,7 +1622,7 @@ function updateSelectedCheckpointHere() {
               </Text>
             </Pressable>
             <Pressable
-              style={[styles.mapSelectButton, !mapNorthUp && styles.mapSelectButtonActive]}
+              style={[styles.mapSelectButton, !mapNorthUp && styles.mapSelectButtonActive, shadow.subtle]}
               onPress={() => setMapNorthUp(v => !v)}
             >
               <Ionicons name="compass" size={14} color={!mapNorthUp ? colours.background : colours.cyan} />
@@ -1635,27 +1630,27 @@ function updateSelectedCheckpointHere() {
                 {mapNorthUp ? 'North Up' : 'Heading Up'}
               </Text>
             </Pressable>
-            <Pressable style={styles.mapSelectButton} onPress={recenterMapOnGps}>
+            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={recenterMapOnGps}>
               <Ionicons name="locate" size={14} color={colours.cyan} />
               <Text style={styles.mapSelectButtonText}>My Position</Text>
             </Pressable>
-            <Pressable style={styles.mapSelectButton} onPress={addCheckpointHere}>
+            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={addCheckpointHere}>
               <Ionicons name="flag" size={14} color={colours.cyan} />
               <Text style={styles.mapSelectButtonText}>Add CP</Text>
             </Pressable>
             {selectedCheckpoint ? (
-              <Pressable style={styles.mapSelectButton} onPress={updateSelectedCheckpointHere}>
+              <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={updateSelectedCheckpointHere}>
                 <Ionicons name="pin" size={14} color={colours.cyan} />
                 <Text style={styles.mapSelectButtonText}>Move CP</Text>
               </Pressable>
             ) : null}
-            <Pressable style={styles.mapSelectButton} onPress={() => {
+            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={() => {
               if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
               setMapZoom((z) => Math.max(2, z - 1));
             }}>
               <Ionicons name="remove" size={16} color={colours.cyan} />
             </Pressable>
-            <Pressable style={styles.mapSelectButton} onPress={() => {
+            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={() => {
               if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
               setMapZoom((z) => Math.min(18, z + 1));
             }}>

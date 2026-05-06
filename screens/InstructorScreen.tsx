@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, Linking, Platform, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
+import { Linking, Platform, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
