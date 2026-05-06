@@ -1,14 +1,17 @@
 import React from 'react';
-import { Text } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { render } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
-jest.mock('./components/AppProviders', () => ({
+vi.mock('react-native-gesture-handler', () => ({}));
+vi.mock('./lib/backgroundTasks', () => ({}));
+
+vi.mock('./components/AppProviders', () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
-jest.mock('./components/AppRouter', () => ({
-  AppRouter: () => <Text>AppRouter</Text>,
+vi.mock('./components/AppRouter', () => ({
+  AppRouter: () => <span>AppRouter</span>,
 }));
 
 describe('App Entry Point', () => {

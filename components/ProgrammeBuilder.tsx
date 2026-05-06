@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Card } from './Card';
 import { buildProgrammeRecommendation, ProgrammeBuilderInput } from '../lib/aiGuidance';
-import { colours } from '../theme';
+import { colours, typography } from '../theme';
+import { responsiveSpacing, statusColors } from '../utils/styling';
 import { exerciseLibrary, ProgrammeTemplate, SquadMember, TrainingGroup, trainingModes, AssignedExerciseBlock } from '../data/mockData';
 import { showAlert } from '../lib/dialogs';
 import { buildAssignedExerciseBlock } from '../screens/InstructorScreen';
@@ -198,7 +199,7 @@ export function ProgrammeBuilder({
         })}
       </View>
 
-      <View style={[styles.programmeInsight, { borderColor: `${programmeRecommendation.tone}40`, backgroundColor: `${programmeRecommendation.tone}10` }]}>
+      <View style={[styles.programmeInsight, { borderColor: statusColors(programmeRecommendation.tone).borderMed, backgroundColor: statusColors(programmeRecommendation.tone).bgMed }]}>
         <Text style={[styles.programmeTitle, { color: programmeRecommendation.tone }]}>{programmeRecommendation.assignmentTitle}</Text>
         <Text style={styles.programmeText}>{programmeRecommendation.summary}</Text>
         <Text style={styles.programmeMeta}>Evidence pack: {programmeRecommendation.evidencePack.label}</Text>
@@ -209,7 +210,7 @@ export function ProgrammeBuilder({
         <Text style={styles.programmeMeta}>Coach cue: {programmeRecommendation.coachNote}</Text>
       </View>
 
-      <Text style={[styles.assignmentLabel, { marginTop: 12 }]}>Weekly structure</Text>
+      <Text style={[styles.assignmentLabel, { marginTop: responsiveSpacing('md') }]}>Weekly structure</Text>
       <View style={styles.programmeScienceList}>
         {programmeRecommendation.weeklyStructure.map((item) => (
           <View key={item} style={styles.programmeScienceRow}><Text style={styles.programmeScienceBullet}>+</Text><Text style={styles.programmeScienceText}>{item}</Text></View>
@@ -222,7 +223,7 @@ export function ProgrammeBuilder({
         ))}
       </View>
 
-      <Text style={[styles.assignmentLabel, { marginTop: 12 }]}>Evidence sources</Text>
+      <Text style={[styles.assignmentLabel, { marginTop: responsiveSpacing('md') }]}>Evidence sources</Text>
       <View style={styles.programmeScienceList}>
         {programmeRecommendation.evidencePack.sources.map((source) => (
           <View key={source.url} style={styles.programmeScienceRow}><Text style={styles.programmeScienceBullet}>+</Text><Text style={styles.programmeScienceText}>{source.title}</Text></View>
@@ -246,7 +247,7 @@ export function ProgrammeBuilder({
         <Pressable style={styles.programmeSaveButton} onPress={saveProgrammeTemplate}><Text style={styles.programmeSaveButtonText}>Save Template</Text></Pressable>
       </View>
 
-      <Text style={[styles.assignmentLabel, { marginTop: 14 }]}>Saved templates</Text>
+      <Text style={[styles.assignmentLabel, { marginTop: responsiveSpacing('md') }]}>Saved templates</Text>
       <View style={styles.templateList}>
         {programmeTemplates.map((template) => (
           <View key={template.id} style={styles.templateCard}>
@@ -281,42 +282,42 @@ export function ProgrammeBuilder({
 }
 
 const styles = StyleSheet.create({
-  cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
-  assignmentLabel: { color: colours.muted, fontSize: 11, fontWeight: '900', marginBottom: 8 },
-  assignmentWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  cardTitle: { color: colours.text, ...typography.h4, marginBottom: responsiveSpacing('md') },
+  assignmentLabel: { color: colours.muted, ...typography.label, marginBottom: responsiveSpacing('xs') },
+  assignmentWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginBottom: responsiveSpacing('md') },
   assignmentPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 7, backgroundColor: 'rgba(255,255,255,0.04)' },
-  assignmentPillActive: { borderColor: `${colours.cyan}70`, backgroundColor: colours.cyanDim },
-  assignmentPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  assignmentPillActive: { borderColor: statusColors(colours.cyan).borderMed, backgroundColor: statusColors(colours.cyan).bgMed },
+  assignmentPillText: { color: colours.muted, ...typography.label },
   assignmentPillTextActive: { color: colours.cyan },
-  programmeCopy: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginBottom: 12 },
-  programmeInsight: { borderWidth: 1, borderRadius: 12, padding: 12, marginTop: 4 },
-  programmeTitle: { fontSize: 18, fontWeight: '900', marginBottom: 8 },
-  programmeText: { color: colours.text, fontSize: 13, lineHeight: 19, fontWeight: '800' },
-  programmeMeta: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 8 },
-  programmeScienceList: { gap: 8, marginTop: 12 },
-  programmeScienceRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  programmeScienceBullet: { color: colours.cyan, fontSize: 12, fontWeight: '900', marginTop: 1 },
-  programmeScienceText: { flex: 1, color: colours.textSoft, fontSize: 12, lineHeight: 18, fontWeight: '800' },
-  programmeExerciseGrid: { gap: 8, marginTop: 12 },
-  programmeExerciseChip: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 12, padding: 10, backgroundColor: 'rgba(255,255,255,0.04)' },
-  programmeExerciseName: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  programmeExerciseDose: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
-  memberInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 12, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, fontWeight: '800', marginBottom: 10, marginTop: 12 },
-  programmeActionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
+  programmeCopy: { color: colours.textSoft, ...typography.caption, lineHeight: 19, marginBottom: responsiveSpacing('md') },
+  programmeInsight: { borderWidth: 1, borderRadius: 12, padding: responsiveSpacing('md'), marginTop: 4 },
+  programmeTitle: { ...typography.h4, marginBottom: responsiveSpacing('xs') },
+  programmeText: { color: colours.text, ...typography.caption, lineHeight: 19, fontWeight: '800' },
+  programmeMeta: { color: colours.textSoft, ...typography.caption, lineHeight: 18, marginTop: responsiveSpacing('sm') },
+  programmeScienceList: { gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
+  programmeScienceRow: { flexDirection: 'row', gap: responsiveSpacing('sm'), alignItems: 'flex-start' },
+  programmeScienceBullet: { color: colours.cyan, ...typography.caption, fontWeight: '900', marginTop: 1 },
+  programmeScienceText: { flex: 1, color: colours.textSoft, ...typography.caption, lineHeight: 18, fontWeight: '800' },
+  programmeExerciseGrid: { gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
+  programmeExerciseChip: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 12, padding: responsiveSpacing('sm'), backgroundColor: 'rgba(255,255,255,0.04)' },
+  programmeExerciseName: { color: colours.text, ...typography.caption, fontWeight: '900' },
+  programmeExerciseDose: { color: colours.muted, ...typography.label, marginTop: 4 },
+  memberInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 12, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, fontWeight: '800', marginBottom: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
+  programmeActionRow: { flexDirection: 'row', gap: responsiveSpacing('md'), marginTop: 4 },
   programmeLoadButton: { flex: 1, alignItems: 'center', backgroundColor: colours.green, borderRadius: 14, paddingVertical: 12 },
   programmeLoadButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
   programmeSaveButton: { flex: 1, alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 14, paddingVertical: 12 },
   programmeSaveButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
-  templateList: { gap: 8, marginTop: 8 },
-  templateCard: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 12, padding: 12, backgroundColor: 'rgba(255,255,255,0.04)' },
-  stageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 },
+  templateList: { gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('sm') },
+  templateCard: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 12, padding: responsiveSpacing('md'), backgroundColor: 'rgba(255,255,255,0.04)' },
+  stageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: responsiveSpacing('md'), marginBottom: responsiveSpacing('sm') },
   memberCopy: { flex: 1 },
   memberName: { color: colours.text, fontWeight: '900' },
-  muted: { color: colours.muted, fontSize: 13 },
-  memberDeviceSync: { color: colours.violet, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  stageRemove: { borderWidth: 1, borderColor: `${colours.red}40`, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: colours.redDim },
-  stageRemoveText: { color: colours.red, fontSize: 11, fontWeight: '900' },
-  templateActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
-  templateActionButton: { borderWidth: 1, borderColor: `${colours.cyan}40`, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: colours.cyanDim },
-  templateActionText: { color: colours.cyan, fontSize: 11, fontWeight: '900' },
+  muted: { color: colours.muted, ...typography.caption },
+  memberDeviceSync: { color: colours.violet, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  stageRemove: { borderWidth: 1, borderColor: statusColors(colours.red).borderMed, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: statusColors(colours.red).bgMed },
+  stageRemoveText: { color: colours.red, ...typography.caption, fontWeight: '900' },
+  templateActions: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('sm') },
+  templateActionButton: { borderWidth: 1, borderColor: statusColors(colours.cyan).borderMed, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 6, backgroundColor: statusColors(colours.cyan).bgMed },
+  templateActionText: { color: colours.cyan, ...typography.caption, fontWeight: '900' },
 });

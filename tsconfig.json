@@ -7,6 +7,7 @@
   },
   "include": [
     "App.tsx",
+    "App.test.tsx",
     "components/**/*.ts",
     "components/**/*.tsx",
     "data/**/*.ts",
@@ -16,7 +17,8 @@
     "screens/**/*.tsx",
     "theme.ts",
     "types/**/*.ts",
-    "utils/**/*.ts"
+    "utils/**/*.ts",
+    "utils/**/*.test.ts"
   ],
   "exclude": ["_expo", "dist", "web-build", "node_modules", "public"]
 }

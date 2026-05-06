@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { ProgressBar } from './ProgressBar';
-import { colours } from '../theme';
+import { colours, typography } from '../theme';
+import { responsiveSpacing, statusColors } from '../utils/styling';
 import type { SquadMember, TrainingGroup } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
@@ -39,7 +40,7 @@ export function SquadMemberCard({ member, group, latestCompletion, latestReadine
   return (
     <View style={styles.memberCard}>
       {latestCompletion ? (
-        <View style={[styles.memberCompletionBanner, { borderColor: `${latestTone}50`, backgroundColor: `${latestTone}12` }]}>
+        <View style={[styles.memberCompletionBanner, { borderColor: statusColors(latestTone).borderMed, backgroundColor: statusColors(latestTone).bgMed }]}>
           <Text style={[styles.memberCompletionBannerText, { color: latestTone }]}>
             Completed {latestCompletion.assignment} - {latestCompletion.durationMinutes} min - {latestCompletion.effort}
           </Text>
@@ -92,29 +93,29 @@ export function SquadMemberCard({ member, group, latestCompletion, latestReadine
 }
 
 const styles = StyleSheet.create({
-  memberCard: { borderColor: colours.border, borderWidth: 1, borderRadius: 18, padding: 13, backgroundColor: 'rgba(0,0,0,0.18)', marginBottom: 10 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
+  memberCard: { borderColor: colours.border, borderWidth: 1, borderRadius: 18, padding: responsiveSpacing('md'), backgroundColor: 'rgba(0,0,0,0.18)', marginBottom: responsiveSpacing('sm') },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('md') },
   memberCopy: { flex: 1 },
   memberName: { color: colours.text, fontWeight: '900' },
-  muted: { color: colours.muted, fontSize: 13 },
-  memberPortalName: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberDeviceSync: { color: colours.violet, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberAssignmentStatus: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberExerciseMeta: { color: colours.cyan, fontSize: 11, fontWeight: '700', marginTop: 3 },
-  memberPainArea: { color: colours.red, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberNote: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },
+  muted: { color: colours.muted, ...typography.caption },
+  memberPortalName: { color: colours.amber, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  memberEmail: { color: colours.cyan, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  memberDeviceSync: { color: colours.violet, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  memberAssignment: { color: colours.green, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  memberAssignmentStatus: { color: colours.amber, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  memberExerciseMeta: { color: colours.cyan, ...typography.caption, fontWeight: '700', marginTop: 3 },
+  memberPainArea: { color: colours.red, ...typography.caption, fontWeight: '800', marginTop: 3 },
+  memberNote: { color: colours.textSoft, ...typography.caption, fontWeight: '700', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
-  memberActions: { alignItems: 'flex-end', gap: 8 },
-  deleteMemberButton: { minHeight: 52, borderWidth: 1, borderColor: `${colours.red}50`, borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.redDim },
-  deleteMemberText: { color: colours.red, fontSize: 12, fontWeight: '900' },
-  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
+  memberActions: { alignItems: 'flex-end', gap: responsiveSpacing('sm') },
+  deleteMemberButton: { minHeight: 52, borderWidth: 1, borderColor: statusColors(colours.red).borderMed, borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: statusColors(colours.red).bgMed },
+  deleteMemberText: { color: colours.red, ...typography.caption, fontWeight: '900' },
+  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: responsiveSpacing('md') },
   factorItem: { flex: 1, minWidth: '22%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
-  factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 2 },
-  factorValue: { color: colours.text, fontSize: 12, fontWeight: '900' },
-  readinessStamp: { color: colours.muted, fontSize: 11, fontWeight: '700', marginTop: 8 },
-  memberCompletionBanner: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 10 },
-  memberCompletionBannerText: { fontSize: 11, fontWeight: '900' },
-  memberCompletionMeta: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  factorLabel: { color: colours.muted, ...typography.label, marginBottom: 2 },
+  factorValue: { color: colours.text, ...typography.caption, fontWeight: '900' },
+  readinessStamp: { color: colours.muted, ...typography.caption, fontWeight: '700', marginTop: responsiveSpacing('sm') },
+  memberCompletionBanner: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, marginBottom: responsiveSpacing('sm') },
+  memberCompletionBannerText: { ...typography.caption, fontWeight: '900' },
+  memberCompletionMeta: { color: colours.amber, ...typography.caption, fontWeight: '800', marginTop: 3 },
 });

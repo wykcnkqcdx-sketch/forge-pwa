@@ -1,29 +1,32 @@
 import React from 'react';
-import { Text } from 'react-native';
-import { render } from '@testing-library/react-native';
+import { render } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppRouter } from './AppRouter';
 import * as AppProviders from './AppProviders';
 
-jest.mock('./AppProviders');
-jest.mock('../screens/HomeScreen', () => ({ HomeScreen: () => <Text>HomeScreen</Text> }));
-jest.mock('../screens/ReadinessScreen', () => ({ ReadinessScreen: () => <Text>ReadinessScreen</Text> }));
-jest.mock('../screens/AnalyticsScreen', () => ({ AnalyticsScreen: () => <Text>AnalyticsScreen</Text> }));
-jest.mock('../screens/RuckScreen', () => ({ RuckScreen: () => <Text>RuckScreen</Text> }));
-jest.mock('../screens/TrainScreen', () => ({ TrainScreen: () => <Text>TrainScreen</Text> }));
-jest.mock('../screens/FuelScreen', () => ({ FuelScreen: () => <Text>FuelScreen</Text> }));
-jest.mock('../screens/SettingsScreen', () => ({ SettingsScreen: () => <Text>SettingsScreen</Text> }));
-jest.mock('../screens/OnboardingScreen', () => ({ OnboardingScreen: () => <Text>OnboardingScreen</Text> }));
-jest.mock('../screens/AuthScreen', () => ({ AuthScreen: () => <Text>AuthScreen</Text> }));
-jest.mock('./SplashScreen', () => ({ SplashScreen: () => <Text>SplashScreen</Text> }));
-jest.mock('./PinScreen', () => ({ PinScreen: () => <Text>PinScreen</Text> }));
-jest.mock('./PinSetupModal', () => ({ PinSetupModal: () => <Text>PinSetupModal</Text> }));
-jest.mock('./Toast', () => ({ Toast: () => <Text>Toast</Text> }));
-jest.mock('./TabBar', () => ({ TabBar: () => <Text>TabBar</Text> }));
-jest.mock('expo-haptics', () => ({
-  impactAsync: jest.fn(),
+vi.mock('./AppProviders');
+vi.mock('react-native-gesture-handler', () => ({
+  GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
+vi.mock('../screens/HomeScreen', () => ({ HomeScreen: () => <span>HomeScreen</span> }));
+vi.mock('../screens/ReadinessScreen', () => ({ ReadinessScreen: () => <span>ReadinessScreen</span> }));
+vi.mock('../screens/AnalyticsScreen', () => ({ AnalyticsScreen: () => <span>AnalyticsScreen</span> }));
+vi.mock('../screens/RuckScreen', () => ({ RuckScreen: () => <span>RuckScreen</span> }));
+vi.mock('../screens/TrainScreen', () => ({ TrainScreen: () => <span>TrainScreen</span> }));
+vi.mock('../screens/FuelScreen', () => ({ FuelScreen: () => <span>FuelScreen</span> }));
+vi.mock('../screens/SettingsScreen', () => ({ SettingsScreen: () => <span>SettingsScreen</span> }));
+vi.mock('../screens/OnboardingScreen', () => ({ OnboardingScreen: () => <span>OnboardingScreen</span> }));
+vi.mock('../screens/AuthScreen', () => ({ AuthScreen: () => <span>AuthScreen</span> }));
+vi.mock('./SplashScreen', () => ({ SplashScreen: () => <span>SplashScreen</span> }));
+vi.mock('./PinScreen', () => ({ PinScreen: () => <span>PinScreen</span> }));
+vi.mock('./PinSetupModal', () => ({ PinSetupModal: () => <span>PinSetupModal</span> }));
+vi.mock('./Toast', () => ({ Toast: () => <span>Toast</span> }));
+vi.mock('./TabBar', () => ({ TabBar: () => <span>TabBar</span> }));
+vi.mock('expo-haptics', () => ({
+  impactAsync: vi.fn(),
   ImpactFeedbackStyle: { Light: 'light' }
 }));
-jest.mock('../lib/supabase', () => ({
+vi.mock('../lib/supabase', () => ({
   isSupabaseConfigured: false
 }));
 
@@ -31,13 +34,13 @@ const mockUseApp = {
   sessions: [], members: [], groups: [], programmeTemplates: [], readinessLogs: [], workoutCompletions: [],
   googleSheetsEndpoint: '', isReady: true, hasSeenOnboarding: true, savedPin: null,
   store: {},
-  navigation: { activeTab: 'home', activeMemberId: null, activeMemberTab: 'portal', setActiveTab: jest.fn(), setActiveMemberId: jest.fn(), setActiveMemberTab: jest.fn() },
-  actions: { addSession: jest.fn(), deleteSession: jest.fn(), editSession: jest.fn(), addMember: jest.fn(), deleteMember: jest.fn(), updateMember: jest.fn(), addGroup: jest.fn(), addProgrammeTemplate: jest.fn(), deleteProgrammeTemplate: jest.fn(), addReadinessLog: jest.fn(), completeOnboarding: jest.fn(), exportData: jest.fn(), importData: jest.fn() },
+  navigation: { activeTab: 'home', activeMemberId: null, activeMemberTab: 'portal', setActiveTab: vi.fn(), setActiveMemberId: vi.fn(), setActiveMemberTab: vi.fn() },
+  actions: { addSession: vi.fn(), deleteSession: vi.fn(), editSession: vi.fn(), addMember: vi.fn(), deleteMember: vi.fn(), updateMember: vi.fn(), addGroup: vi.fn(), addProgrammeTemplate: vi.fn(), deleteProgrammeTemplate: vi.fn(), addReadinessLog: vi.fn(), completeOnboarding: vi.fn(), exportData: vi.fn(), importData: vi.fn() },
   pendingSyncCount: 0,
-  toast: { toastMessage: '', toastAnim: { interpolate: jest.fn() } },
-  cloud: { authReady: true, cloudStatus: 'local', authLoading: false, authError: '', signInWithEmail: jest.fn(), signUpWithEmail: jest.fn(), cloudSession: null, syncCloudNow: jest.fn(), signOutCloud: jest.fn(), exportGoogleSheetsNow: jest.fn(), googleSheetsExporting: false, googleSheetsMessage: '' },
-  pin: { isUnlocked: true, pinInput: '', pinError: false, handlePinInput: jest.fn(), pinSetupMode: null, newPinInput: '', confirmPinInput: '', pinSetupError: '', setNewPinInput: jest.fn(), setConfirmPinInput: jest.fn(), savePinSetup: jest.fn(), closePinSetup: jest.fn(), handleSetPin: jest.fn(), handleManualWipe: jest.fn(), resetInactivityTimer: jest.fn() },
-  slideAnim: { interpolate: jest.fn() }, fadeAnim: { interpolate: jest.fn() }, pulseAnim: { interpolate: jest.fn() }, typedText: '',
+  toast: { toastMessage: '', toastAnim: { interpolate: vi.fn() } },
+  cloud: { authReady: true, cloudStatus: 'local', authLoading: false, authError: '', signInWithEmail: vi.fn(), signUpWithEmail: vi.fn(), cloudSession: null, syncCloudNow: vi.fn(), signOutCloud: vi.fn(), exportGoogleSheetsNow: vi.fn(), googleSheetsExporting: false, googleSheetsMessage: '' },
+  pin: { isUnlocked: true, pinInput: '', pinError: false, handlePinInput: vi.fn(), pinSetupMode: null, newPinInput: '', confirmPinInput: '', pinSetupError: '', setNewPinInput: vi.fn(), setConfirmPinInput: vi.fn(), savePinSetup: vi.fn(), closePinSetup: vi.fn(), handleSetPin: vi.fn(), handleManualWipe: vi.fn(), resetInactivityTimer: vi.fn() },
+  slideAnim: { interpolate: vi.fn() }, fadeAnim: { interpolate: vi.fn() }, pulseAnim: { interpolate: vi.fn() }, typedText: '',
   tabs: [{ id: 'home', label: 'Home', icon: 'home', iconActive: 'home' }],
   memberTabs: [], COACH_SELF: { id: 'coach' },
   panResponder: { panHandlers: {} }
@@ -45,21 +48,21 @@ const mockUseApp = {
 
 describe('AppRouter', () => {
   beforeEach(() => {
-    jest.spyOn(AppProviders, 'useApp').mockReturnValue(mockUseApp as any);
+    vi.spyOn(AppProviders, 'useApp').mockReturnValue(mockUseApp as any);
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   it('renders SplashScreen when app is not ready', () => {
-    jest.spyOn(AppProviders, 'useApp').mockReturnValue({ ...mockUseApp, isReady: false } as any);
+    vi.spyOn(AppProviders, 'useApp').mockReturnValue({ ...mockUseApp, isReady: false } as any);
     const { getByText } = render(<AppRouter />);
     expect(getByText('SplashScreen')).toBeTruthy();
   });
 
   it('renders OnboardingScreen when hasSeenOnboarding is false', () => {
-    jest.spyOn(AppProviders, 'useApp').mockReturnValue({ ...mockUseApp, hasSeenOnboarding: false } as any);
+    vi.spyOn(AppProviders, 'useApp').mockReturnValue({ ...mockUseApp, hasSeenOnboarding: false } as any);
     const { getByText } = render(<AppRouter />);
     expect(getByText('OnboardingScreen')).toBeTruthy();
   });
@@ -71,7 +74,7 @@ describe('AppRouter', () => {
   });
 
   it('renders PinScreen when savedPin exists and is not unlocked', () => {
-    jest.spyOn(AppProviders, 'useApp').mockReturnValue({ ...mockUseApp, savedPin: '1234', pin: { ...mockUseApp.pin, isUnlocked: false } } as any);
+    vi.spyOn(AppProviders, 'useApp').mockReturnValue({ ...mockUseApp, savedPin: '1234', pin: { ...mockUseApp.pin, isUnlocked: false } } as any);
     const { getByText } = render(<AppRouter />);
     expect(getByText('PinScreen')).toBeTruthy();
   });
