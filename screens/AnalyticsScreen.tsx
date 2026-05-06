@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions, Share } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert, Modal, TextInput, ScrollView, Dimensions, Share, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LineChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
@@ -435,26 +435,34 @@ export function AnalyticsScreen({
       </View>
 
       {hasSessions && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll} contentContainerStyle={styles.filterContainer}>
-          {['All', 'Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility', 'Run'].map((type) => {
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.filterScroll}
+          contentContainerStyle={styles.filterContainer}
+          data={['All', 'Ruck', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility', 'Run'] as const}
+          keyExtractor={(item) => item}
+          renderItem={({ item: type }) => {
             const isActive = filterType === type;
             return (
               <Pressable
-                key={type}
                 style={[styles.filterPill, isActive && styles.filterPillActive]}
                 onPress={() => setFilterType(type as TrainingSession['type'] | 'All')}
               >
                 <Text style={[styles.filterText, isActive && styles.filterTextActive]}>{type}</Text>
               </Pressable>
             );
-          })}
-        </ScrollView>
+          }}
+        />
       )}
 
       {hasSessions ? (
         displayedSessions.length > 0 ? (
-          <React.Fragment>
-            {displayedSessions.map((session) => (
+          <FlatList
+            data={displayedSessions}
+            keyExtractor={(session) => session.id}
+            scrollEnabled={false} // Embeds nicely in outer Screen container
+            renderItem={({ item: session }) => (
               <View key={session.id} style={[styles.sessionCard, shadow.subtle]}>
                 <View style={styles.sessionRow}>
                   <View style={styles.sessionIconWrap}>
@@ -616,14 +624,15 @@ export function AnalyticsScreen({
                   );
                 })()}
               </View>
-            ))}
-
-            {displayLimit < filteredSessions.length && (
-              <Pressable style={styles.loadMoreBtn} onPress={() => setDisplayLimit((curr) => curr + 10)}>
-                <Text style={styles.loadMoreText}>Load More</Text>
-              </Pressable>
             )}
-          </React.Fragment>
+            ListFooterComponent={
+              displayLimit < filteredSessions.length ? (
+                <Pressable style={styles.loadMoreBtn} onPress={() => setDisplayLimit((curr) => curr + 10)}>
+                  <Text style={styles.loadMoreText}>Load More</Text>
+                </Pressable>
+              ) : null
+            }
+          />
         ) : (
           <View style={[styles.logEmptyState, shadow.subtle]}>
             <Ionicons name="funnel-outline" size={22} color={colours.cyan} />

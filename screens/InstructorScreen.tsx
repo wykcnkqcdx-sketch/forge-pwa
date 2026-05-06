@@ -1,14 +1,16 @@
 import React, { useMemo, useState } from 'react';
-import { Linking, Platform, Text, TextInput, View, StyleSheet, Pressable } from 'react-native';
+import { Linking, Platform, Text, TextInput, View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
-import { buildCoachGuidance, buildProgrammeRecommendation, ProgrammeBuilderInput } from '../lib/aiGuidance';
+import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
 import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, ProgrammeTemplate, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 import { showAlert, showConfirm } from '../lib/dialogs';
+import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
+import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
@@ -45,36 +47,7 @@ const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
 const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
 const assignmentCategories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 
-function completionTone(type: WorkoutCompletion['completionType']) {
-  if (type === 'quick_log') return colours.amber;
-  if (type === 'ad_hoc') return colours.violet;
-  return colours.green;
-}
-
-function formatReadinessFactor(label: string, log?: ReadinessLog) {
-  switch (label) {
-    case 'Sleep':
-      return log?.sleepHours ? `${log.sleepHours}h` : log?.sleepQuality ? `${log.sleepQuality}/5` : '--';
-    case 'Soreness':
-      return log?.soreness ? `${log.soreness}/5` : '--';
-    case 'Pain':
-      return log?.pain ? `${log.pain}/5` : '--';
-    case 'Hydration':
-      return log?.hydration ?? '--';
-    case 'Mood':
-      return log?.mood ? `${log.mood}/5` : '--';
-    case 'Illness':
-      return log?.illness ? `${log.illness}/5` : '--';
-    case 'Rest HR':
-      return log?.restingHR ? `${log.restingHR}` : '--';
-    case 'HRV':
-      return log?.hrv ? `${log.hrv}` : '--';
-    default:
-      return '--';
-  }
-}
-
-function parseDose(dose: string) {
+export function parseDose(dose: string) {
   const setsRepsMatch = dose.match(/(\d+)\s*x\s*(\d+)/i);
   if (setsRepsMatch) {
     return {
@@ -93,7 +66,7 @@ function parseDose(dose: string) {
   return {};
 }
 
-function buildAssignedExerciseBlock(
+export function buildAssignedExerciseBlock(
   exercise: (typeof exerciseLibrary)[number],
   coachPinned: boolean
 ): AssignedExerciseBlock {
@@ -159,12 +132,6 @@ export function InstructorScreen({
   const [assignmentNote, setAssignmentNote] = useState('');
   const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
-  const [templateName, setTemplateName] = useState('');
-  const [programmeGoal, setProgrammeGoal] = useState<ProgrammeBuilderInput['goal']>('Tactical Hybrid');
-  const [programmeDays, setProgrammeDays] = useState<ProgrammeBuilderInput['daysPerWeek']>(3);
-  const [programmeMinutes, setProgrammeMinutes] = useState<ProgrammeBuilderInput['sessionMinutes']>(45);
-  const [programmeEquipment, setProgrammeEquipment] = useState<ProgrammeBuilderInput['equipment']>('Full Gym');
-  const [programmeReadiness, setProgrammeReadiness] = useState<ProgrammeBuilderInput['readiness']>('Standard');
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -187,17 +154,6 @@ export function InstructorScreen({
   const atRiskCount = useMemo(() => members.filter((member) => member.risk !== 'Low').length, [members]);
   const averageTeamScore = useMemo(() => Math.round(groupScores.reduce((total: number, group) => total + group.teamScore, 0) / groupScores.length) || 0, [groupScores]);
   const coachGuidance = useMemo(() => buildCoachGuidance(members, sessions), [members, sessions]);
-  const programmeRecommendation = useMemo(
-    () =>
-      buildProgrammeRecommendation({
-        goal: programmeGoal,
-        daysPerWeek: programmeDays,
-        sessionMinutes: programmeMinutes,
-        equipment: programmeEquipment,
-        readiness: programmeReadiness,
-      }),
-    [programmeDays, programmeEquipment, programmeGoal, programmeMinutes, programmeReadiness]
-  );
   const latestCompletionByMember = useMemo(() => {
     const mapped = new Map<string, WorkoutCompletion>();
     workoutCompletions.forEach((completion) => {
@@ -468,90 +424,6 @@ export function InstructorScreen({
     setAssignmentNote('');
     setStagedAssignmentExercises([]);
     showAlert('Assignment saved', message);
-  }
-
-  function loadProgrammeIntoStage() {
-    const mode = trainingModes.find((item) => item.title === programmeRecommendation.assignmentTitle) ?? trainingModes[0];
-    const nextExercises = programmeRecommendation.exerciseIds
-      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
-      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
-      .map((exercise) => buildAssignedExerciseBlock(exercise, mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false));
-
-    setAssignmentLabel(programmeRecommendation.assignmentTitle);
-    setAssignmentNote(programmeRecommendation.coachNote);
-    setStagedAssignmentExercises(nextExercises);
-    setAssignmentOpen(true);
-    if (!assignmentMemberId && members[0]) setAssignmentMemberId(members[0].id);
-    if (!assignmentGroupId && groups[0]) setAssignmentGroupId(groups[0].id);
-    setAssignmentFeedback(`AI plan loaded: ${programmeRecommendation.assignmentTitle}. Review the staged session, then deploy.`);
-  }
-
-  function saveProgrammeTemplate() {
-    const exercisesToSave = activeAssignmentExercises.length ? activeAssignmentExercises : programmeRecommendation.exerciseIds
-      .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
-      .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
-      .map((exercise) => buildAssignedExerciseBlock(exercise, programmeRecommendation.exerciseIds.slice(0, 2).includes(exercise.id)));
-
-    const name = templateName.trim() || `${programmeGoal} ${programmeEquipment} ${programmeMinutes}m`;
-    onAddProgrammeTemplate({
-      id: `template-${Date.now()}`,
-      name,
-      assignmentTitle: assignmentLabel || programmeRecommendation.assignmentTitle,
-      type: selectedAssignmentMode?.type ?? programmeRecommendation.assignmentTitle === 'Cardio Training' ? 'Cardio' : programmeRecommendation.assignmentTitle === 'Mobility Reset' ? 'Mobility' : programmeRecommendation.assignmentTitle === 'Resistance Training' ? 'Resistance' : programmeRecommendation.assignmentTitle === 'Strength Training' ? 'Strength' : 'Workout',
-      evidenceLabel: programmeRecommendation.evidencePack.label,
-      evidenceUpdatedAt: programmeRecommendation.evidencePack.updatedAt,
-      evidenceSummary: programmeRecommendation.evidencePack.summary,
-      evidenceSources: programmeRecommendation.evidencePack.sources,
-      coachNote: assignmentNote.trim() || programmeRecommendation.coachNote,
-      summary: programmeRecommendation.summary,
-      weeklyVolume: programmeRecommendation.weeklyVolume,
-      intensity: programmeRecommendation.intensity,
-      weeklyStructure: programmeRecommendation.weeklyStructure,
-      scienceNotes: programmeRecommendation.scienceNotes,
-      exercises: exercisesToSave,
-      createdAt: new Date().toISOString(),
-    });
-    setTemplateName('');
-    setAssignmentFeedback(`Template saved: ${name}`);
-  }
-
-  function loadTemplateIntoStage(template: ProgrammeTemplate) {
-    setAssignmentLabel(template.assignmentTitle);
-    setAssignmentNote(template.coachNote ?? '');
-    setStagedAssignmentExercises(template.exercises);
-    setAssignmentOpen(true);
-    setAssignmentFeedback(`Template loaded: ${template.name}`);
-  }
-
-  function assignTemplateToGroup(template: ProgrammeTemplate, groupId: string) {
-    const group = groups.find((item) => item.id === groupId);
-    const targetMembers = members.filter((member) => member.groupId === groupId);
-    if (!group || !targetMembers.length) {
-      showAlert('No team members', 'Choose a group that has members before assigning a template.');
-      return;
-    }
-
-    targetMembers.forEach((member) => {
-      onUpdateMember(member.id, {
-        assignment: template.assignmentTitle,
-        pinnedExerciseIds: template.exercises.filter((exercise) => exercise.coachPinned).map((exercise) => exercise.exerciseId),
-        assignmentSession: {
-          id: `assign-${member.id}-${Date.now()}`,
-          title: template.assignmentTitle,
-          type: template.type,
-          status: 'assigned',
-          assignedAt: new Date().toISOString(),
-          coachNote: template.coachNote,
-          exercises: template.exercises.map((exercise) => ({
-            ...exercise,
-            actual: undefined,
-            status: 'assigned',
-          })),
-        },
-      });
-    });
-
-    setAssignmentFeedback(`${template.name} assigned to ${targetMembers.length} members in ${group.name}.`);
   }
 
   return (
@@ -1041,275 +913,43 @@ export function InstructorScreen({
           </View>
         ) : null}
 
-        {members.map((member) => {
-          const latestCompletion = latestCompletionByMember.get(member.id);
-          const latestTone = latestCompletion ? completionTone(latestCompletion.completionType) : colours.borderSoft;
-          const latestReadiness = latestReadinessByMember.get(member.id);
-
-          return (
-          <View key={member.id} style={styles.memberCard}>
-            {latestCompletion ? (
-              <View style={[styles.memberCompletionBanner, { borderColor: `${latestTone}50`, backgroundColor: `${latestTone}12` }]}>
-                <Text style={[styles.memberCompletionBannerText, { color: latestTone }]}>
-                  Completed {latestCompletion.assignment} - {latestCompletion.durationMinutes} min - {latestCompletion.effort}
-                </Text>
-              </View>
-            ) : null}
-            <View style={styles.headerRow}>
-              <View style={styles.memberCopy}>
-                <Text style={styles.memberName}>{member.name}</Text>
-                <Text style={styles.muted}>
-                  {groups.find((group) => group.id === member.groupId)?.name ?? 'Unassigned'} - {member.inviteStatus ?? 'Manual'} - Compliance {member.compliance}% - Risk {member.risk}
-                </Text>
-                {member.gymName && <Text style={styles.memberPortalName}>Portal: {member.gymName}{member.ghostMode ? ' - Ghost Mode' : ''}</Text>}
-                {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
-                {member.deviceSyncProvider && <Text style={styles.memberDeviceSync}>{member.deviceSyncProvider} - {member.deviceSyncStatus ?? 'Disconnected'}</Text>}
-                {member.assignment && <Text style={styles.memberAssignment}>Assigned: {member.assignment}</Text>}
-                {member.assignmentSession?.status ? <Text style={styles.memberAssignmentStatus}>Session: {member.assignmentSession.status}</Text> : null}
-                {member.assignmentSession?.coachNote ? <Text style={styles.memberNote}>Coach note: {member.assignmentSession.coachNote}</Text> : null}
-                {member.assignmentSession?.exercises?.length ? (
-                  <Text style={styles.memberExerciseMeta}>{member.assignmentSession.exercises.length} assigned exercises uploaded to member app</Text>
-                ) : null}
-                {latestCompletion ? (
-                  <Text style={styles.memberCompletionMeta}>
-                    Last sync: {latestCompletion.sessionKind} - {latestCompletion.volume} volume
-                  </Text>
-                ) : null}
-                {latestReadiness?.painArea ? <Text style={styles.memberPainArea}>Pain area: {latestReadiness.painArea}{latestReadiness.limitsTraining ? ' - limits training' : ''}</Text> : null}
-                {member.lastWorkoutNote && <Text style={styles.memberNote}>Note: {member.lastWorkoutNote}</Text>}
-              </View>
-              <View style={styles.memberActions}>
-                <Text
-                  style={[
-                    styles.memberScore,
-                    member.readiness < 50
-                      ? { color: colours.red }
-                      : member.readiness < 70
-                        ? { color: colours.amber }
-                        : { color: colours.cyan },
-                  ]}
-                >
-                  {member.readiness}
-                </Text>
-                <Pressable style={styles.deleteMemberButton} onPress={() => confirmDeleteMember(member)}>
-                  <Text style={styles.deleteMemberText}>Delete</Text>
-                </Pressable>
-              </View>
-            </View>
-            <ProgressBar value={member.readiness} />
-          <View style={styles.factorGrid}>
-            {['Sleep', 'Soreness', 'Pain', 'Hydration', 'Mood', 'Illness', 'Rest HR', 'HRV'].map(factor => (
-              <View key={factor} style={styles.factorItem}>
-                <Text style={styles.factorLabel}>{factor}</Text>
-                <Text style={styles.factorValue}>{formatReadinessFactor(factor, latestReadiness)}</Text>
-              </View>
-            ))}
-          </View>
-          {latestReadiness ? <Text style={styles.readinessStamp}>Check-in {new Date(latestReadiness.date).toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}</Text> : null}
-          </View>
-        );
-        })}
-      </Card>
-
-      <Card>
-        <Text style={styles.cardTitle}>Programme Builder</Text>
-        <Text style={styles.programmeCopy}>
-          AI-assisted programme planning grounded in progressive overload, movement balance, and appropriate weekly volume.
-        </Text>
-
-        <Text style={styles.assignmentLabel}>Goal</Text>
-        <View style={styles.assignmentWrap}>
-          {(['Strength Base', 'Hypertrophy', 'Conditioning', 'Recovery', 'Tactical Hybrid'] as const).map((item) => {
-            const active = item === programmeGoal;
-            return (
-              <Pressable
-                key={item}
-                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
-                onPress={() => setProgrammeGoal(item)}
-              >
-                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={styles.assignmentLabel}>Days per week</Text>
-        <View style={styles.assignmentWrap}>
-          {[2, 3, 4, 5].map((item) => {
-            const active = item === programmeDays;
-            return (
-              <Pressable
-                key={item}
-                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
-                onPress={() => setProgrammeDays(item as ProgrammeBuilderInput['daysPerWeek'])}
-              >
-                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item} days</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={styles.assignmentLabel}>Session length</Text>
-        <View style={styles.assignmentWrap}>
-          {[30, 45, 60].map((item) => {
-            const active = item === programmeMinutes;
-            return (
-              <Pressable
-                key={item}
-                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
-                onPress={() => setProgrammeMinutes(item as ProgrammeBuilderInput['sessionMinutes'])}
-              >
-                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item} min</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={styles.assignmentLabel}>Equipment</Text>
-        <View style={styles.assignmentWrap}>
-          {(['Full Gym', 'Minimal Kit', 'Bodyweight'] as const).map((item) => {
-            const active = item === programmeEquipment;
-            return (
-              <Pressable
-                key={item}
-                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
-                onPress={() => setProgrammeEquipment(item)}
-              >
-                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text style={styles.assignmentLabel}>Readiness mode</Text>
-        <View style={styles.assignmentWrap}>
-          {(['Conservative', 'Standard', 'Push'] as const).map((item) => {
-            const active = item === programmeReadiness;
-            return (
-              <Pressable
-                key={item}
-                style={[styles.assignmentPill, active && styles.assignmentPillActive]}
-                onPress={() => setProgrammeReadiness(item)}
-              >
-                <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{item}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={[styles.programmeInsight, { borderColor: `${programmeRecommendation.tone}40`, backgroundColor: `${programmeRecommendation.tone}10` }]}>
-          <Text style={[styles.programmeTitle, { color: programmeRecommendation.tone }]}>{programmeRecommendation.assignmentTitle}</Text>
-          <Text style={styles.programmeText}>{programmeRecommendation.summary}</Text>
-          <Text style={styles.programmeMeta}>Evidence pack: {programmeRecommendation.evidencePack.label}</Text>
-          <Text style={styles.programmeMeta}>Updated: {programmeRecommendation.evidencePack.updatedAt}</Text>
-          <Text style={styles.programmeMeta}>Rationale: {programmeRecommendation.rationale}</Text>
-          <Text style={styles.programmeMeta}>Weekly target: {programmeRecommendation.weeklyVolume}</Text>
-          <Text style={styles.programmeMeta}>Intensity: {programmeRecommendation.intensity}</Text>
-          <Text style={styles.programmeMeta}>Coach cue: {programmeRecommendation.coachNote}</Text>
-        </View>
-
-        <Text style={[styles.assignmentLabel, { marginTop: 12 }]}>Weekly structure</Text>
-        <View style={styles.programmeScienceList}>
-          {programmeRecommendation.weeklyStructure.map((item) => (
-            <View key={item} style={styles.programmeScienceRow}>
-              <Text style={styles.programmeScienceBullet}>+</Text>
-              <Text style={styles.programmeScienceText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.programmeScienceList}>
-          {programmeRecommendation.scienceNotes.map((item) => (
-            <View key={item} style={styles.programmeScienceRow}>
-              <Text style={styles.programmeScienceBullet}>+</Text>
-              <Text style={styles.programmeScienceText}>{item}</Text>
-            </View>
-          ))}
-        </View>
-
-        <Text style={[styles.assignmentLabel, { marginTop: 12 }]}>Evidence sources</Text>
-        <View style={styles.programmeScienceList}>
-          {programmeRecommendation.evidencePack.sources.map((source) => (
-            <View key={source.url} style={styles.programmeScienceRow}>
-              <Text style={styles.programmeScienceBullet}>+</Text>
-              <Text style={styles.programmeScienceText}>{source.title}</Text>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.programmeExerciseGrid}>
-          {programmeRecommendation.exerciseIds.map((id) => {
-            const exercise = exerciseLibrary.find((item) => item.id === id);
-            if (!exercise) return null;
-            return (
-              <View key={id} style={styles.programmeExerciseChip}>
-                <Text style={styles.programmeExerciseName}>{exercise.name}</Text>
-                <Text style={styles.programmeExerciseDose}>{exercise.dose}</Text>
-              </View>
-            );
-          })}
-        </View>
-
-        <TextInput
-          style={styles.memberInput}
-          value={templateName}
-          onChangeText={setTemplateName}
-          placeholder="Template name"
-          placeholderTextColor={colours.soft}
+        <FlatList
+          data={members}
+          keyExtractor={(member) => member.id}
+          scrollEnabled={false} // Adapts FlatList to render within outer ScrollView/Screen limits
+          renderItem={({ item: member }) => (
+            <SquadMemberCard
+              member={member}
+              group={groups.find((g) => g.id === member.groupId)}
+              latestCompletion={latestCompletionByMember.get(member.id)}
+              latestReadiness={latestReadinessByMember.get(member.id)}
+              onDelete={confirmDeleteMember}
+            />
+          )}
         />
-
-        <View style={styles.programmeActionRow}>
-          <Pressable style={styles.programmeLoadButton} onPress={loadProgrammeIntoStage}>
-            <Text style={styles.programmeLoadButtonText}>Load AI Plan Into Stage</Text>
-          </Pressable>
-          <Pressable style={styles.programmeSaveButton} onPress={saveProgrammeTemplate}>
-            <Text style={styles.programmeSaveButtonText}>Save Template</Text>
-          </Pressable>
-        </View>
-
-        <Text style={[styles.assignmentLabel, { marginTop: 14 }]}>Saved templates</Text>
-        <View style={styles.templateList}>
-          {programmeTemplates.map((template) => (
-            <View key={template.id} style={styles.templateCard}>
-              <View style={styles.stageHeader}>
-                <View style={styles.memberCopy}>
-                  <Text style={styles.memberName}>{template.name}</Text>
-                  <Text style={styles.muted}>{template.assignmentTitle} - {template.exercises.length} exercises</Text>
-                  {template.evidenceLabel ? (
-                    <Text style={styles.memberDeviceSync}>{template.evidenceLabel} / {template.evidenceUpdatedAt}</Text>
-                  ) : null}
-                </View>
-                <Pressable style={styles.stageRemove} onPress={() => onDeleteProgrammeTemplate(template.id)}>
-                  <Text style={styles.stageRemoveText}>Delete</Text>
-                </Pressable>
-              </View>
-              {template.summary ? <Text style={styles.programmeMeta}>{template.summary}</Text> : null}
-              {template.evidenceSummary ? <Text style={styles.programmeMeta}>{template.evidenceSummary}</Text> : null}
-              {template.weeklyStructure?.length ? (
-                <View style={styles.programmeScienceList}>
-                  {template.weeklyStructure.map((item) => (
-                    <View key={`${template.id}-${item}`} style={styles.programmeScienceRow}>
-                      <Text style={styles.programmeScienceBullet}>+</Text>
-                      <Text style={styles.programmeScienceText}>{item}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-              <View style={styles.templateActions}>
-                <Pressable style={styles.templateActionButton} onPress={() => loadTemplateIntoStage(template)}>
-                  <Text style={styles.templateActionText}>Load To Stage</Text>
-                </Pressable>
-                {groups.map((group) => (
-                  <Pressable key={`${template.id}-${group.id}`} style={styles.templateActionButton} onPress={() => assignTemplateToGroup(template, group.id)}>
-                    <Text style={styles.templateActionText}>Assign {group.name}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            </View>
-          ))}
-        </View>
-
       </Card>
+
+      <ProgrammeBuilder
+        groups={groups}
+        members={members}
+        programmeTemplates={programmeTemplates}
+        activeAssignmentExercises={activeAssignmentExercises}
+        assignmentLabel={assignmentLabel}
+        assignmentNote={assignmentNote}
+        selectedAssignmentMode={selectedAssignmentMode}
+        onAddProgrammeTemplate={onAddProgrammeTemplate}
+        onDeleteProgrammeTemplate={onDeleteProgrammeTemplate}
+        onUpdateMember={onUpdateMember}
+        onLoadIntoStage={(title, note, exercises) => {
+          setAssignmentLabel(title);
+          setAssignmentNote(note);
+          setStagedAssignmentExercises(exercises);
+          setAssignmentOpen(true);
+          if (!assignmentMemberId && members[0]) setAssignmentMemberId(members[0].id);
+          if (!assignmentGroupId && groups[0]) setAssignmentGroupId(groups[0].id);
+        }}
+        onSetFeedback={setAssignmentFeedback}
+      />
     </Screen>
   );
 }
@@ -1575,45 +1215,10 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   applyAssignmentText: { color: colours.background, fontSize: 14, fontWeight: '900' },
-  memberCard: {
-    borderColor: colours.border,
-    borderWidth: 1,
-    borderRadius: 18,
-    padding: 13,
-    backgroundColor: 'rgba(0,0,0,0.18)',
-    marginBottom: 10,
-  },
   memberCopy: { flex: 1 },
   memberName: { color: colours.text, fontWeight: '900' },
-  memberPortalName: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberEmail: { color: colours.cyan, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberDeviceSync: { color: colours.violet, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberAssignment: { color: colours.green, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberAssignmentStatus: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
-  memberExerciseMeta: { color: colours.cyan, fontSize: 11, fontWeight: '700', marginTop: 3 },
-  memberPainArea: { color: colours.red, fontSize: 11, fontWeight: '800', marginTop: 3 },
   memberNote: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },
   memberScore: { fontSize: 22, fontWeight: '900' },
-  memberActions: {
-    alignItems: 'flex-end',
-    gap: 8,
-  },
-  deleteMemberButton: {
-    minHeight: 52,
-    borderWidth: 1,
-    borderColor: `${colours.red}50`,
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colours.redDim,
-  },
-  deleteMemberText: { color: colours.red, fontSize: 12, fontWeight: '900' },
-  factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 12 },
-  factorItem: { flex: 1, minWidth: '22%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
-  factorLabel: { color: colours.muted, fontSize: 9, fontWeight: '800', marginBottom: 2 },
-  factorValue: { color: colours.text, fontSize: 12, fontWeight: '900' },
-  readinessStamp: { color: colours.muted, fontSize: 11, fontWeight: '700', marginTop: 8 },
   groupCard: {
     borderColor: colours.border,
     borderWidth: 1,
@@ -1690,91 +1295,5 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: '900',
   },
-  memberCompletionBanner: {
-    borderWidth: 1,
-    borderRadius: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    marginBottom: 10,
-  },
-  memberCompletionBannerText: {
-    fontSize: 11,
-    fontWeight: '900',
-  },
-  memberCompletionMeta: {
-    color: colours.amber,
-    fontSize: 11,
-    fontWeight: '800',
-    marginTop: 3,
-  },
   completionTime: { color: colours.cyan, fontSize: 11, fontWeight: '900', textAlign: 'right' },
-  programmeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  programmeCopy: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginBottom: 12 },
-  programmeInsight: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 12,
-    marginTop: 4,
-  },
-  programmeTitle: { fontSize: 18, fontWeight: '900', marginBottom: 8 },
-  programmeText: { color: colours.text, fontSize: 13, lineHeight: 19, fontWeight: '800' },
-  programmeMeta: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 8 },
-  programmeScienceList: { gap: 8, marginTop: 12 },
-  programmeScienceRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start' },
-  programmeScienceBullet: { color: colours.cyan, fontSize: 12, fontWeight: '900', marginTop: 1 },
-  programmeScienceText: { flex: 1, color: colours.textSoft, fontSize: 12, lineHeight: 18, fontWeight: '800' },
-  programmeExerciseGrid: { gap: 8, marginTop: 12 },
-  programmeExerciseChip: {
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 12,
-    padding: 10,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  programmeExerciseName: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  programmeExerciseDose: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
-  programmeActionRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
-  programmeLoadButton: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: colours.green,
-    borderRadius: 14,
-    paddingVertical: 12,
-  },
-  programmeLoadButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
-  programmeSaveButton: {
-    flex: 1,
-    alignItems: 'center',
-    backgroundColor: colours.cyan,
-    borderRadius: 14,
-    paddingVertical: 12,
-  },
-  programmeSaveButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
-  templateList: { gap: 8, marginTop: 8 },
-  templateCard: {
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 12,
-    padding: 12,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  templateActions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
-  },
-  templateActionButton: {
-    borderWidth: 1,
-    borderColor: `${colours.cyan}40`,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: colours.cyanDim,
-  },
-  templateActionText: {
-    color: colours.cyan,
-    fontSize: 11,
-    fontWeight: '900',
-  },
 });
