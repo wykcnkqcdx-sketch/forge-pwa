@@ -21,11 +21,11 @@ function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
 
 function sessionTypeIcon(type: TrainingSession['type']): keyof typeof Ionicons.glyphMap {
   if (type === 'Ruck') return 'footsteps-outline';
+  if (type === 'Run') return 'walk-outline';
   if (type === 'Strength') return 'barbell-outline';
   if (type === 'Cardio') return 'heart-outline';
   if (type === 'Mobility') return 'body-outline';
   if (type === 'Resistance') return 'fitness-outline';
-  if (type === 'Run') return 'walk-outline';
   if (type === 'Workout') return 'fitness-outline';
   return 'flash-outline';
 }
@@ -33,6 +33,13 @@ function sessionTypeIcon(type: TrainingSession['type']): keyof typeof Ionicons.g
 function isSameLocalDay(dateIso: string | undefined, day: Date) {
   if (!dateIso) return false;
   return new Date(dateIso).toDateString() === day.toDateString();
+}
+
+function sessionDateLabel(completedAt?: string): string {
+  if (!completedAt) return '';
+  if (isSameLocalDay(completedAt, new Date())) return 'Today';
+  if (isSameLocalDay(completedAt, new Date(Date.now() - 864e5))) return 'Yesterday';
+  return new Date(completedAt).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 export function HomeScreen({
@@ -574,7 +581,7 @@ export function HomeScreen({
             </View>
             <View style={styles.sessionCopy}>
               <Text style={styles.sessionTitle}>{session.title}</Text>
-              <Text style={styles.sessionMeta}>{session.type} · {session.durationMinutes} min · RPE {session.rpe}</Text>
+              <Text style={styles.sessionMeta}>{[session.type, `${session.durationMinutes} min`, `RPE ${session.rpe}`, sessionDateLabel(session.completedAt)].filter(Boolean).join(' · ')}</Text>
             </View>
             <View style={styles.sessionScore}>
               <Text style={styles.scoreValue}>{session.score}</Text>
