@@ -3,6 +3,10 @@
   "compilerOptions": {
     "allowJs": false,
     "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "expo-image": ["node_modules/expo-image/build/index"]
+    },
     "types": ["react"]
   },
   "include": [

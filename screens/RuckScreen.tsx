@@ -642,7 +642,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         setGpsFollowMode(false);
         panStartCenter.current = effectiveMapCenterRef.current ?? null;
       })
-      .onUpdate((event) => {
+      .onUpdate((event: { translationX: number; translationY: number }) => {
         const start = panStartCenter.current;
         const viewport = mapViewportRef.current;
         if (!start || viewport.width <= 0 || viewport.height <= 0) return;
@@ -685,7 +685,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         }
         pinchStartZoom.current = mapZoomRef.current;
       })
-      .onUpdate((event) => {
+      .onUpdate((event: { scale: number }) => {
         const newZoom = Math.max(2, Math.min(18, pinchStartZoom.current + Math.log2(event.scale)));
         setMapZoom(newZoom);
       })
