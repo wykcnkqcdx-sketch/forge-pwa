@@ -1,6 +1,59 @@
+import Anthropic from '@anthropic-ai/sdk';
 import { SquadMember, TrainingSession } from '../data/mockData';
 import { colours } from '../theme';
 import { buildPerformanceProfile } from './performance';
+import type { ReadinessLog } from '../data/domain';
+
+const ANTHROPIC_API_KEY = process.env.EXPO_PUBLIC_ANTHROPIC_API_KEY;
+
+export type ClaudeCoaching = {
+  headline: string;
+  body: string;
+  action: string;
+  tone: string;
+};
+
+export async function getClaudeCoaching(
+  sessions: TrainingSession[],
+  readinessLogs: ReadinessLog[]
+): Promise<ClaudeCoaching | null> {
+  if (!ANTHROPIC_API_KEY) return null;
+
+  const profile = buildPerformanceProfile(sessions);
+  const latest = readinessLogs[0];
+
+  const context = [
+    `Sessions last 7 days: ${profile.weeklyLoad}`,
+    `ACWR: ${profile.acuteChronicRatio}`,
+    `Load risk: ${profile.loadRisk}`,
+    `Readiness band: ${profile.readinessBand}`,
+    `Monotony: ${profile.monotony.toFixed(2)}`,
+    latest ? `Sleep: ${latest.sleepHours}h, Stress: ${latest.stress}, Hydration: ${latest.hydration}, Soreness: ${latest.soreness}` : 'No readiness log today',
+  ].join('\n');
+
+  try {
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY, dangerouslyAllowBrowser: true });
+    const message = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      system: 'You are a tactical fitness coach for military personnel. Give concise, direct coaching based on training load and readiness data. Respond with JSON: { "headline": "4-6 word directive", "body": "1-2 sentence analysis", "action": "specific next step" }',
+      messages: [{ role: 'user', content: `Athlete data:\n${context}\n\nProvide coaching guidance as JSON.` }],
+    });
+
+    const text = message.content[0].type === 'text' ? message.content[0].text : '';
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[0]);
+
+    const tone = profile.loadRisk === 'High' ? colours.red
+      : profile.readinessBand === 'GREEN' ? colours.green
+      : colours.amber;
+
+    return { headline: parsed.headline, body: parsed.body, action: parsed.action, tone };
+  } catch {
+    return null;
+  }
+}
 
 export type AiGuidance = {
   title: string;

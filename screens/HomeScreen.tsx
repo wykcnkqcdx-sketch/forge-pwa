@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -12,6 +12,7 @@ import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import { getClaudeCoaching, ClaudeCoaching } from '../lib/aiGuidance';
 
 function domainTone(status: 'GREEN' | 'AMBER' | 'RED') {
   if (status === 'GREEN') return colours.green;
@@ -85,6 +86,12 @@ export function HomeScreen({
     () => buildPrescriptiveGuidance(sessions, latestReadiness?.sleepHours ?? 7, performance.loadRisk === 'High' ? 'down' : 'flat'),
     [sessions, latestReadiness?.sleepHours, performance.loadRisk],
   );
+
+  const [claudeCoaching, setClaudeCoaching] = useState<ClaudeCoaching | null>(null);
+  useEffect(() => {
+    getClaudeCoaching(sessions, readinessLogs).then(setClaudeCoaching);
+  }, [sessions, readinessLogs]);
+
   const ruckWork = sessions
     .filter((s) => s.type === 'Ruck')
     .reduce((total, s) => total + (s.loadKg ?? 0) * (s.durationMinutes / 60) * 5.2, 0);
@@ -353,6 +360,17 @@ export function HomeScreen({
             <Text style={styles.reasonDetail}>{guidance}</Text>
           </View>
         </View>
+
+        {claudeCoaching && (
+          <View style={[styles.claudeCard, { borderColor: `${claudeCoaching.tone}55`, backgroundColor: `${claudeCoaching.tone}0D` }]}>
+            <View style={styles.claudeHeader}>
+              <Ionicons name="sparkles" size={13} color={claudeCoaching.tone} />
+              <Text style={[styles.claudeHeadline, { color: claudeCoaching.tone }]}>{claudeCoaching.headline}</Text>
+            </View>
+            <Text style={styles.claudeBody}>{claudeCoaching.body}</Text>
+            <Text style={styles.claudeAction}>{claudeCoaching.action}</Text>
+          </View>
+        )}
 
         <View style={styles.actionRow}>
           <Pressable
@@ -1137,5 +1155,37 @@ const styles = StyleSheet.create({
     color: colours.cyan,
     fontSize: 14,
     fontWeight: '900',
+  },
+  claudeCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 10,
+    gap: 6,
+  },
+  claudeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  claudeHeadline: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0.3,
+    flex: 1,
+  },
+  claudeBody: {
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '800',
+    lineHeight: 19,
+  },
+  claudeAction: {
+    color: colours.textSoft,
+    fontSize: 12,
+    fontWeight: '800',
+    lineHeight: 17,
+    marginTop: 2,
   },
 });

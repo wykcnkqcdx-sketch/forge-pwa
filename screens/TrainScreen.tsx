@@ -8,6 +8,7 @@ import { MetricCard } from '../components/MetricCard';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession, ExerciseCategory, Exercise, MovementPattern, exerciseLibrary, trainingModes } from '../data/mockData';
 import { showAlert } from '../lib/dialogs';
+import { buildProgrammeRecommendation, ProgrammeBuilderInput, ProgrammeGoal, ProgrammeEquipment, ProgrammeReadiness } from '../lib/aiGuidance';
 
 const categories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 const timeTargets = [20, 30, 45, 60];
@@ -72,6 +73,18 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
   const [savedKeys, setSavedKeys] = useState<string[]>([]);
   const [selectedByMode, setSelectedByMode] = useState<Record<string, string[]>>(
     Object.fromEntries(trainingModes.map((mode) => [mode.key, mode.defaultExerciseIds]))
+  );
+
+  // Programme builder state
+  const [showProgramme, setShowProgramme] = useState(false);
+  const [progGoal, setProgGoal] = useState<ProgrammeGoal>('Tactical Hybrid');
+  const [progDays, setProgDays] = useState<ProgrammeBuilderInput['daysPerWeek']>(3);
+  const [progMinutes, setProgMinutes] = useState<ProgrammeBuilderInput['sessionMinutes']>(45);
+  const [progEquipment, setProgEquipment] = useState<ProgrammeEquipment>('Full Gym');
+  const [progReadiness, setProgReadiness] = useState<ProgrammeReadiness>('Standard');
+  const programmeRec = useMemo(
+    () => showProgramme ? buildProgrammeRecommendation({ goal: progGoal, daysPerWeek: progDays, sessionMinutes: progMinutes, equipment: progEquipment, readiness: progReadiness }) : null,
+    [showProgramme, progGoal, progDays, progMinutes, progEquipment, progReadiness]
   );
 
   const [focusedExerciseId, setFocusedExerciseId] = useState(availableModes[0].defaultExerciseIds[0]);
@@ -381,6 +394,93 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
         {balanceTip ? <Text style={styles.balanceTip}>{balanceTip}</Text> : null}
       </Card>
 
+      <Card>
+        <Pressable style={styles.progHeader} onPress={() => setShowProgramme((v) => !v)}>
+          <View style={styles.progHeaderLeft}>
+            <Ionicons name="construct-outline" size={16} color={colours.cyan} />
+            <Text style={styles.cardTitle}>AI Programme Builder</Text>
+          </View>
+          <Ionicons name={showProgramme ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+        </Pressable>
+
+        {showProgramme && (
+          <View style={styles.progBody}>
+            <Text style={styles.progLabel}>GOAL</Text>
+            <View style={styles.progPills}>
+              {(['Tactical Hybrid', 'Strength Base', 'Hypertrophy', 'Conditioning', 'Recovery'] as ProgrammeGoal[]).map((g) => (
+                <Pressable key={g} style={[styles.progPill, progGoal === g && styles.progPillActive]} onPress={() => setProgGoal(g)}>
+                  <Text style={[styles.progPillText, progGoal === g && styles.progPillTextActive]}>{g}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.progLabel}>DAYS / WEEK</Text>
+            <View style={styles.progPills}>
+              {([2, 3, 4, 5] as const).map((d) => (
+                <Pressable key={d} style={[styles.progPill, progDays === d && styles.progPillActive]} onPress={() => setProgDays(d)}>
+                  <Text style={[styles.progPillText, progDays === d && styles.progPillTextActive]}>{d}d</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.progLabel}>SESSION LENGTH</Text>
+            <View style={styles.progPills}>
+              {([30, 45, 60] as const).map((m) => (
+                <Pressable key={m} style={[styles.progPill, progMinutes === m && styles.progPillActive]} onPress={() => setProgMinutes(m)}>
+                  <Text style={[styles.progPillText, progMinutes === m && styles.progPillTextActive]}>{m}m</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.progLabel}>EQUIPMENT</Text>
+            <View style={styles.progPills}>
+              {(['Full Gym', 'Minimal Kit', 'Bodyweight'] as ProgrammeEquipment[]).map((e) => (
+                <Pressable key={e} style={[styles.progPill, progEquipment === e && styles.progPillActive]} onPress={() => setProgEquipment(e)}>
+                  <Text style={[styles.progPillText, progEquipment === e && styles.progPillTextActive]}>{e}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={styles.progLabel}>READINESS APPROACH</Text>
+            <View style={styles.progPills}>
+              {(['Conservative', 'Standard', 'Push'] as ProgrammeReadiness[]).map((r) => (
+                <Pressable key={r} style={[styles.progPill, progReadiness === r && styles.progPillActive]} onPress={() => setProgReadiness(r)}>
+                  <Text style={[styles.progPillText, progReadiness === r && styles.progPillTextActive]}>{r}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {programmeRec && (
+              <View style={styles.progResult}>
+                <Text style={[styles.progResultTitle, { color: programmeRec.tone }]}>{programmeRec.assignmentTitle}</Text>
+                <Text style={styles.progResultSummary}>{programmeRec.summary}</Text>
+
+                <Text style={styles.progSectionLabel}>WEEKLY STRUCTURE</Text>
+                {programmeRec.weeklyStructure.map((day, i) => (
+                  <View key={i} style={styles.progDayRow}>
+                    <Text style={[styles.progDayNum, { color: programmeRec.tone }]}>D{i + 1}</Text>
+                    <Text style={styles.progDayText}>{day}</Text>
+                  </View>
+                ))}
+
+                <Text style={styles.progSectionLabel}>COACH NOTE</Text>
+                <Text style={styles.progCoachNote}>{programmeRec.coachNote}</Text>
+
+                <Text style={styles.progSectionLabel}>EVIDENCE</Text>
+                {programmeRec.scienceNotes.map((note, i) => (
+                  <View key={i} style={styles.progSciRow}>
+                    <Text style={[styles.progSciBullet, { color: programmeRec.tone }]}>›</Text>
+                    <Text style={styles.progSciText}>{note}</Text>
+                  </View>
+                ))}
+
+                <Text style={styles.progEvidenceLabel}>{programmeRec.evidencePack.label}</Text>
+              </View>
+            )}
+          </View>
+        )}
+      </Card>
+
       <Pressable
         style={[
           styles.primaryButton,
@@ -557,4 +657,25 @@ const styles = StyleSheet.create({
   },
   primaryButtonDisabled: { opacity: 0.62 },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
+  progHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  progHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progBody: { marginTop: 16, gap: 4 },
+  progLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginTop: 12, marginBottom: 6 },
+  progPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  progPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
+  progPillActive: { borderColor: colours.cyan, backgroundColor: 'rgba(0,230,255,0.12)' },
+  progPillText: { color: colours.muted, fontSize: 12, fontWeight: '900' },
+  progPillTextActive: { color: colours.cyan },
+  progResult: { marginTop: 20, gap: 6, borderTopWidth: 1, borderTopColor: colours.borderSoft, paddingTop: 16 },
+  progResultTitle: { fontSize: 16, fontWeight: '900', marginBottom: 4 },
+  progResultSummary: { color: colours.textSoft, fontSize: 13, fontWeight: '800', lineHeight: 19 },
+  progSectionLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginTop: 14, marginBottom: 6 },
+  progDayRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 4 },
+  progDayNum: { fontSize: 11, fontWeight: '900', width: 20, marginTop: 1 },
+  progDayText: { flex: 1, color: colours.text, fontSize: 13, fontWeight: '800', lineHeight: 18 },
+  progCoachNote: { color: colours.textSoft, fontSize: 13, fontWeight: '800', lineHeight: 19 },
+  progSciRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 4 },
+  progSciBullet: { fontSize: 14, fontWeight: '900', marginTop: 1 },
+  progSciText: { flex: 1, color: colours.textSoft, fontSize: 12, fontWeight: '800', lineHeight: 17 },
+  progEvidenceLabel: { color: colours.soft, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 12 },
 });
