@@ -108,7 +108,7 @@ type OverlayPolygon = { id: string; label: string; rings: Array<Array<{ lat: num
 type MapOverlay = {
   id: string;
   name: string;
-  format: 'geojson';
+  format: 'geojson' | 'kml';
   visible: boolean;
   color: string;
   points: OverlayPoint[];
@@ -261,6 +261,111 @@ function parseGeoJsonOverlay(content: string, fileName: string, color: string): 
 
   if (overlay.points.length + overlay.lines.length + overlay.polygons.length === 0) {
     throw new Error('GeoJSON has no supported map features.');
+  }
+
+  return overlay;
+}
+
+function stripXmlTags(value: string) {
+  return value
+    .replace(/<!\[CDATA\[|\]\]>/g, '')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .trim();
+}
+
+function firstXmlText(xml: string, tag: string) {
+  const match = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i').exec(xml);
+  return match ? stripXmlTags(match[1]) : null;
+}
+
+function xmlBlocks(xml: string, tag: string) {
+  const matches: string[] = [];
+  const re = new RegExp(`<${tag}(?:\\s[^>]*)?>[\\s\\S]*?<\\/${tag}>`, 'gi');
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(xml)) !== null) {
+    matches.push(match[0]);
+  }
+  return matches;
+}
+
+function parseKmlCoordinateList(coordinatesText: string) {
+  return coordinatesText
+    .replace(/<!\[CDATA\[|\]\]>/g, '')
+    .trim()
+    .split(/\s+/)
+    .map((part) => {
+      const [lonRaw, latRaw] = part.split(',');
+      const lon = Number.parseFloat(lonRaw);
+      const lat = Number.parseFloat(latRaw);
+      return Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+        ? { lat, lon }
+        : null;
+    })
+    .filter((point): point is { lat: number; lon: number } => point != null);
+}
+
+function parseKmlOverlay(content: string, fileName: string, color: string): MapOverlay {
+  const overlay: MapOverlay = {
+    id: `overlay-${Date.now()}`,
+    name: firstXmlText(content, 'name') ?? fileName.replace(/\.kml$/i, '') ?? 'KML Overlay',
+    format: 'kml',
+    visible: true,
+    color,
+    points: [],
+    lines: [],
+    polygons: [],
+  };
+  const placemarks = xmlBlocks(content, 'Placemark');
+  const blocks = placemarks.length > 0 ? placemarks : [content];
+
+  blocks.forEach((block, index) => {
+    const label = firstXmlText(block, 'name') ?? `Placemark ${index + 1}`;
+    const idPrefix = `${overlay.id}-${index}`;
+
+    xmlBlocks(block, 'Point').forEach((pointBlock, pointIndex) => {
+      const coordinates = firstXmlText(pointBlock, 'coordinates');
+      if (!coordinates) return;
+      const [point] = parseKmlCoordinateList(coordinates);
+      if (point) {
+        overlay.points.push({
+          id: `${idPrefix}-pt${pointIndex}`,
+          label,
+          latitude: point.lat,
+          longitude: point.lon,
+        });
+      }
+    });
+
+    xmlBlocks(block, 'LineString').forEach((lineBlock, lineIndex) => {
+      const coordinates = firstXmlText(lineBlock, 'coordinates');
+      if (!coordinates) return;
+      const points = parseKmlCoordinateList(coordinates);
+      if (points.length >= 2) {
+        overlay.lines.push({ id: `${idPrefix}-ln${lineIndex}`, label, points });
+      }
+    });
+
+    xmlBlocks(block, 'Polygon').forEach((polygonBlock, polygonIndex) => {
+      const rings = xmlBlocks(polygonBlock, 'LinearRing')
+        .map((ringBlock) => {
+          const coordinates = firstXmlText(ringBlock, 'coordinates');
+          return coordinates ? parseKmlCoordinateList(coordinates) : [];
+        })
+        .filter((ring) => ring.length >= 3);
+
+      if (rings.length > 0) {
+        overlay.polygons.push({ id: `${idPrefix}-pg${polygonIndex}`, label, rings });
+      }
+    });
+  });
+
+  if (overlay.points.length + overlay.lines.length + overlay.polygons.length === 0) {
+    throw new Error('KML has no supported map features.');
   }
 
   return overlay;
@@ -958,24 +1063,48 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
 
       const asset = result.assets[0];
       const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'utf8' });
-      const colors = ['#facc15', '#60a5fa', '#34d399', '#f97316', '#a78bfa', colours.red];
-      const overlay = parseGeoJsonOverlay(content, asset.name ?? 'GeoJSON Overlay', colors[mapOverlays.length % colors.length]);
+      const overlay = parseGeoJsonOverlay(content, asset.name ?? 'GeoJSON Overlay', nextOverlayColor());
 
-      setMapOverlays((current) => [...current, overlay]);
-      const firstPoint = getOverlayCenterPoint(overlay);
-      if (firstPoint) {
-        setMapCenter({
-          latitude: firstPoint.latitude,
-          longitude: firstPoint.longitude,
-          altitude: null,
-          accuracy: null,
-          timestamp: Date.now(),
-        });
-        setGpsFollowMode(false);
-      }
+      addImportedOverlay(overlay);
     } catch (error) {
       console.error('GeoJSON import failed', error);
       showAlert('Import Failed', 'Could not read GeoJSON features. Use a valid .geojson or .json file with Point, LineString, or Polygon geometry.');
+    }
+  }
+
+  async function handleKmlImport() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'utf8' });
+      const overlay = parseKmlOverlay(content, asset.name ?? 'KML Overlay', nextOverlayColor());
+
+      addImportedOverlay(overlay);
+    } catch (error) {
+      console.error('KML import failed', error);
+      showAlert('Import Failed', 'Could not read KML placemarks. Use a valid .kml file with Point, LineString, or Polygon geometry.');
+    }
+  }
+
+  function nextOverlayColor() {
+    const colors = ['#facc15', '#60a5fa', '#34d399', '#f97316', '#a78bfa', colours.red];
+    return colors[mapOverlays.length % colors.length];
+  }
+
+  function addImportedOverlay(overlay: MapOverlay) {
+    setMapOverlays((current) => [...current, overlay]);
+    const firstPoint = getOverlayCenterPoint(overlay);
+    if (firstPoint) {
+      setMapCenter({
+        latitude: firstPoint.latitude,
+        longitude: firstPoint.longitude,
+        altitude: null,
+        accuracy: null,
+        timestamp: Date.now(),
+      });
+      setGpsFollowMode(false);
     }
   }
 
@@ -2690,6 +2819,10 @@ function updateSelectedCheckpointHere() {
                       <Ionicons name="shapes-outline" size={13} color="#60a5fa" />
                       <Text style={[styles.forgePanelBtnText, { color: '#60a5fa' }]}>Import GeoJSON</Text>
                     </Pressable>
+                    <Pressable style={[styles.forgePanelBtn, { flex: 1 }]} onPress={handleKmlImport}>
+                      <Ionicons name="map-outline" size={13} color="#34d399" />
+                      <Text style={[styles.forgePanelBtnText, { color: '#34d399' }]}>Import KML</Text>
+                    </Pressable>
                     {importedRoute.length > 0 && (
                       <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => { setImportedRoute([]); setImportedRouteName(null); }}>
                         <Ionicons name="close" size={13} color={colours.red} />
@@ -2705,7 +2838,7 @@ function updateSelectedCheckpointHere() {
                     </Text>
                   )}
                   {!importedRouteName && mapOverlays.length === 0 && (
-                    <Text style={styles.forgePanelHint}>Overlay manager supports GPX routes and GeoJSON points, lines, and areas.</Text>
+                    <Text style={styles.forgePanelHint}>Overlay manager supports GPX routes plus GeoJSON/KML points, lines, and areas.</Text>
                   )}
                   {mapOverlays.length > 0 && (
                     <View style={styles.overlayList}>
@@ -2715,7 +2848,7 @@ function updateSelectedCheckpointHere() {
                           <Pressable style={styles.overlayCopy} onPress={() => toggleOverlayVisibility(overlay.id)}>
                             <Text style={styles.overlayTitle} numberOfLines={1}>{overlay.name}</Text>
                             <Text style={styles.overlayMeta}>
-                              {overlay.visible ? 'Visible' : 'Hidden'} | {overlay.points.length} pts | {overlay.lines.length} lines | {overlay.polygons.length} areas
+                              {overlay.format.toUpperCase()} | {overlay.visible ? 'Visible' : 'Hidden'} | {overlay.points.length} pts | {overlay.lines.length} lines | {overlay.polygons.length} areas
                             </Text>
                           </Pressable>
                           <Pressable style={styles.overlayIconBtn} onPress={() => centerMapOnOverlay(overlay)}>
