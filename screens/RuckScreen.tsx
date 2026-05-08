@@ -5185,8 +5185,8 @@ const styles = StyleSheet.create({
   // ── FORGE Tabbed Panel ──────────────────────────────────────────────────
   forgeBottomArea: {
     position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
-    backgroundColor: 'rgba(4,8,15,0.96)',
-    borderTopWidth: 1, borderTopColor: 'rgba(103,232,249,0.18)',
+    backgroundColor: 'rgba(4,8,15,0.78)',
+    borderTopWidth: 1, borderTopColor: 'rgba(103,232,249,0.22)',
   },
   forgePanel: {
     borderBottomWidth: 1, borderBottomColor: 'rgba(103,232,249,0.10)',

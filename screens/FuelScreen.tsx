@@ -152,11 +152,11 @@ export function FuelScreen({
   const maxHr = useMemo(() => Math.max(120, 220 - age), [age]);
   const estimatedBodyFat = useMemo(() => Math.round(clamp(5 + skinfoldMm * 0.45, 5, 45) * 10) / 10, [skinfoldMm]);
   const caloriesUsed = useMemo(
-    () => performance.weeklyLoad * 7,
+    () => performance.weeklyLoad,
     [performance.weeklyLoad]
   );
   const baseCalories = useMemo(() => Math.round(bodyWeightKg * 31), [bodyWeightKg]);
-  const calorieTarget = useMemo(() => baseCalories + activeGoal.offset + Math.round(caloriesUsed / 7), [baseCalories, activeGoal.offset, caloriesUsed]);
+  const calorieTarget = useMemo(() => baseCalories + activeGoal.offset + Math.min(800, Math.round(caloriesUsed / 7)), [baseCalories, activeGoal.offset, caloriesUsed]);
   const proteinTarget = useMemo(() => Math.round(bodyWeightKg * (goal === 'gain' ? 2.0 : 1.8)), [bodyWeightKg, goal]);
   const carbTarget = useMemo(() => Math.round((calorieTarget * (goal === 'loss' ? 0.38 : 0.48)) / 4), [calorieTarget, goal]);
   const fatTarget = useMemo(() => Math.round((calorieTarget * 0.25) / 9), [calorieTarget]);
