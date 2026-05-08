@@ -10,6 +10,7 @@ export type Teammate = {
   speed?: number;
   accuracy?: number;
   updatedAt: number;
+  color: string;
 };
 
 type PresenceState = {
@@ -69,7 +70,7 @@ export function useTeamPresence(callsign: string, enabled: boolean) {
             accuracy: latest.accuracy,
             updatedAt: latest.updatedAt,
             color: colorForCallsign(latest.callsign ?? key),
-          } as Teammate & { color: string });
+          });
         }
       }
       setTeammates(members);

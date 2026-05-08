@@ -682,9 +682,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     try {
       const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (result.canceled || !result.assets?.[0]) return;
-      const content = await FileSystem.readAsStringAsync(result.assets[0].uri, {
-        encoding: FileSystem.EncodingType.UTF8,
-      });
+      const content = await FileSystem.readAsStringAsync(result.assets[0].uri, { encoding: 'utf8' });
       const parsed = parseGpx(content);
       if (!parsed.trackPoints.length) {
         showAlert('No Track Found', 'The file contained no track points. Make sure it is a valid .gpx file.');
@@ -1763,6 +1761,19 @@ function updateSelectedCheckpointHere() {
                     />
                   </G>
                 )}
+                {/* Imported GPX route — yellow dashed underlay */}
+                {importedRouteLinePoints && (
+                  <Polyline
+                    points={importedRouteLinePoints}
+                    fill="none"
+                    stroke="#facc15"
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="8,6"
+                    opacity={0.8}
+                  />
+                )}
                 {checkpointMapPoints.map((checkpoint, index) => (
                   <React.Fragment key={checkpoint.id}>
                     <Circle
@@ -1773,12 +1784,12 @@ function updateSelectedCheckpointHere() {
                       stroke="rgba(7,17,30,0.86)"
                       strokeWidth={2}
                     />
-                    <SvgText 
-                      x={checkpoint.x} 
-                      y={checkpoint.y + 3} 
-                      textAnchor="middle" 
-                      fontSize="9" 
-                      fontWeight="900" 
+                    <SvgText
+                      x={checkpoint.x}
+                      y={checkpoint.y + 3}
+                      textAnchor="middle"
+                      fontSize="9"
+                      fontWeight="900"
                       fill={colours.background}
                       transform={!mapNorthUp && activeHeading != null ? `rotate(${activeHeading}, ${checkpoint.x}, ${checkpoint.y})` : undefined}
                     >
@@ -1786,6 +1797,52 @@ function updateSelectedCheckpointHere() {
                     </SvgText>
                   </React.Fragment>
                 ))}
+                {/* Draw annotations */}
+                {(() => {
+                  if (!effectiveMapCenter) return null;
+                  const tileZoom = Math.round(mapZoom);
+                  const cp = latLonToWorldPixel(effectiveMapCenter.latitude, effectiveMapCenter.longitude, tileZoom);
+                  const toSvg = (p: { lat: number; lon: number }) => {
+                    const wp = latLonToWorldPixel(p.lat, p.lon, tileZoom);
+                    return { x: wp.x - cp.x + renderViewport.width / 2, y: wp.y - cp.y + renderViewport.height / 2 };
+                  };
+                  return (
+                    <>
+                      {drawLines.map((line, i) => {
+                        const pts = line.points.map(toSvg).map((p) => `${p.x},${p.y}`).join(' ');
+                        return pts ? <Polyline key={i} points={pts} fill="none" stroke={line.color} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" opacity={0.9} /> : null;
+                      })}
+                      {currentDrawLine && currentDrawLine.length > 1 && (
+                        <Polyline
+                          points={currentDrawLine.map(toSvg).map((p) => `${p.x},${p.y}`).join(' ')}
+                          fill="none"
+                          stroke={drawColor}
+                          strokeWidth={3}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          opacity={0.8}
+                        />
+                      )}
+                    </>
+                  );
+                })()}
+                {/* Teammate PLI markers */}
+                {teammates.length > 0 && effectiveMapCenter && (() => {
+                  const tileZoom = Math.round(mapZoom);
+                  const cp = latLonToWorldPixel(effectiveMapCenter.latitude, effectiveMapCenter.longitude, tileZoom);
+                  return teammates.map((tm) => {
+                    const wp = latLonToWorldPixel(tm.lat, tm.lon, tileZoom);
+                    const sx = wp.x - cp.x + renderViewport.width / 2;
+                    const sy = wp.y - cp.y + renderViewport.height / 2;
+                    const rot = mapNorthUp ? (tm.heading ?? 0) : 0;
+                    return (
+                      <G key={tm.callsign} transform={`translate(${sx}, ${sy}) rotate(${rot})`}>
+                        <Polygon points="0,-12 9,8 0,4 -9,8" fill={tm.color} stroke="rgba(7,17,30,0.85)" strokeWidth={1.5} strokeLinejoin="round" />
+                        <SvgText x={0} y={22} textAnchor="middle" fontSize="8" fontWeight="900" fill={tm.color}>{tm.callsign}</SvgText>
+                      </G>
+                    );
+                  });
+                })()}
               </Svg>
             </Animated.View>
           )}
@@ -2084,6 +2141,26 @@ function updateSelectedCheckpointHere() {
                       <Text style={[styles.forgePanelBtnText, gpsFollowMode && styles.forgePanelBtnTextActive]}>{gpsFollowMode ? 'GPS Follow' : 'Pan Free'}</Text>
                     </Pressable>
                   </View>
+                  {/* Draw mode row */}
+                  <View style={styles.forgePanelRow}>
+                    <Pressable style={[styles.forgePanelBtn, drawMode && { backgroundColor: drawColor, borderColor: drawColor }]} onPress={() => setDrawMode((v) => !v)}>
+                      <Ionicons name="pencil-outline" size={13} color={drawMode ? colours.background : colours.text} />
+                      <Text style={[styles.forgePanelBtnText, drawMode && { color: colours.background }]}>{drawMode ? 'Drawing ON' : 'Draw Mode'}</Text>
+                    </Pressable>
+                    {drawLines.length > 0 && (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => { setDrawLines([]); setCurrentDrawLine(null); }}>
+                        <Ionicons name="trash-outline" size={13} color={colours.red} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Clear</Text>
+                      </Pressable>
+                    )}
+                    {(['#ff4444', '#facc15', '#34d399', '#60a5fa', '#f97316', '#a78bfa'] as const).map((col) => (
+                      <Pressable
+                        key={col}
+                        style={[styles.forgeColorDot, { backgroundColor: col }, drawColor === col && styles.forgeColorDotActive]}
+                        onPress={() => setDrawColor(col)}
+                      />
+                    ))}
+                  </View>
                 </View>
               )}
               {atakTab === 'cp' && (
@@ -2121,6 +2198,27 @@ function updateSelectedCheckpointHere() {
                   ) : (
                     <Text style={styles.forgePanelHint}>Pan map then tap Add CP to drop a checkpoint</Text>
                   )}
+                  {/* Team PLI */}
+                  <View style={styles.forgePanelRow}>
+                    <Pressable
+                      style={[styles.forgePanelBtn, teamEnabled && styles.forgePanelBtnActive]}
+                      onPress={() => setTeamEnabled((v) => !v)}
+                    >
+                      <Ionicons name="people-outline" size={13} color={teamEnabled ? colours.background : colours.text} />
+                      <Text style={[styles.forgePanelBtnText, teamEnabled && styles.forgePanelBtnTextActive]}>
+                        {teamEnabled ? (teamConnected ? `Team ON — ${teammates.length} online` : 'Connecting...') : 'Team PLI'}
+                      </Text>
+                    </Pressable>
+                  </View>
+                  {teammates.length > 0 && (
+                    <View style={styles.forgeCpRow}>
+                      {teammates.map((tm) => (
+                        <View key={tm.callsign} style={[styles.forgeCpPill, { borderColor: tm.color }]}>
+                          <Text style={[styles.forgeCpPillText, { color: tm.color }]}>{tm.callsign}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
               {atakTab === 'offline' && (
@@ -2141,7 +2239,29 @@ function updateSelectedCheckpointHere() {
                       <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Clear Cache</Text>
                     </Pressable>
                   </View>
-                  <Text style={styles.forgePanelHint}>Downloads map tiles visible on screen for offline use</Text>
+                  {/* GPX import */}
+                  <View style={styles.forgePanelRow}>
+                    <Pressable style={[styles.forgePanelBtn, { flex: 1 }]} onPress={handleGpxImport}>
+                      <Ionicons name="document-outline" size={13} color="#facc15" />
+                      <Text style={[styles.forgePanelBtnText, { color: '#facc15' }]}>Import GPX</Text>
+                    </Pressable>
+                    {importedRoute.length > 0 && (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => { setImportedRoute([]); setImportedRouteName(null); }}>
+                        <Ionicons name="close" size={13} color={colours.red} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Clear GPX</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                  {importedRouteName && (
+                    <Text style={styles.forgePanelHint}>
+                      {importedRoute.length > 0
+                        ? `Route: ${importedRouteName} — ${importedRoute.length} pts (yellow dashes)`
+                        : 'No route loaded'}
+                    </Text>
+                  )}
+                  {!importedRouteName && (
+                    <Text style={styles.forgePanelHint}>Import a .gpx file to overlay a planned route on the map</Text>
+                  )}
                 </View>
               )}
               {atakTab === 'nav' && (
@@ -4060,4 +4180,12 @@ const styles = StyleSheet.create({
   },
   forgeTabText: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
   forgeTabTextActive: { color: colours.cyan },
+  forgeColorDot: {
+    width: 18, height: 18, borderRadius: 9,
+    borderWidth: 1.5, borderColor: 'transparent',
+  },
+  forgeColorDotActive: {
+    borderColor: '#fff',
+    transform: [{ scale: 1.25 }],
+  },
 });
