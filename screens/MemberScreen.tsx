@@ -659,8 +659,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   cardTitle: {
-    color: colours.text,
     ...typography.h4,
+    color: colours.text,
     marginBottom: responsiveSpacing('md'),
   },
   body: {
