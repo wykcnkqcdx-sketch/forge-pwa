@@ -4,7 +4,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
-import Svg, { Circle, Polyline, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -387,6 +387,26 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const showExpandedMap = hasActiveGpsSession || mapExpanded;
   const displayBearing = routeBearing ?? activeHeading;
   const displayHeading = activeHeading ?? routeBearing;
+  const altitudeFt = currentAltitude != null ? Math.round(currentAltitude * 3.28084) : null;
+  const speedKmh = useMemo(() => (
+    currentDistance > 0.02 && elapsedSeconds > 0
+      ? (currentDistance / (elapsedSeconds / 3600)).toFixed(1)
+      : '0.0'
+  ), [currentDistance, elapsedSeconds]);
+  const scaleBar = useMemo(() => {
+    if (!effectiveMapCenter || mapViewport.width <= 0) return null;
+    const tileZoom = Math.round(mapZoom);
+    const metersPerPixel = (156543.03392 * Math.cos(effectiveMapCenter.latitude * Math.PI / 180)) / Math.pow(2, tileZoom);
+    const targetPixels = 80;
+    const targetMeters = targetPixels * metersPerPixel;
+    const niceValues = [1, 2, 5, 10, 25, 50, 100, 200, 500, 1000, 2000, 5000, 10000];
+    const niceMeters = niceValues.find((n) => n >= targetMeters) ?? 10000;
+    const barWidth = Math.round(niceMeters / metersPerPixel);
+    return {
+      label: niceMeters >= 1000 ? `${(niceMeters / 1000).toFixed(niceMeters >= 10000 ? 0 : 1)} km` : `${niceMeters} m`,
+      width: barWidth,
+    };
+  }, [effectiveMapCenter, mapZoom, mapViewport.width]);
   const gpsQuality = useMemo(() => {
     if (!currentPoint) return { label: 'IDLE', tone: colours.muted, detail: 'awaiting fix' };
     if (currentPoint.accuracy == null) return { label: 'GOOD', tone: colours.green, detail: 'accuracy unknown' };
@@ -1626,7 +1646,15 @@ function updateSelectedCheckpointHere() {
                   <Circle cx={firstMapPoint.x} cy={firstMapPoint.y} r={5} fill={colours.background} stroke={colours.cyan} strokeWidth={2} />
                 )}
                 {lastMapPoint && (
-                  <Circle cx={lastMapPoint.x} cy={lastMapPoint.y} r={8} fill={colours.green} stroke="rgba(255,255,255,0.75)" strokeWidth={2} />
+                  <G transform={`translate(${lastMapPoint.x}, ${lastMapPoint.y}) rotate(${mapNorthUp ? (activeHeading ?? 0) : 0})`}>
+                    <Polygon
+                      points="0,-15 11,10 0,5 -11,10"
+                      fill={colours.cyan}
+                      stroke="rgba(255,255,255,0.9)"
+                      strokeWidth={2}
+                      strokeLinejoin="round"
+                    />
+                  </G>
                 )}
                 {checkpointMapPoints.map((checkpoint, index) => (
                   <React.Fragment key={checkpoint.id}>
@@ -1660,7 +1688,7 @@ function updateSelectedCheckpointHere() {
           <View style={styles.crosshairVertical} />
         </View>
 
-        {showOverlays && (
+        {showOverlays && !fullscreen && (
           <>
             <View style={[styles.mapGridOverlay, shadow.subtle]} pointerEvents="none">
               <Text style={styles.mapOverlayLabel}>{gpsFollowMode ? 'GPS GRID' : 'MAP CENTER'}</Text>
@@ -1671,7 +1699,7 @@ function updateSelectedCheckpointHere() {
                 style={{
                   transform: [
                     {
-                      rotate: mapNorthUp 
+                      rotate: mapNorthUp
                         ? rotationAnim.interpolate({
                             inputRange: [-720, 0, 360, 720],
                             outputRange: ['-720deg', '0deg', '360deg', '720deg'],
@@ -1689,7 +1717,7 @@ function updateSelectedCheckpointHere() {
               <Text style={styles.mapCompassValue}>{displayHeading == null ? '---' : formatHeading(displayHeading)}</Text>
               <Text style={styles.mapCompassLabel}>{displayHeading == null ? 'HDG' : cardinalDirection(displayHeading)}</Text>
             </View>
-            <View style={[styles.mapTelemetry, fullscreen && styles.mapTelemetryFullscreen, shadow.subtle]} pointerEvents="none">
+            <View style={[styles.mapTelemetry, shadow.subtle]} pointerEvents="none">
               <View style={styles.mapTelemetryItem}>
                 <Text style={styles.mapTelemetryValue}>{currentDistance.toFixed(2)}</Text>
                 <Text style={styles.mapTelemetryLabel}>KM</Text>
@@ -1707,30 +1735,32 @@ function updateSelectedCheckpointHere() {
                 <Text style={styles.mapTelemetryLabel}>ALT M</Text>
               </View>
             </View>
-            <View style={[styles.mapMissionStrip, fullscreen && styles.mapMissionStripFullscreen, shadow.subtle]} pointerEvents="none">
+            <View style={[styles.mapMissionStrip, shadow.subtle]} pointerEvents="none">
               <Text style={styles.mapMissionText}>{arrivalCheckpoint ? 'ARRIVED' : formatSignedMinutes(targetDeltaMinutes)}</Text>
               <Text style={styles.mapMissionText}>{selectedCheckpoint?.label ?? checkpointStatus}</Text>
               <Text style={styles.mapMissionText}>
                 {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
               </Text>
             </View>
-            <View style={[styles.finishStrip, fullscreen && styles.finishStripFullscreen, shadow.subtle]} pointerEvents="none">
+            <View style={[styles.finishStrip, shadow.subtle]} pointerEvents="none">
               <Text style={styles.finishStripText}>FINISH {finishDistanceRemainingKm.toFixed(1)}km</Text>
               <Text style={styles.finishStripText}>REQ {finishRequiredPace > 0 ? `${finishRequiredPace.toFixed(1)}/km` : '--'}</Text>
               <Text style={[styles.finishStripText, { color: finishOnTarget ? colours.green : colours.amber }]}>
                 {finishOnTarget ? 'ON TARGET' : 'AT RISK'}
               </Text>
             </View>
-            <View style={[styles.bearingGuidanceStrip, fullscreen && styles.bearingGuidanceStripFullscreen, { borderColor: statusColors(bearingGuidance.tone).borderMed, backgroundColor: statusColors(bearingGuidance.tone).bgMed }, shadow.subtle]} pointerEvents="none">
-              <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
-              <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
-            </View>
           </>
+        )}
+        {showOverlays && (
+          <View style={[styles.bearingGuidanceStrip, fullscreen && styles.bearingGuidanceStripFullscreen, { borderColor: statusColors(bearingGuidance.tone).borderMed, backgroundColor: statusColors(bearingGuidance.tone).bgMed }, shadow.subtle]} pointerEvents="none">
+            <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
+            <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
+          </View>
         )}
         {mapTiles.length > 0 && (
           <Text style={styles.mapAttribution}>{activeMapLayer.attribution}</Text>
         )}
-        {showOverlays && (
+        {showOverlays && !fullscreen && (
           <View style={styles.mapSelectControls}>
             <Pressable
               style={[styles.mapSelectButton, !gpsFollowMode && styles.mapSelectButtonActive, shadow.subtle]}
@@ -1807,41 +1837,128 @@ function updateSelectedCheckpointHere() {
 
   if (mapFullscreen) {
     return (
-      <SafeAreaView style={styles.fullscreenContainer}>
+      <SafeAreaView style={styles.atakContainer}>
+        {/* Full-screen map */}
         {renderMapStage(true)}
-        <View style={styles.fullscreenBottomBar}>
-          <View style={[styles.fullscreenStatusPanel, { borderColor: statusColors(trackingStatus.tone).borderMed, backgroundColor: statusColors(trackingStatus.tone).bgMed }]}>
-            <Text style={[styles.fullscreenStatusLabel, { color: trackingStatus.tone }]}>{trackingStatus.label}</Text>
-            <Text style={styles.fullscreenStatusDetail}>{trackingStatus.detail}</Text>
-          </View>
-          <Pressable style={styles.fullscreenCollapseBtn} onPress={() => setMapFullscreen(false)}>
-            <Ionicons name="contract" size={18} color={colours.text} />
+
+        {/* ── ATAK Top Toolbar ─────────────────────────────────────── */}
+        <View style={styles.atakTopBar}>
+          <Pressable style={styles.atakTopBtn} onPress={() => setMapFullscreen(false)}>
+            <Ionicons name="menu-outline" size={22} color="#fff" />
           </Pressable>
+          <View style={{ flex: 1, paddingLeft: 6 }}>
+            <Text style={[styles.atakStatusText, { color: trackingStatus.tone }]}>{trackingStatus.label}</Text>
+            <Text style={styles.atakStatusDetail} numberOfLines={1}>{trackingStatus.detail}</Text>
+          </View>
+          <Pressable style={styles.atakTopBtn} onPress={() => {
+            const idx = mapLayerOptions.findIndex((o) => o.key === mapLayer);
+            setMapLayer(mapLayerOptions[(idx + 1) % mapLayerOptions.length].key);
+          }}>
+            <Ionicons name="layers-outline" size={22} color="#fff" />
+          </Pressable>
+          <Pressable style={styles.atakTopBtn} onPress={addCheckpointHere}>
+            <Ionicons name="location-outline" size={22} color="#fff" />
+          </Pressable>
+          <Pressable style={styles.atakTopBtn} onPress={() => setMapNorthUp((v) => !v)}>
+            <Ionicons name="compass-outline" size={22} color={mapNorthUp ? colours.cyan : '#fff'} />
+          </Pressable>
+          <Pressable style={styles.atakTopBtn} onPress={recenterMapOnGps}>
+            <Ionicons name={gpsFollowMode ? 'locate' : 'locate-outline'} size={22} color={gpsFollowMode ? colours.cyan : '#fff'} />
+          </Pressable>
+          <Pressable style={styles.atakTopBtn} onPress={downloadOfflineMap}>
+            <Ionicons name="cloud-download-outline" size={22} color={isDownloadingMap ? colours.cyan : '#fff'} />
+          </Pressable>
+        </View>
+
+        {/* ── Left Sidebar: Compass + Zoom ─────────────────────────── */}
+        <View style={styles.atakLeftBar} pointerEvents="box-none">
+          <View style={styles.atakCompass}>
+            <Animated.View
+              style={{
+                transform: [{
+                  rotate: mapNorthUp
+                    ? rotationAnim.interpolate({ inputRange: [-720, 0, 360, 720], outputRange: ['-720deg', '0deg', '360deg', '720deg'] })
+                    : '0deg',
+                }],
+              }}
+            >
+              <Ionicons name="navigate" size={20} color={colours.background} />
+            </Animated.View>
+            <Text style={styles.atakCompassText}>{displayHeading != null ? `${Math.round(displayHeading)}°` : 'N'}</Text>
+          </View>
+          <Pressable style={styles.atakSideBtn} onPress={() => { if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current); setMapZoom((z) => Math.min(18, z + 1)); }}>
+            <Text style={styles.atakSideBtnText}>+</Text>
+          </Pressable>
+          <Pressable style={styles.atakSideBtn} onPress={() => { if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current); setMapZoom((z) => Math.max(2, z - 1)); }}>
+            <Text style={styles.atakSideBtnText}>−</Text>
+          </Pressable>
+        </View>
+
+        {/* ── Bottom-right MGRS / Telemetry HUD ───────────────────── */}
+        <View style={styles.atakHud} pointerEvents="none">
+          <Text style={styles.atakHudCallsign}>Callsign: LIBERTY</Text>
+          <Text style={styles.atakHudCoord} numberOfLines={2}>
+            {(gpsFollowMode ? currentCoordinate : mapCenterCoordinate) ?? 'Acquiring GPS...'}
+          </Text>
+          <View style={styles.atakHudRow}>
+            <Text style={styles.atakHudLabel}>{altitudeFt != null ? `${altitudeFt} ft MSL` : '--- ft MSL'}</Text>
+            <Text style={styles.atakHudLabel}>{displayHeading != null ? `${Math.round(displayHeading)}°M` : '---'}</Text>
+          </View>
+          <View style={styles.atakHudRow}>
+            <Text style={styles.atakHudLabel}>{speedKmh} km/h</Text>
+            <Text style={styles.atakHudLabel}>
+              {currentPoint?.accuracy != null ? `+/- ${Math.round(currentPoint.accuracy)}m` : '+/- --'}
+            </Text>
+          </View>
+        </View>
+
+        {/* ── Scale bar bottom-left ─────────────────────────────────── */}
+        {scaleBar && (
+          <View style={styles.atakScaleBar} pointerEvents="none">
+            <View style={[styles.atakScaleBarLine, { width: scaleBar.width }]} />
+            <Text style={styles.atakScaleBarText}>{scaleBar.label}</Text>
+          </View>
+        )}
+
+        {/* ── Bottom Action Strip ───────────────────────────────────── */}
+        <View style={styles.atakBottomStrip}>
+          {startTime && (
+            <View style={styles.atakTimerBox}>
+              <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.atakTimerText} />
+              <Text style={styles.atakTimerLabel}>{currentDistance.toFixed(2)} km</Text>
+            </View>
+          )}
+
           {isStarting ? (
-            <Pressable style={[styles.trackButton, styles.trackButtonDisabled, { flex: 1 }]} disabled>
-              <Ionicons name="sync" size={20} color={colours.background} />
-              <Text style={styles.trackButtonText}>Acquiring GPS...</Text>
-            </Pressable>
+            <View style={[styles.atakActionBtn, { flex: 1, opacity: 0.6 }]}>
+              <Ionicons name="sync" size={18} color={colours.background} />
+              <Text style={styles.atakActionBtnText}>Acquiring GPS...</Text>
+            </View>
           ) : isTracking ? (
-            <Pressable style={[styles.trackButton, styles.stopButton, { flex: 1 }]} onPress={stopTracking}>
-              <Ionicons name="stop" size={20} color={colours.background} />
-              <Text style={styles.trackButtonText}>Stop Tracking</Text>
+            <Pressable style={[styles.atakActionBtn, styles.atakStopBtn, { flex: 1 }]} onPress={stopTracking}>
+              <Ionicons name="stop-circle" size={18} color="#fff" />
+              <Text style={styles.atakActionBtnText}>Stop</Text>
             </Pressable>
           ) : startTime ? (
             <>
-              <Pressable style={[styles.trackButton, { flex: 1 }]} onPress={resumeTracking}>
-                <Ionicons name="play" size={20} color={colours.background} />
-                <Text style={styles.trackButtonText}>Resume</Text>
+              <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={resumeTracking}>
+                <Ionicons name="play" size={18} color={colours.background} />
+                <Text style={styles.atakActionBtnText}>Resume</Text>
               </Pressable>
-              <Pressable style={[styles.saveButton, { flex: 1 }]} onPress={openRuckReview}>
-                <Text style={styles.saveButtonText}>Review Ruck</Text>
+              <Pressable style={[styles.atakActionBtn, styles.atakSaveBtn, { flex: 1 }]} onPress={openRuckReview}>
+                <Ionicons name="checkmark-circle" size={18} color={colours.background} />
+                <Text style={styles.atakActionBtnText}>Review</Text>
               </Pressable>
-              <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
+              <Pressable style={[styles.atakActionBtn, styles.atakDiscardBtn]} onPress={discardTrackedRuck}>
                 <Ionicons name="close" size={20} color={colours.text} />
-                <Text style={[styles.trackButtonText, { color: colours.text }]}>Discard</Text>
               </Pressable>
             </>
-          ) : null}
+          ) : (
+            <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={() => startTracking()}>
+              <Ionicons name="play-circle" size={18} color={colours.background} />
+              <Text style={styles.atakActionBtnText}>Start GPS Tracking</Text>
+            </Pressable>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -1857,7 +1974,7 @@ function updateSelectedCheckpointHere() {
 
       <Card style={styles.mapCard}>
         <View style={styles.mapHeader}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={styles.mapLabel}>LIVE GPS</Text>
             <Text style={styles.mapText}>{isTracking ? 'Tracking active' : startTime ? 'Track paused' : 'Ready to acquire signal'}</Text>
             <Text style={styles.mapSubText}>
@@ -1865,6 +1982,10 @@ function updateSelectedCheckpointHere() {
               {rejectedPointCount > 0 ? ` | ${rejectedPointCount} rejected${lastRejectedReason ? ` (${lastRejectedReason})` : ''}` : ''}
             </Text>
           </View>
+          <Pressable style={styles.atakEntryBtn} onPress={() => setMapFullscreen(true)}>
+            <Ionicons name="expand" size={14} color={colours.cyan} />
+            <Text style={styles.atakEntryBtnText}>ATAK VIEW</Text>
+          </Pressable>
           <View style={[styles.signalBadge, { borderColor: statusColors(gpsQuality.tone).borderMed, backgroundColor: statusColors(gpsQuality.tone).bgMed }]}>
             <View style={[styles.signalDot, { backgroundColor: gpsQuality.tone }]} />
             <Text style={[styles.signalText, { color: gpsQuality.tone }]}>
@@ -2828,7 +2949,7 @@ const styles = StyleSheet.create({
   mapTelemetryFullscreen: { bottom: 142 },
   mapMissionStripFullscreen: { bottom: 198 },
   finishStripFullscreen: { bottom: 238 },
-  bearingGuidanceStripFullscreen: { bottom: 278 },
+  bearingGuidanceStripFullscreen: { bottom: 88, left: 10, right: 200 },
   mapStage: {
     height: 190,
     marginTop: 14,
@@ -3514,4 +3635,93 @@ const styles = StyleSheet.create({
   score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
+
+  // ── ATAK Fullscreen Styles ────────────────────────────────────────────────
+  atakContainer: { flex: 1, backgroundColor: '#04080F' },
+  atakTopBar: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, height: 52,
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 2,
+    backgroundColor: 'rgba(4,8,15,0.86)',
+    borderBottomWidth: 1, borderBottomColor: 'rgba(103,232,249,0.18)',
+    zIndex: 10,
+  },
+  atakTopBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  atakStatusText: { fontSize: 11, fontWeight: '900', letterSpacing: 1.6 },
+  atakStatusDetail: { color: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: '800', marginTop: 1 },
+  atakLeftBar: {
+    position: 'absolute',
+    top: 62, right: 10, gap: 8, alignItems: 'center', zIndex: 10,
+  },
+  atakCompass: {
+    width: 52, height: 52, borderRadius: 26,
+    backgroundColor: colours.cyan,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 2, borderColor: 'rgba(255,255,255,0.3)',
+  },
+  atakCompassText: { color: colours.background, fontSize: 8, fontWeight: '900', marginTop: 1 },
+  atakSideBtn: {
+    width: 44, height: 44, borderRadius: 8,
+    backgroundColor: 'rgba(4,8,15,0.82)',
+    borderWidth: 1, borderColor: 'rgba(103,232,249,0.3)',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  atakSideBtnText: { color: colours.text, fontSize: 22, fontWeight: '900', lineHeight: 26 },
+  atakHud: {
+    position: 'absolute', bottom: 90, right: 10,
+    minWidth: 185,
+    backgroundColor: 'rgba(4,8,15,0.86)',
+    borderWidth: 1, borderColor: 'rgba(103,232,249,0.28)',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8,
+    zIndex: 10,
+  },
+  atakHudCallsign: { color: colours.cyan, fontSize: 11, fontWeight: '900', letterSpacing: 0.8, marginBottom: 4 },
+  atakHudCoord: {
+    color: colours.text, fontSize: 11, fontWeight: '800',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    marginBottom: 4,
+  },
+  atakHudRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 8, marginTop: 2 },
+  atakHudLabel: { color: colours.cyan, fontSize: 10, fontWeight: '900' },
+  atakScaleBar: {
+    position: 'absolute', bottom: 90, left: 10,
+    paddingVertical: 5, paddingHorizontal: 7,
+    backgroundColor: 'rgba(4,8,15,0.72)',
+    borderRadius: 4, alignItems: 'flex-start', gap: 2, zIndex: 10,
+  },
+  atakScaleBarLine: { height: 3, backgroundColor: 'rgba(255,255,255,0.85)', borderRadius: 1 },
+  atakScaleBarText: { color: 'rgba(255,255,255,0.85)', fontSize: 9, fontWeight: '900' },
+  atakBottomStrip: {
+    position: 'absolute', bottom: 0, left: 0, right: 0,
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 24,
+    backgroundColor: 'rgba(4,8,15,0.90)',
+    borderTopWidth: 1, borderTopColor: 'rgba(103,232,249,0.16)',
+    zIndex: 10,
+  },
+  atakTimerBox: { paddingHorizontal: 6, alignItems: 'center', minWidth: 72 },
+  atakTimerText: { color: colours.text, fontSize: 18, fontWeight: '900' },
+  atakTimerLabel: { color: colours.cyan, fontSize: 11, fontWeight: '900', marginTop: 1 },
+  atakActionBtn: {
+    minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, borderRadius: 10, backgroundColor: colours.cyan, paddingHorizontal: 14,
+  },
+  atakActionBtnText: { color: colours.background, fontSize: 13, fontWeight: '900' },
+  atakStopBtn: { backgroundColor: colours.red },
+  atakSaveBtn: { backgroundColor: colours.green },
+  atakDiscardBtn: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 1, borderColor: colours.border,
+    width: 46, paddingHorizontal: 0,
+  },
+  atakEntryBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.4)',
+    backgroundColor: 'rgba(103,232,249,0.08)',
+    marginRight: 8,
+  },
+  atakEntryBtnText: { color: colours.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
 });
