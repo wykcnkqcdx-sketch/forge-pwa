@@ -535,7 +535,10 @@ export function MemberScreen({
               <Pressable
                 key={kind}
                 style={[styles.kindPill, active && styles.kindPillActive]}
-                onPress={() => setQuickLogKind(kind)}
+                onPress={() => {
+                  setQuickLogKind(kind);
+                  if (quickLogFeedback.startsWith('Logged ')) setQuickLogFeedback('');
+                }}
               >
                 <Text style={[styles.kindPillText, active && styles.kindPillTextActive]}>{kind}</Text>
               </Pressable>
@@ -548,7 +551,10 @@ export function MemberScreen({
             <TextInput
               style={styles.quickLogInput}
               value={quickLogDuration}
-              onChangeText={setQuickLogDuration}
+              onChangeText={(value) => {
+                setQuickLogDuration(value);
+                if (quickLogFeedback.startsWith('Logged ')) setQuickLogFeedback('');
+              }}
               keyboardType="number-pad"
               placeholder="30"
               placeholderTextColor={colours.soft}
@@ -559,7 +565,10 @@ export function MemberScreen({
             <TextInput
               style={styles.quickLogInput}
               value={quickLogVolume}
-              onChangeText={setQuickLogVolume}
+              onChangeText={(value) => {
+                setQuickLogVolume(value);
+                if (quickLogFeedback.startsWith('Logged ')) setQuickLogFeedback('');
+              }}
               keyboardType="number-pad"
               placeholder={`${estimateQuickLogVolume(quickLogKind, Number.parseInt(quickLogDuration || '0', 10) || 30)}`}
               placeholderTextColor={colours.soft}
@@ -574,7 +583,10 @@ export function MemberScreen({
             <Pressable
               key={label}
               style={[styles.finishButton, quickLogEffort === label && styles.finishButtonActive]}
-              onPress={() => setQuickLogEffort(label)}
+              onPress={() => {
+                setQuickLogEffort(label);
+                if (quickLogFeedback.startsWith('Logged ')) setQuickLogFeedback('');
+              }}
             >
               <Text style={styles.finishButtonText}>{label}</Text>
             </Pressable>

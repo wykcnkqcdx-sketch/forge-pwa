@@ -25,6 +25,7 @@ import { SessionCard } from '../components/SessionCard';
 import { SessionEditModal } from '../components/SessionEditModal';
 import { ReadinessModal } from '../components/ReadinessModal';
 import { DayDetailModal } from '../components/DayDetailModal';
+import { addDaysToDateKey, isSameLocalDate, toLocalDateKey } from '../utils/date';
 
 export function AnalyticsScreen({
   sessions,
@@ -145,16 +146,14 @@ export function AnalyticsScreen({
   const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
   const [displayLimit, setDisplayLimit] = useState(10);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toLocalDateKey();
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
 
   function changeDateOffset(offset: number) {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedDateStr((prev) => {
       const baseDate = prev || todayStr;
-      const [y, m, d] = baseDate.split('-').map(Number);
-      const date = new Date(y, m - 1, d + offset);
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      return addDaysToDateKey(baseDate, offset);
     });
   }
 
@@ -171,7 +170,7 @@ export function AnalyticsScreen({
   const filteredSessions = useMemo(() => {
     let result = orderedSessions;
     if (selectedDateStr) {
-      result = result.filter((s) => s.completedAt && (s.completedAt.startsWith(selectedDateStr) || new Date(s.completedAt).toISOString().slice(0, 10) === selectedDateStr));
+      result = result.filter((s) => isSameLocalDate(s.completedAt, selectedDateStr));
     }
     if (filterType !== 'All') {
       result = result.filter((s) => s.type === filterType);
@@ -680,7 +679,7 @@ export function AnalyticsScreen({
 
       <DayDetailModal
         visible={dayModalDate !== null}
-        date={dayModalDate ?? new Date().toISOString().slice(0, 10)}
+        date={dayModalDate ?? toLocalDateKey()}
         daySessions={dayModalSessions}
         allSessions={sessions}
         onClose={() => setDayModalDate(null)}
