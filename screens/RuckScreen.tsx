@@ -109,6 +109,7 @@ type OverlayPolygon = { id: string; label: string; rings: Array<Array<{ lat: num
 type MeasurementMode = 'range' | 'route' | 'area';
 type MeasurementPoint = { latitude: number; longitude: number };
 type NavTarget = { type: 'mark' | 'teammate'; id: string };
+type TeamEvent = { id: string; time: number; tone: string; title: string; detail: string };
 type MapOverlay = {
   id: string;
   name: string;
@@ -701,6 +702,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [navTarget, setNavTarget] = useState<NavTarget | null>(null);
   // Team PLI
   const [teamEnabled, setTeamEnabled] = useState(false);
+  const [emergencyBeacon, setEmergencyBeacon] = useState<{ active: boolean; since: number; message?: string } | null>(null);
+  const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
   // AI Mission Brief
   const [missionBrief, setMissionBrief] = useState<RuckMissionBrief | null>(null);
   const [missionBriefLoading, setMissionBriefLoading] = useState(false);
@@ -719,6 +722,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   activeMarkTypeRef.current = activeMarkType;
   const measurementModeRef = useRef(measurementMode);
   measurementModeRef.current = measurementMode;
+  const seenEmergencyRef = useRef<Set<string>>(new Set());
 
   // Team PLI
   const { teammates, broadcast: broadcastTeamPosition, connected: teamConnected } = useTeamPresence(callsign, teamEnabled);
@@ -881,6 +885,10 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const navTeammateTarget = navTarget?.type === 'teammate'
     ? teammates.find((teammate) => teammate.callsign === navTarget.id) ?? null
     : null;
+  const emergencyTeammates = useMemo(() => (
+    teammates.filter((teammate) => teammate.emergency?.active)
+  ), [teammates]);
+  const priorityEmergency = emergencyTeammates[0] ?? null;
   const navMarkTarget = navTarget?.type === 'mark'
     ? plannedCheckpoints.find((checkpoint) => checkpoint.id === navTarget.id) ?? selectedCheckpoint
     : selectedCheckpoint;
@@ -1175,9 +1183,9 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         ? parseFloat((currentDistance / (elapsedSeconds / 3600)).toFixed(1))
         : undefined,
       accuracy: currentPoint.accuracy ?? undefined,
+      emergency: emergencyBeacon ?? { active: false, since: Date.now() },
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPoint]);
+  }, [activeHeading, broadcastTeamPosition, currentDistance, currentPoint, elapsedSeconds, emergencyBeacon, teamEnabled]);
 
   async function handleGpxImport() {
     try {
@@ -1402,6 +1410,29 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       timestamp: Date.now(),
     });
     setGpsFollowMode(false);
+  }
+
+  function addTeamEvent(title: string, detail: string, tone: string = colours.cyan) {
+    setTeamEvents((current) => [
+      { id: `event-${Date.now()}-${current.length}`, time: Date.now(), title, detail, tone },
+      ...current,
+    ].slice(0, 8));
+  }
+
+  function triggerEmergencyBeacon() {
+    if (!currentPoint) {
+      showAlert('No GPS fix', 'Start tracking or wait for a location fix before sending an emergency beacon.');
+      return;
+    }
+    setTeamEnabled(true);
+    const beacon = { active: true, since: Date.now(), message: 'Emergency assistance requested' };
+    setEmergencyBeacon(beacon);
+    addTeamEvent('Emergency beacon sent', `${callsign} at ${formatCoordinate(currentPoint.latitude, currentPoint.longitude, coordinateFormat)}`, colours.red);
+  }
+
+  function clearEmergencyBeacon() {
+    setEmergencyBeacon(null);
+    addTeamEvent('Emergency beacon cleared', callsign, colours.green);
   }
 
   const mapNormalGestures = useMemo(() => {
@@ -1722,6 +1753,31 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       setNavTarget(null);
     }
   }, [navTarget, teammates]);
+
+  useEffect(() => {
+    emergencyTeammates.forEach((teammate) => {
+      if (seenEmergencyRef.current.has(teammate.callsign)) return;
+      seenEmergencyRef.current.add(teammate.callsign);
+      addTeamEvent('Emergency beacon received', `${teammate.callsign} requested assistance`, colours.red);
+      setNavTarget({ type: 'teammate', id: teammate.callsign });
+      setMapCenter({
+        latitude: teammate.lat,
+        longitude: teammate.lon,
+        altitude: null,
+        accuracy: teammate.accuracy ?? null,
+        timestamp: teammate.updatedAt,
+      });
+      setGpsFollowMode(false);
+    });
+
+    const activeCallsigns = new Set(emergencyTeammates.map((teammate) => teammate.callsign));
+    seenEmergencyRef.current.forEach((callsignValue) => {
+      if (!activeCallsigns.has(callsignValue)) {
+        seenEmergencyRef.current.delete(callsignValue);
+        addTeamEvent('Emergency beacon cleared', callsignValue, colours.green);
+      }
+    });
+  }, [emergencyTeammates]);
 
   const stopTracking = async () => {
     dispatchTracking({ type: 'stopped' });
@@ -2623,10 +2679,12 @@ function updateSelectedCheckpointHere() {
                     const sx = wp.x - cp.x + renderViewport.width / 2;
                     const sy = wp.y - cp.y + renderViewport.height / 2;
                     const rot = mapNorthUp ? (tm.heading ?? 0) : 0;
+                    const emergency = tm.emergency?.active;
                     return (
                       <G key={tm.callsign} transform={`translate(${sx}, ${sy}) rotate(${rot})`}>
-                        <Polygon points="0,-12 9,8 0,4 -9,8" fill={tm.color} stroke="rgba(7,17,30,0.85)" strokeWidth={1.5} strokeLinejoin="round" />
-                        <SvgText x={0} y={22} textAnchor="middle" fontSize="8" fontWeight="900" fill={tm.color}>{tm.callsign}</SvgText>
+                        {emergency && <Circle r={18} fill="none" stroke={colours.red} strokeWidth={3} opacity={0.9} />}
+                        <Polygon points="0,-12 9,8 0,4 -9,8" fill={emergency ? colours.red : tm.color} stroke="rgba(7,17,30,0.85)" strokeWidth={1.5} strokeLinejoin="round" />
+                        <SvgText x={0} y={22} textAnchor="middle" fontSize="8" fontWeight="900" fill={emergency ? colours.red : tm.color}>{emergency ? `SOS ${tm.callsign}` : tm.callsign}</SvgText>
                       </G>
                     );
                   });
@@ -2831,6 +2889,31 @@ function updateSelectedCheckpointHere() {
             <Ionicons name="cloud-download-outline" size={22} color={isDownloadingMap ? colours.cyan : '#fff'} />
           </Pressable>
         </View>
+
+        {(emergencyBeacon?.active || priorityEmergency) && (
+          <View style={[styles.emergencyStrip, shadow.subtle]}>
+            <Ionicons name="alert-circle" size={18} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.emergencyStripTitle}>
+                {emergencyBeacon?.active ? 'YOUR EMERGENCY BEACON IS ACTIVE' : `${priorityEmergency?.callsign} EMERGENCY BEACON`}
+              </Text>
+              <Text style={styles.emergencyStripDetail} numberOfLines={1}>
+                {emergencyBeacon?.active
+                  ? 'Team broadcast is sending your current position.'
+                  : `${priorityEmergency?.callsign} requested assistance. NAV target is set.`}
+              </Text>
+            </View>
+            {emergencyBeacon?.active ? (
+              <Pressable style={styles.emergencyStripButton} onPress={clearEmergencyBeacon}>
+                <Text style={styles.emergencyStripButtonText}>CLEAR</Text>
+              </Pressable>
+            ) : priorityEmergency ? (
+              <Pressable style={styles.emergencyStripButton} onPress={() => focusTeammate(priorityEmergency)}>
+                <Text style={styles.emergencyStripButtonText}>FOCUS</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        )}
 
         {/* ── Left Sidebar: Compass + Zoom ─────────────────────────── */}
         <View style={styles.atakLeftBar} pointerEvents="box-none">
@@ -3084,6 +3167,17 @@ function updateSelectedCheckpointHere() {
                         {teamEnabled ? (teamConnected ? `Team ON — ${teammates.length} online` : 'Connecting...') : 'Team PLI'}
                       </Text>
                     </Pressable>
+                    {emergencyBeacon?.active ? (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.green }]} onPress={clearEmergencyBeacon}>
+                        <Ionicons name="checkmark-circle-outline" size={13} color={colours.green} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.green }]}>Clear Beacon</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={triggerEmergencyBeacon}>
+                        <Ionicons name="alert-circle-outline" size={13} color={colours.red} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Emergency</Text>
+                      </Pressable>
+                    )}
                   </View>
                   {teammates.length > 0 && (
                     <View style={styles.forgeCpRow}>
@@ -3213,6 +3307,20 @@ function updateSelectedCheckpointHere() {
                       </Pressable>
                     ))}
                   </View>
+                  {teamEvents.length > 0 && (
+                    <View style={styles.teamEventList}>
+                      {teamEvents.slice(0, 4).map((event) => (
+                        <View key={event.id} style={styles.teamEventRow}>
+                          <View style={[styles.teamEventDot, { backgroundColor: event.tone }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.teamEventTitle}>{event.title}</Text>
+                            <Text style={styles.teamEventDetail} numberOfLines={1}>{event.detail}</Text>
+                          </View>
+                          <Text style={styles.teamEventTime}>{formatElapsed(Math.max(0, Math.round((Date.now() - event.time) / 1000)))}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -5052,6 +5160,34 @@ const styles = StyleSheet.create({
   atakTopBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   atakStatusText: { fontSize: 11, fontWeight: '900', letterSpacing: 1.6 },
   atakStatusDetail: { color: 'rgba(255,255,255,0.5)', fontSize: 9, fontWeight: '800', marginTop: 1 },
+  emergencyStrip: {
+    position: 'absolute',
+    top: 60,
+    left: 10,
+    right: 72,
+    zIndex: 12,
+    minHeight: 48,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(224,95,79,0.62)',
+    backgroundColor: 'rgba(155,34,34,0.92)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 9,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  emergencyStripTitle: { color: '#fff', fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
+  emergencyStripDetail: { color: 'rgba(255,255,255,0.78)', fontSize: 9, fontWeight: '800', marginTop: 2 },
+  emergencyStripButton: {
+    minHeight: 30,
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  emergencyStripButtonText: { color: colours.red, fontSize: 10, fontWeight: '900' },
   atakLeftBar: {
     position: 'absolute',
     top: 62, right: 10, gap: 8, alignItems: 'center', zIndex: 10,
@@ -5227,6 +5363,25 @@ const styles = StyleSheet.create({
   measurePanelItem: { flex: 1, alignItems: 'center' },
   measurePanelValue: { color: '#facc15', fontSize: 12, fontWeight: '900', textAlign: 'center' },
   measurePanelLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', marginTop: 2, textAlign: 'center' },
+  teamEventList: {
+    gap: 6,
+  },
+  teamEventRow: {
+    minHeight: 38,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+  },
+  teamEventDot: { width: 8, height: 8, borderRadius: 4 },
+  teamEventTitle: { color: colours.text, fontSize: 10, fontWeight: '900' },
+  teamEventDetail: { color: colours.muted, fontSize: 9, fontWeight: '800', marginTop: 1 },
+  teamEventTime: { color: colours.muted, fontSize: 9, fontWeight: '900' },
   forgeNavRow: {
     flexDirection: 'row', justifyContent: 'space-between', gap: 4,
   },

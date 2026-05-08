@@ -9,6 +9,11 @@ export type Teammate = {
   heading?: number;
   speed?: number;
   accuracy?: number;
+  emergency?: {
+    active: boolean;
+    message?: string;
+    since: number;
+  };
   updatedAt: number;
   color: string;
 };
@@ -20,6 +25,11 @@ type PresenceState = {
   heading?: number;
   speed?: number;
   accuracy?: number;
+  emergency?: {
+    active: boolean;
+    message?: string;
+    since: number;
+  };
   updatedAt: number;
 };
 
@@ -68,6 +78,7 @@ export function useTeamPresence(callsign: string, enabled: boolean) {
             heading: latest.heading,
             speed: latest.speed,
             accuracy: latest.accuracy,
+            emergency: latest.emergency,
             updatedAt: latest.updatedAt,
             color: colorForCallsign(latest.callsign ?? key),
           });
