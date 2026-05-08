@@ -243,7 +243,7 @@ export function ProgrammeBuilder({
       <TextInput style={styles.memberInput} value={templateName} onChangeText={setTemplateName} placeholder="Template name" placeholderTextColor={colours.soft} />
 
       <View style={styles.programmeActionRow}>
-        <Pressable style={styles.programmeLoadButton} onPress={loadProgrammeIntoStage}><Text style={styles.programmeLoadButtonText}>Load AI Plan Into Stage</Text></Pressable>
+        <Pressable style={styles.programmeLoadButton} onPress={loadProgrammeIntoStage}><Text style={styles.programmeLoadButtonText}>Load AI Plan</Text></Pressable>
         <Pressable style={styles.programmeSaveButton} onPress={saveProgrammeTemplate}><Text style={styles.programmeSaveButtonText}>Save Template</Text></Pressable>
       </View>
 

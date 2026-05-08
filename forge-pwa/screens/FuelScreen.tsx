@@ -103,16 +103,36 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
   const bmiInfo = useMemo(() => getBmiCategory(bmi), [bmi]);
   const maxHr = useMemo(() => Math.max(120, 220 - age), [age]);
   const estimatedBodyFat = useMemo(() => Math.round(clamp(5 + skinfoldMm * 0.45, 5, 45) * 10) / 10, [skinfoldMm]);
-  const caloriesUsed = useMemo(
-    () => sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe * 7, 0),
+  const leanMassKg = useMemo(() => bodyWeightKg * (1 - estimatedBodyFat / 100), [bodyWeightKg, estimatedBodyFat]);
+  const bmr = useMemo(() => Math.round(370 + 21.6 * leanMassKg), [leanMassKg]);
+  const weeklyLoad = useMemo(
+    () => sessions.slice(0, 7).reduce((total, session) => total + session.durationMinutes * session.rpe, 0),
     [sessions]
   );
-  const baseCalories = useMemo(() => Math.round(bodyWeightKg * 31), [bodyWeightKg]);
-  const calorieTarget = useMemo(() => baseCalories + activeGoal.offset + Math.round(caloriesUsed / 7), [baseCalories, activeGoal.offset, caloriesUsed]);
-  const proteinTarget = useMemo(() => Math.round(bodyWeightKg * (goal === 'gain' ? 2.0 : 1.8)), [bodyWeightKg, goal]);
-  const carbTarget = useMemo(() => Math.round((calorieTarget * (goal === 'loss' ? 0.38 : 0.48)) / 4), [calorieTarget, goal]);
-  const fatTarget = useMemo(() => Math.round((calorieTarget * 0.25) / 9), [calorieTarget]);
-  const hydrationTargetMl = useMemo(() => Math.round(bodyWeightKg * 35 + Math.min(1200, caloriesUsed / 7)), [bodyWeightKg, caloriesUsed]);
+  const dailyExerciseKcal = useMemo(
+    () => Math.min(1200, Math.round((weeklyLoad * (bodyWeightKg / 70)) / 7)),
+    [weeklyLoad, bodyWeightKg]
+  );
+  const calorieTarget = useMemo(
+    () => Math.round(bmr * 1.4) + activeGoal.offset + dailyExerciseKcal,
+    [bmr, activeGoal.offset, dailyExerciseKcal]
+  );
+  const proteinTarget = useMemo(
+    () => Math.round(bodyWeightKg * (goal === 'gain' ? 2.0 : 1.8)),
+    [bodyWeightKg, goal]
+  );
+  const carbTarget = useMemo(
+    () => Math.round(bodyWeightKg * (goal === 'loss' ? 4 : goal === 'gain' ? 6 : 5)),
+    [bodyWeightKg, goal]
+  );
+  const fatTarget = useMemo(
+    () => Math.round((calorieTarget * (goal === 'gain' ? 0.28 : 0.25)) / 9),
+    [calorieTarget, goal]
+  );
+  const hydrationTargetMl = useMemo(
+    () => Math.round(bodyWeightKg * 35 + Math.min(1200, dailyExerciseKcal)),
+    [bodyWeightKg, dailyExerciseKcal]
+  );
   const hydrationPct = useMemo(() => Math.round((hydrationLoggedMl / hydrationTargetMl) * 100), [hydrationLoggedMl, hydrationTargetMl]);
   const sleepTone = sleepScore >= 80 ? colours.green : sleepScore >= 65 ? colours.amber : colours.red;
   const fuelTiming = goal === 'gain'
@@ -166,7 +186,7 @@ export function FuelScreen({ sessions }: { sessions: TrainingSession[] }) {
       </View>
 
       <View style={styles.grid}>
-        <MetricCard icon="flame" label="Calories Used" value={`${caloriesUsed}`} sub="last 7 sessions" tone={colours.amber} />
+        <MetricCard icon="flame" label="Load Cost" value={`${weeklyLoad}`} sub="last 7 days" tone={colours.amber} />
         <MetricCard icon="restaurant" label="Fuel Target" value={`${calorieTarget}`} sub="kcal today" tone={activeGoal.tone} />
       </View>
 
