@@ -164,6 +164,54 @@ export function buildAthleteGuidance(sessions: TrainingSession[]): AiGuidance {
   };
 }
 
+export type RuckMissionBrief = {
+  status: 'GO' | 'CAUTION' | 'NO-GO';
+  recommendation: string;
+  loadGuidance: string;
+  paceGuidance: string;
+  tone: string;
+};
+
+export async function getRuckMissionBrief(
+  targetDistanceKm: number,
+  targetMinutes: number,
+  loadKg: number,
+  readinessLog: ReadinessLog | null,
+  recentSessions: TrainingSession[],
+): Promise<RuckMissionBrief | null> {
+  if (!ANTHROPIC_API_KEY) return null;
+
+  const profile = buildPerformanceProfile(recentSessions);
+  const targetPace = targetDistanceKm > 0 ? (targetMinutes / targetDistanceKm).toFixed(1) : '--';
+
+  const context = [
+    `Mission: ${targetDistanceKm.toFixed(1)}km at ${targetPace} min/km, load ${loadKg}kg`,
+    `Load risk: ${profile.loadRisk}, ACWR: ${profile.acuteChronicRatio}`,
+    `Ruck km last 7 days: ${profile.ruckKm}`,
+    readinessLog
+      ? `Readiness: Sleep ${readinessLog.sleepHours ?? '?'}h, Soreness ${readinessLog.soreness}/5, Stress ${readinessLog.stress ?? '?'}/5, Hydration ${readinessLog.hydration}`
+      : 'No readiness logged today',
+  ].join('\n');
+
+  try {
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY, dangerouslyAllowBrowser: true });
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 220,
+      system: 'You are a tactical fitness coach. Give a mission brief for a ruck operation. Reply ONLY with JSON: { "status": "GO" | "CAUTION" | "NO-GO", "recommendation": "one sentence", "loadGuidance": "one sentence on load", "paceGuidance": "one sentence on pace" }',
+      messages: [{ role: 'user', content: `Operator data:\n${context}\n\nGenerate mission brief JSON.` }],
+    });
+    const text = msg.content[0].type === 'text' ? msg.content[0].text : '';
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return null;
+    const parsed = JSON.parse(match[0]) as RuckMissionBrief;
+    const tone = parsed.status === 'GO' ? colours.green : parsed.status === 'NO-GO' ? colours.red : colours.amber;
+    return { ...parsed, tone };
+  } catch {
+    return null;
+  }
+}
+
 export function buildCoachGuidance(members: SquadMember[], sessions: TrainingSession[]): AiGuidance {
   const atRisk = members.filter((member) => member.risk !== 'Low').length;
   const unassigned = members.filter((member) => !member.assignment).length;

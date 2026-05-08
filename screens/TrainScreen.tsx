@@ -9,7 +9,9 @@ import { MetricCard } from '../components/MetricCard';
 import { colours, touchTarget } from '../theme';
 import { TrainingSession, ExerciseCategory, Exercise, MovementPattern, exerciseLibrary, trainingModes } from '../data/mockData';
 import { showAlert } from '../lib/dialogs';
-import { buildProgrammeRecommendation, ProgrammeBuilderInput, ProgrammeGoal, ProgrammeEquipment, ProgrammeReadiness } from '../lib/aiGuidance';
+import { buildProgrammeRecommendation, ProgrammeBuilderInput, ProgrammeGoal, ProgrammeEquipment, ProgrammeReadiness, ProgrammeRecommendation } from '../lib/aiGuidance';
+
+const ACTIVE_PROGRAMME_KEY = 'forge:active_programme_v1';
 
 const categories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 const timeTargets = [20, 30, 45, 60];
@@ -87,6 +89,28 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
     () => showProgramme ? buildProgrammeRecommendation({ goal: progGoal, daysPerWeek: progDays, sessionMinutes: progMinutes, equipment: progEquipment, readiness: progReadiness }) : null,
     [showProgramme, progGoal, progDays, progMinutes, progEquipment, progReadiness]
   );
+  const [activeProgramme, setActiveProgramme] = useState<(ProgrammeRecommendation & { startedAt: string; daysPerWeek: number }) | null>(null);
+
+  useEffect(() => {
+    AsyncStorage.getItem(ACTIVE_PROGRAMME_KEY).then((raw) => {
+      if (raw) {
+        try { setActiveProgramme(JSON.parse(raw)); } catch { /* ignore corrupt */ }
+      }
+    });
+  }, []);
+
+  async function saveProgramme(rec: ProgrammeRecommendation) {
+    const saved = { ...rec, startedAt: new Date().toISOString(), daysPerWeek: progDays };
+    await AsyncStorage.setItem(ACTIVE_PROGRAMME_KEY, JSON.stringify(saved));
+    setActiveProgramme(saved);
+    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showAlert('Programme Saved', `You are now following: ${rec.assignmentTitle}. Check the top of this screen each session.`);
+  }
+
+  async function clearProgramme() {
+    await AsyncStorage.removeItem(ACTIVE_PROGRAMME_KEY);
+    setActiveProgramme(null);
+  }
 
   const [focusedExerciseId, setFocusedExerciseId] = useState(availableModes[0].defaultExerciseIds[0]);
   const activeMode = useMemo(
@@ -201,6 +225,31 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
   return (
     <Screen>
+      {activeProgramme && (
+        <Card>
+          <View style={styles.activeProgHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.activeProgLabel, { color: activeProgramme.tone }]}>ACTIVE PROGRAMME</Text>
+              <Text style={styles.activeProgTitle}>{activeProgramme.assignmentTitle}</Text>
+              <Text style={styles.activeProgMeta}>
+                {activeProgramme.daysPerWeek}d/week · started {new Date(activeProgramme.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+              </Text>
+            </View>
+            <Pressable style={styles.activeProgClear} onPress={clearProgramme}>
+              <Ionicons name="close" size={16} color={colours.muted} />
+            </Pressable>
+          </View>
+          <View style={styles.activeProgWeek}>
+            {activeProgramme.weeklyStructure.map((day, i) => (
+              <View key={i} style={styles.activeProgDay}>
+                <Text style={[styles.activeProgDayNum, { color: activeProgramme.tone }]}>D{i + 1}</Text>
+                <Text style={styles.activeProgDayText} numberOfLines={2}>{day}</Text>
+              </View>
+            ))}
+          </View>
+        </Card>
+      )}
+
       <Text style={styles.muted}>Training block</Text>
       <Text style={styles.title}>{activeMode.title}</Text>
 
@@ -478,6 +527,11 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
                 ))}
 
                 <Text style={styles.progEvidenceLabel}>{programmeRec.evidencePack.label}</Text>
+
+                <Pressable style={styles.progSaveBtn} onPress={() => saveProgramme(programmeRec)}>
+                  <Ionicons name="checkmark-circle-outline" size={15} color={colours.background} />
+                  <Text style={styles.progSaveBtnText}>Follow This Programme</Text>
+                </Pressable>
               </View>
             )}
           </View>
@@ -681,4 +735,20 @@ const styles = StyleSheet.create({
   progSciBullet: { fontSize: 14, fontWeight: '900', marginTop: 1 },
   progSciText: { flex: 1, color: colours.textSoft, fontSize: 12, fontWeight: '800', lineHeight: 17 },
   progEvidenceLabel: { color: colours.soft, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 12 },
+  progSaveBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    marginTop: 16, paddingVertical: 12, borderRadius: 10,
+    backgroundColor: colours.cyan,
+  },
+  progSaveBtnText: { color: colours.background, fontSize: 13, fontWeight: '900' },
+  // Active Programme card
+  activeProgHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
+  activeProgLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 1, marginBottom: 2 },
+  activeProgTitle: { color: colours.text, fontSize: 15, fontWeight: '900' },
+  activeProgMeta: { color: colours.muted, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  activeProgClear: { padding: 4 },
+  activeProgWeek: { gap: 6 },
+  activeProgDay: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  activeProgDayNum: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5, minWidth: 22, paddingTop: 1 },
+  activeProgDayText: { flex: 1, color: colours.textSoft, fontSize: 12, fontWeight: '700', lineHeight: 17 },
 });

@@ -4,6 +4,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
+import * as Haptics from 'expo-haptics';
 import Svg, { Circle, G, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Screen } from '../components/Screen';
@@ -22,6 +23,7 @@ import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadAct
 import { calculateEnhancedPandolf } from '../lib/h2f';
 import { secureGetItem, secureSetItem } from '../lib/secureStorage';
 import { LOCATION_TASK_NAME } from '../lib/backgroundTasks';
+import { getRuckMissionBrief, type RuckMissionBrief } from '../lib/aiGuidance';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { parseGpx } from '../lib/gpxParser';
@@ -344,6 +346,9 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [currentDrawLine, setCurrentDrawLine] = useState<Array<{ lat: number; lon: number }> | null>(null);
   // Team PLI
   const [teamEnabled, setTeamEnabled] = useState(false);
+  // AI Mission Brief
+  const [missionBrief, setMissionBrief] = useState<RuckMissionBrief | null>(null);
+  const [missionBriefLoading, setMissionBriefLoading] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const announcedCheckpointArrivals = useRef<Set<string>>(new Set());
@@ -657,6 +662,26 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     return completed;
   }, [routePoints]);
   const latestSplit = splits[splits.length - 1] ?? null;
+  const lastAlertedSplitKm = useRef(0);
+
+  // Haptic pace alert on each completed km split
+  useEffect(() => {
+    if (!latestSplit || !isTracking) return;
+    if (latestSplit.km <= lastAlertedSplitKm.current) return;
+    lastAlertedSplitKm.current = latestSplit.km;
+
+    if (Platform.OS === 'web') return;
+    const actualPaceMinPerKm = latestSplit.splitSeconds / 60;
+    const pace = targetMinutes / Math.max(0.1, targetDistanceKm);
+    const diff = actualPaceMinPerKm - pace;
+    if (diff > 1.5) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    } else if (diff < -1) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } else {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+  }, [latestSplit, isTracking, targetDistanceKm, targetMinutes]);
 
   const recordLocation = useCallback((location: Location.LocationObject) => {
     const nextPoint = toTrackPoint(location);
@@ -2662,6 +2687,53 @@ function updateSelectedCheckpointHere() {
         )}
       </Card>
 
+      {/* ── AI Mission Brief ─────────────────────────────────────────── */}
+      <Card>
+        <View style={styles.navHeader}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>Mission Brief</Text>
+            <Text style={styles.muted}>Claude tactical assessment for this ruck</Text>
+          </View>
+          <Pressable
+            style={[styles.briefBtn, missionBriefLoading && { opacity: 0.5 }]}
+            disabled={missionBriefLoading}
+            onPress={async () => {
+              setMissionBriefLoading(true);
+              setMissionBrief(null);
+              const brief = await getRuckMissionBrief(targetDistanceKm, targetMinutes, weight, null, sessions);
+              setMissionBrief(brief);
+              setMissionBriefLoading(false);
+            }}
+          >
+            <Ionicons name="flash-outline" size={12} color={colours.cyan} />
+            <Text style={styles.briefBtnText}>{missionBriefLoading ? 'THINKING...' : 'BRIEF ME'}</Text>
+          </Pressable>
+        </View>
+
+        {missionBrief && (
+          <View style={[styles.briefResult, { borderColor: missionBrief.tone }]}>
+            <View style={styles.briefStatusRow}>
+              <View style={[styles.briefStatusBadge, { backgroundColor: missionBrief.tone }]}>
+                <Text style={styles.briefStatusText}>{missionBrief.status}</Text>
+              </View>
+              <Text style={[styles.briefRec, { flex: 1 }]}>{missionBrief.recommendation}</Text>
+            </View>
+            <Text style={styles.briefLine}>
+              <Text style={[styles.briefLineLabel, { color: missionBrief.tone }]}>LOAD  </Text>
+              {missionBrief.loadGuidance}
+            </Text>
+            <Text style={styles.briefLine}>
+              <Text style={[styles.briefLineLabel, { color: missionBrief.tone }]}>PACE  </Text>
+              {missionBrief.paceGuidance}
+            </Text>
+          </View>
+        )}
+
+        {!missionBrief && !missionBriefLoading && (
+          <Text style={styles.muted}>Tap BRIEF ME for a Claude-powered GO / CAUTION / NO-GO assessment based on your load, pace target, and recent training.</Text>
+        )}
+      </Card>
+
       <Card>
         <View style={styles.navHeader}>
           <View>
@@ -4188,4 +4260,24 @@ const styles = StyleSheet.create({
     borderColor: '#fff',
     transform: [{ scale: 1.25 }],
   },
+  // Mission Brief
+  briefBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8,
+    borderWidth: 1, borderColor: 'rgba(103,232,249,0.4)',
+    backgroundColor: 'rgba(103,232,249,0.08)',
+  },
+  briefBtnText: { color: colours.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
+  briefResult: {
+    marginTop: 12, padding: 12, borderRadius: 10,
+    borderWidth: 1, backgroundColor: 'rgba(255,255,255,0.03)', gap: 8,
+  },
+  briefStatusRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
+  briefStatusBadge: {
+    paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6,
+  },
+  briefStatusText: { color: colours.background, fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  briefRec: { color: colours.text, fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  briefLine: { color: colours.text, fontSize: 12, lineHeight: 18 },
+  briefLineLabel: { fontSize: 10, fontWeight: '900', letterSpacing: 0.8 },
 });

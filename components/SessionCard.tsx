@@ -6,6 +6,7 @@ import { TrainingSession, TrackPoint } from '../data/mockData';
 import { distanceBetween, getMapPoints } from '../utils/mapUtils';
 import { formatCoordinate } from '../utils/coordinates';
 import { showAlert } from '../lib/dialogs';
+import { exportSessionGpx } from '../lib/gpxExport';
 
 export function sessionIcon(type: TrainingSession['type']) {
   switch (type) {
@@ -105,6 +106,15 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
       await Share.share({ message: buildRuckAar(session) });
     } catch {
       showAlert('Share unavailable', 'Unable to open the share sheet on this device.');
+    }
+  }
+
+  async function handleGpxExport() {
+    try {
+      await exportSessionGpx(session);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Export failed.';
+      showAlert('GPX Export Failed', msg);
     }
   }
 
@@ -227,6 +237,12 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
                     <Ionicons name="share-outline" size={15} color={colours.background} />
                     <Text style={styles.aarButtonText}>Share</Text>
                   </Pressable>
+                  {(session.routePoints?.length ?? 0) >= 2 && (
+                    <Pressable style={[styles.aarButton, { backgroundColor: '#facc15' }]} onPress={handleGpxExport}>
+                      <Ionicons name="navigate-outline" size={15} color={colours.background} />
+                      <Text style={styles.aarButtonText}>GPX</Text>
+                    </Pressable>
+                  )}
                 </View>
 
                 {session.ruckMission.plannedCheckpoints.length > 0 && (
