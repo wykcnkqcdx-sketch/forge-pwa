@@ -13,7 +13,10 @@ import { ReadinessLog } from '../data/domain';
 import { formatCoordinate } from '../utils/coordinates';
 import { distanceBetween, getMapPoints } from '../utils/mapUtils';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
+import { TrainingCalendar } from '../components/TrainingCalendar';
+import { exportSessionsToPdf } from '../lib/pdfExport';
 import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
+import type { WorkoutCompletion, LoggedExercise } from '../data/domain';
 import { calculateWHtR } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -21,15 +24,17 @@ import { SessionCard } from '../components/SessionCard';
 import { SessionEditModal } from '../components/SessionEditModal';
 import { ReadinessModal } from '../components/ReadinessModal';
 
-export function AnalyticsScreen({ 
+export function AnalyticsScreen({
   sessions,
   readinessLogs,
+  workoutCompletions = [],
   addReadinessLog,
   deleteSession,
-  editSession
-}: { 
+  editSession,
+}: {
   sessions: TrainingSession[];
   readinessLogs: ReadinessLog[];
+  workoutCompletions?: WorkoutCompletion[];
   addReadinessLog: (log: ReadinessLog) => void;
   deleteSession: (id: string) => void;
   editSession: (id: string, updates: Partial<TrainingSession>) => void;
@@ -226,6 +231,44 @@ export function AnalyticsScreen({
       </Card>
 
       <Card>
+        <Text style={styles.cardTitle}>Training Calendar</Text>
+        <Text style={[styles.muted, { marginBottom: 10 }]}>Last 4 weeks — today highlighted</Text>
+        <TrainingCalendar sessions={sessions} />
+      </Card>
+
+      {workoutCompletions.length > 0 && (() => {
+        const exerciseMap: Record<string, { sets: number; lastLoad: number | null; dates: string[] }> = {};
+        for (const c of workoutCompletions) {
+          for (const ex of (c.exercises ?? [])) {
+            if (!exerciseMap[ex.name]) exerciseMap[ex.name] = { sets: 0, lastLoad: null, dates: [] };
+            exerciseMap[ex.name].sets += ex.sets ?? 1;
+            if (ex.loadKg != null) exerciseMap[ex.name].lastLoad = ex.loadKg;
+            exerciseMap[ex.name].dates.push(c.completedAt);
+          }
+        }
+        const topExercises = Object.entries(exerciseMap)
+          .sort((a, b) => b[1].sets - a[1].sets)
+          .slice(0, 6);
+        return (
+          <Card>
+            <Text style={styles.cardTitle}>Top Exercises</Text>
+            <Text style={[styles.muted, { marginBottom: 10 }]}>By total sets logged</Text>
+            {topExercises.map(([name, data]) => (
+              <View key={name} style={styles.exerciseRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.exerciseName}>{name}</Text>
+                  <Text style={styles.exerciseMeta}>{data.sets} sets{data.lastLoad != null ? ` · last load ${data.lastLoad}kg` : ''}</Text>
+                </View>
+                <View style={styles.exerciseBarBg}>
+                  <View style={[styles.exerciseBarFill, { width: `${Math.min(100, (data.sets / topExercises[0][1].sets) * 100)}%` }]} />
+                </View>
+              </View>
+            ))}
+          </Card>
+        );
+      })()}
+
+      <Card>
         <Text style={styles.cardTitle}>Risk Monitor</Text>
         {hasSessions ? (
           <View style={[styles.warning, shadow.subtle, { borderColor: statusColors(performance.riskTone).borderMed, backgroundColor: statusColors(performance.riskTone).bgMed }]}>
@@ -293,13 +336,19 @@ export function AnalyticsScreen({
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>Session Log</Text>
-        <Pressable 
-          style={styles.sortBtn} 
-          onPress={() => setSortOrder(current => current === 'latest' ? 'score' : 'latest')}
-        >
-          <Ionicons name={sortOrder === 'latest' ? 'time-outline' : 'trophy-outline'} size={12} color={colours.cyan} />
-          <Text style={styles.sortBtnText}>{sortOrder === 'latest' ? 'Latest' : 'Top Score'}</Text>
-        </Pressable>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Pressable style={styles.pdfBtn} onPress={() => exportSessionsToPdf(sessions, 'Training Log')}>
+            <Ionicons name="download-outline" size={12} color={colours.cyan} />
+            <Text style={styles.pdfBtnText}>PDF</Text>
+          </Pressable>
+          <Pressable
+            style={styles.sortBtn}
+            onPress={() => setSortOrder(current => current === 'latest' ? 'score' : 'latest')}
+          >
+            <Ionicons name={sortOrder === 'latest' ? 'time-outline' : 'trophy-outline'} size={12} color={colours.cyan} />
+            <Text style={styles.sortBtnText}>{sortOrder === 'latest' ? 'Latest' : 'Top Score'}</Text>
+          </Pressable>
+        </View>
       </View>
 
       {hasSessions && (
@@ -546,4 +595,11 @@ const styles = StyleSheet.create({
     borderColor: statusColors(colours.cyan).borderMed,
   },
   loadMoreText: { color: colours.cyan, fontSize: 13, fontWeight: '800' },
+  exerciseRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.borderSoft },
+  exerciseName: { color: colours.text, fontWeight: '700', fontSize: 13 },
+  exerciseMeta: { ...typography.label, color: colours.muted, marginTop: 2 },
+  exerciseBarBg: { width: 80, height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.08)' },
+  exerciseBarFill: { height: 6, borderRadius: 3, backgroundColor: colours.cyan },
+  pdfBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft },
+  pdfBtnText: { ...typography.label, color: colours.cyan, fontWeight: '800' },
 });

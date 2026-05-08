@@ -7,7 +7,7 @@ import { Card } from '../components/Card';
 import { getAppleHealthCapability, getAppleHealthPreview } from '../lib/appleHealth';
 import { colours, touchTarget } from '../theme';
 import { SquadMember } from '../data/mockData';
-import type { ReadinessLog } from '../data/domain';
+import type { ReadinessLog, InjuryLog } from '../data/domain';
 import { getLatestReadinessLog, isReadinessCheckedInToday, isReadinessStale } from '../lib/readiness';
 import { showAlert } from '../lib/dialogs';
 
@@ -70,17 +70,30 @@ function FactorRow({
 export function ReadinessScreen({
   member,
   readinessLogs = [],
+  injuryLogs = [],
   onSubmitReadiness,
   onUpdateMember,
   onCompleteCheckIn,
+  onAddInjuryLog,
+  onDeleteInjuryLog,
+  onResolveInjuryLog,
 }: {
   member: SquadMember;
   readinessLogs?: ReadinessLog[];
+  injuryLogs?: InjuryLog[];
   onSubmitReadiness?: (log: ReadinessLog) => void;
   onUpdateMember?: (id: string, updates: Partial<SquadMember>) => void;
   onCompleteCheckIn?: () => void;
+  onAddInjuryLog?: (log: InjuryLog) => void;
+  onDeleteInjuryLog?: (id: string) => void;
+  onResolveInjuryLog?: (id: string) => void;
 }) {
   const [submitting, setSubmitting] = useState(false);
+  const [showInjuryForm, setShowInjuryForm] = useState(false);
+  const [injuryBodyArea, setInjuryBodyArea] = useState<InjuryLog['bodyArea']>('Knee');
+  const [injurySeverity, setInjurySeverity] = useState<InjuryLog['severity']>(2);
+  const [injuryDesc, setInjuryDesc] = useState('');
+  const [injuryLimits, setInjuryLimits] = useState(false);
   const [readinessCheck, setReadinessCheck] = useState({
     sleepHours: '7',
     sleepQuality: 3 as 1 | 2 | 3 | 4 | 5,
@@ -333,6 +346,120 @@ export function ReadinessScreen({
           <Ionicons name="send" size={18} color={colours.background} />
           <Text style={styles.submitButtonText}>{submitting ? 'Submitting…' : 'Submit Report'}</Text>
         </Pressable>
+      </Card>
+
+      {/* Injury Tracker */}
+      <Card accent={colours.red}>
+        <View style={styles.injuryHeader}>
+          <Text style={styles.sectionTitle}>Injury Tracker</Text>
+          <Pressable style={styles.injuryAddBtn} onPress={() => setShowInjuryForm(v => !v)}>
+            <Ionicons name={showInjuryForm ? 'close' : 'add'} size={14} color={colours.red} />
+            <Text style={styles.injuryAddBtnText}>{showInjuryForm ? 'Cancel' : 'Log Injury'}</Text>
+          </Pressable>
+        </View>
+
+        {showInjuryForm && (
+          <View style={styles.injuryForm}>
+            <Text style={styles.label}>BODY AREA</Text>
+            <View style={styles.painTagRow}>
+              {(['Knee', 'Back', 'Shoulder', 'Hip', 'Ankle', 'Neck', 'Other'] as const).map((area) => (
+                <Pressable
+                  key={area}
+                  style={[styles.painTag, injuryBodyArea === area && styles.painTagActive]}
+                  onPress={() => setInjuryBodyArea(area)}
+                >
+                  <Text style={[styles.painTagText, injuryBodyArea === area && styles.painTagTextActive]}>{area}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={[styles.label, { marginTop: 12 }]}>SEVERITY</Text>
+            <View style={styles.factorScale}>
+              {([1, 2, 3, 4, 5] as const).map((n) => (
+                <Pressable
+                  key={n}
+                  style={[styles.factorScaleButton, injurySeverity === n && styles.injurySevActive]}
+                  onPress={() => setInjurySeverity(n)}
+                >
+                  <Text style={[styles.factorScaleText, injurySeverity === n && styles.injurySevActiveText]}>{n}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <Text style={[styles.label, { marginTop: 12 }]}>NOTES</Text>
+            <TextInput
+              value={injuryDesc}
+              onChangeText={setInjuryDesc}
+              style={[styles.input, { marginTop: 6, minHeight: 60, textAlignVertical: 'top', paddingTop: 8 }]}
+              placeholder="Describe the injury…"
+              placeholderTextColor={colours.soft}
+              multiline
+            />
+
+            <Pressable
+              style={styles.limitRow}
+              onPress={() => setInjuryLimits(v => !v)}
+            >
+              <View style={[styles.toggleDot, injuryLimits && styles.toggleDotActive]} />
+              <Text style={styles.ghostText}>
+                {injuryLimits ? 'Limits training' : 'No major training limitation'}
+              </Text>
+            </Pressable>
+
+            <Pressable
+              style={styles.injurySaveBtn}
+              onPress={() => {
+                const log: InjuryLog = {
+                  id: `injury-${Date.now()}`,
+                  date: new Date().toISOString(),
+                  memberId: member.id,
+                  bodyArea: injuryBodyArea,
+                  severity: injurySeverity,
+                  description: injuryDesc.trim() || undefined,
+                  limitsTraining: injuryLimits,
+                  updatedAt: new Date().toISOString(),
+                };
+                onAddInjuryLog?.(log);
+                setShowInjuryForm(false);
+                setInjuryDesc('');
+                setInjurySeverity(2);
+                setInjuryLimits(false);
+                if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+            >
+              <Ionicons name="save-outline" size={14} color={colours.background} />
+              <Text style={styles.injurySaveBtnText}>Save Injury</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {injuryLogs.length === 0 && !showInjuryForm ? (
+          <Text style={styles.body}>No injuries logged. Tap "Log Injury" to track an injury.</Text>
+        ) : (
+          injuryLogs.map((inj) => (
+            <View key={inj.id} style={styles.injuryRow}>
+              <View style={[styles.injurySevDot, { backgroundColor: inj.severity >= 4 ? colours.red : inj.severity >= 3 ? colours.amber : colours.green }]} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.injuryRowTitle}>{inj.bodyArea} · Sev {inj.severity}/5{inj.limitsTraining ? ' · Limits Training' : ''}</Text>
+                {inj.description ? <Text style={styles.injuryRowDesc}>{inj.description}</Text> : null}
+                <Text style={styles.injuryRowDate}>
+                  {new Date(inj.date).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                  {inj.resolvedDate ? ` → Resolved ${new Date(inj.resolvedDate).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}` : ''}
+                </Text>
+              </View>
+              <View style={{ gap: 6 }}>
+                {!inj.resolvedDate && (
+                  <Pressable onPress={() => onResolveInjuryLog?.(inj.id)} style={styles.injuryActionBtn}>
+                    <Ionicons name="checkmark-circle-outline" size={16} color={colours.green} />
+                  </Pressable>
+                )}
+                <Pressable onPress={() => onDeleteInjuryLog?.(inj.id)} style={styles.injuryActionBtn}>
+                  <Ionicons name="trash-outline" size={16} color={colours.red} />
+                </Pressable>
+              </View>
+            </View>
+          ))
+        )}
       </Card>
 
       {/* Apple Health */}
@@ -731,4 +858,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '900',
   },
+  injuryHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  injuryAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: `${colours.red}60` },
+  injuryAddBtnText: { color: colours.red, fontSize: 11, fontWeight: '900' },
+  injuryForm: { borderTopWidth: 1, borderTopColor: colours.borderSoft, paddingTop: 12, marginTop: 4, gap: 0 },
+  injurySevActive: { borderColor: `${colours.red}70`, backgroundColor: colours.redDim },
+  injurySevActiveText: { color: colours.red },
+  injurySaveBtn: { minHeight: touchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 8, backgroundColor: colours.red, marginTop: 14 },
+  injurySaveBtnText: { color: colours.background, fontWeight: '900', fontSize: 14 },
+  injuryRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: colours.borderSoft },
+  injurySevDot: { width: 10, height: 10, borderRadius: 5, marginTop: 3 },
+  injuryRowTitle: { color: colours.text, fontSize: 13, fontWeight: '800' },
+  injuryRowDesc: { color: colours.textSoft, fontSize: 12, marginTop: 2 },
+  injuryRowDate: { color: colours.muted, fontSize: 11, marginTop: 2 },
+  injuryActionBtn: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center' },
 });

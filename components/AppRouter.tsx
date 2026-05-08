@@ -23,6 +23,7 @@ export function AppRouter() {
   const {
     // Store data
     sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions,
+    mealEntries, injuryLogs,
     googleSheetsEndpoint, isReady, hasSeenOnboarding, savedPin,
 
     // Store
@@ -63,12 +64,22 @@ export function AppRouter() {
     switch (navigation.activeTab) {
       case 'train': return <TrainScreen addSession={actions.addSession} sessions={sessions} />;
       case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={sessions} />;
-      case 'fuel':  return <FuelScreen sessions={sessions} readinessLogs={readinessLogs} />;
+      case 'fuel':
+        return (
+          <FuelScreen
+            sessions={sessions}
+            readinessLogs={readinessLogs}
+            mealEntries={mealEntries}
+            onAddMealEntry={actions.addMealEntry}
+            onDeleteMealEntry={actions.deleteMealEntry}
+          />
+        );
       case 'analytics':
         return (
           <AnalyticsScreen
             sessions={sessions}
             readinessLogs={readinessLogs}
+            workoutCompletions={workoutCompletions}
             addReadinessLog={actions.addReadinessLog}
             deleteSession={actions.deleteSession}
             editSession={actions.editSession}
@@ -79,8 +90,12 @@ export function AppRouter() {
           <ReadinessScreen
             member={COACH_SELF}
             readinessLogs={readinessLogs}
+            injuryLogs={injuryLogs}
             onSubmitReadiness={actions.addReadinessLog}
             onCompleteCheckIn={() => switchTab('home')}
+            onAddInjuryLog={actions.addInjuryLog}
+            onDeleteInjuryLog={actions.deleteInjuryLog}
+            onResolveInjuryLog={actions.resolveInjuryLog}
           />
         );
       case 'settings':
@@ -139,15 +154,28 @@ export function AppRouter() {
     switch (navigation.activeMemberTab) {
       case 'train': return <TrainScreen addSession={actions.addSession} sessions={visibleSessions} />;
       case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={visibleSessions} />;
-      case 'fuel':  return <FuelScreen sessions={visibleSessions} readinessLogs={readinessLogs} />;
+      case 'fuel':
+        return (
+          <FuelScreen
+            sessions={visibleSessions}
+            readinessLogs={readinessLogs}
+            mealEntries={mealEntries}
+            onAddMealEntry={actions.addMealEntry}
+            onDeleteMealEntry={actions.deleteMealEntry}
+          />
+        );
       case 'readiness':
         return (
           <ReadinessScreen
             member={activeMember ?? members[0]}
             readinessLogs={readinessLogs}
+            injuryLogs={injuryLogs}
             onSubmitReadiness={actions.addReadinessLog}
             onUpdateMember={actions.updateMember}
             onCompleteCheckIn={() => navigation.setActiveMemberTab('train')}
+            onAddInjuryLog={actions.addInjuryLog}
+            onDeleteInjuryLog={actions.deleteInjuryLog}
+            onResolveInjuryLog={actions.resolveInjuryLog}
           />
         );
       default:

@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -8,7 +10,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { colours, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { fuelProfile, TrainingSession } from '../data/mockData';
-import type { ReadinessLog } from '../data/domain';
+import type { ReadinessLog, MealEntry } from '../data/domain';
 import { buildPerformanceProfile } from '../lib/performance';
 import { getLatestReadinessLog, isReadinessStale, readinessSleepScore } from '../lib/readiness';
 
@@ -82,13 +84,63 @@ function MetricStepper({
   );
 }
 
-export function FuelScreen({ sessions, readinessLogs = [] }: { sessions: TrainingSession[]; readinessLogs?: ReadinessLog[] }) {
+const MEAL_TYPES: MealEntry['mealType'][] = ['Breakfast', 'Lunch', 'Dinner', 'Snack'];
+
+export function FuelScreen({
+  sessions,
+  readinessLogs = [],
+  mealEntries = [],
+  onAddMealEntry,
+  onDeleteMealEntry,
+}: {
+  sessions: TrainingSession[];
+  readinessLogs?: ReadinessLog[];
+  mealEntries?: MealEntry[];
+  onAddMealEntry?: (entry: MealEntry) => void;
+  onDeleteMealEntry?: (id: string) => void;
+}) {
   const [goal, setGoal] = useState<WeightGoal>('maintain');
   const [bodyWeightKg, setBodyWeightKg] = useState(fuelProfile.bodyWeightKg);
   const [heightCm, setHeightCm] = useState(fuelProfile.heightCm);
   const [age, setAge] = useState(fuelProfile.age);
   const [skinfoldMm, setSkinfoldMm] = useState(fuelProfile.skinfoldMm);
   const [hydrationLoggedMl, setHydrationLoggedMl] = useState(fuelProfile.hydrationLoggedMl);
+
+  const [mealName, setMealName] = useState('');
+  const [mealType, setMealType] = useState<MealEntry['mealType']>('Breakfast');
+  const [mealCals, setMealCals] = useState('');
+  const [mealProtein, setMealProtein] = useState('');
+  const [mealCarbs, setMealCarbs] = useState('');
+  const [mealFat, setMealFat] = useState('');
+  const [showMealForm, setShowMealForm] = useState(false);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayMeals = useMemo(() => mealEntries.filter((e) => e.date === todayStr), [mealEntries, todayStr]);
+  const loggedCals = useMemo(() => todayMeals.reduce((s, e) => s + e.caloriesKcal, 0), [todayMeals]);
+  const loggedProtein = useMemo(() => todayMeals.reduce((s, e) => s + e.proteinG, 0), [todayMeals]);
+  const loggedCarbs = useMemo(() => todayMeals.reduce((s, e) => s + e.carbsG, 0), [todayMeals]);
+  const loggedFat = useMemo(() => todayMeals.reduce((s, e) => s + e.fatG, 0), [todayMeals]);
+
+  function saveMealEntry() {
+    const cals = Number.parseInt(mealCals, 10);
+    const protein = Number.parseInt(mealProtein, 10) || 0;
+    const carbs = Number.parseInt(mealCarbs, 10) || 0;
+    const fat = Number.parseInt(mealFat, 10) || 0;
+    if (!mealName.trim() || !cals) return;
+    onAddMealEntry?.({
+      id: `meal-${Date.now()}`,
+      date: todayStr,
+      name: mealName.trim(),
+      mealType,
+      caloriesKcal: cals,
+      proteinG: protein,
+      carbsG: carbs,
+      fatG: fat,
+    });
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setMealName(''); setMealCals(''); setMealProtein(''); setMealCarbs(''); setMealFat('');
+    setShowMealForm(false);
+  }
 
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
   const latestReadiness = useMemo(() => getLatestReadinessLog(readinessLogs), [readinessLogs]);
@@ -121,6 +173,72 @@ export function FuelScreen({ sessions, readinessLogs = [] }: { sessions: Trainin
     <Screen>
       <Text style={styles.muted}>Food, fuel, recovery</Text>
       <Text style={styles.title}>Fuel Centre</Text>
+
+      <Card>
+        <View style={styles.rowBetween}>
+          <Text style={styles.cardTitle}>Today's Log</Text>
+          <Pressable onPress={() => setShowMealForm((v) => !v)} style={styles.addMealBtn}>
+            <Ionicons name={showMealForm ? 'close' : 'add'} size={16} color={colours.background} />
+            <Text style={styles.addMealBtnText}>{showMealForm ? 'Cancel' : 'Add Meal'}</Text>
+          </Pressable>
+        </View>
+
+        <View style={styles.macroGrid}>
+          {[
+            { label: 'Calories', logged: loggedCals, target: calorieTarget, unit: 'kcal', tone: colours.amber },
+            { label: 'Protein', logged: loggedProtein, target: proteinTarget, unit: 'g', tone: colours.cyan },
+            { label: 'Carbs', logged: loggedCarbs, target: carbTarget, unit: 'g', tone: colours.green },
+            { label: 'Fat', logged: loggedFat, target: fatTarget, unit: 'g', tone: colours.sand },
+          ].map(({ label, logged, target, unit, tone }) => (
+            <View key={label} style={styles.macroItem}>
+              <Text style={[styles.macroValue, { color: tone }]}>{logged}<Text style={styles.macroUnit}>{unit}</Text></Text>
+              <Text style={styles.macroLabel}>{label}</Text>
+              <Text style={[styles.macroTarget, { color: logged >= target ? colours.green : colours.muted }]}>/ {target}{unit}</Text>
+            </View>
+          ))}
+        </View>
+
+        {showMealForm && (
+          <View style={styles.mealForm}>
+            <View style={styles.mealTypeRow}>
+              {MEAL_TYPES.map((t) => (
+                <Pressable key={t} style={[styles.mealTypeBtn, mealType === t && styles.mealTypeBtnActive]} onPress={() => setMealType(t)}>
+                  <Text style={[styles.mealTypeBtnText, mealType === t && styles.mealTypeBtnTextActive]}>{t}</Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput style={styles.mealInput} placeholder="Meal name" placeholderTextColor={colours.muted} value={mealName} onChangeText={setMealName} />
+            <View style={styles.mealMacroRow}>
+              <TextInput style={[styles.mealInput, styles.mealMacroInput]} placeholder="kcal" placeholderTextColor={colours.muted} keyboardType="numeric" value={mealCals} onChangeText={setMealCals} />
+              <TextInput style={[styles.mealInput, styles.mealMacroInput]} placeholder="pro g" placeholderTextColor={colours.muted} keyboardType="numeric" value={mealProtein} onChangeText={setMealProtein} />
+              <TextInput style={[styles.mealInput, styles.mealMacroInput]} placeholder="carb g" placeholderTextColor={colours.muted} keyboardType="numeric" value={mealCarbs} onChangeText={setMealCarbs} />
+              <TextInput style={[styles.mealInput, styles.mealMacroInput]} placeholder="fat g" placeholderTextColor={colours.muted} keyboardType="numeric" value={mealFat} onChangeText={setMealFat} />
+            </View>
+            <Pressable style={styles.mealSaveBtn} onPress={saveMealEntry}>
+              <Text style={styles.mealSaveBtnText}>LOG MEAL</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {todayMeals.map((meal) => (
+          <View key={meal.id} style={styles.mealRow}>
+            <View style={styles.mealRowLeft}>
+              <Text style={styles.mealRowType}>{meal.mealType}</Text>
+              <Text style={styles.mealRowName}>{meal.name}</Text>
+            </View>
+            <View style={styles.mealRowRight}>
+              <Text style={styles.mealRowCals}>{meal.caloriesKcal} kcal</Text>
+              <Text style={styles.mealRowMacros}>{meal.proteinG}p · {meal.carbsG}c · {meal.fatG}f</Text>
+            </View>
+            <Pressable onPress={() => onDeleteMealEntry?.(meal.id)} hitSlop={8}>
+              <Ionicons name="trash-outline" size={14} color={colours.muted} />
+            </Pressable>
+          </View>
+        ))}
+        {todayMeals.length === 0 && !showMealForm && (
+          <Text style={styles.mealEmpty}>No meals logged today. Tap Add Meal to start tracking.</Text>
+        )}
+      </Card>
 
       <View style={styles.goalTabs}>
         {goals.map((item) => {
@@ -348,7 +466,30 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   macroValue: { color: colours.cyan, fontSize: 22, fontWeight: '900' },
+  macroUnit: { fontSize: 12, color: colours.muted },
+  macroTarget: { ...typography.label, marginTop: 2 },
   macroLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
+  addMealBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyan, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
+  addMealBtnText: { ...typography.label, color: colours.background, fontWeight: '900' },
+  mealForm: { marginTop: responsiveSpacing('md'), gap: responsiveSpacing('sm') },
+  mealTypeRow: { flexDirection: 'row', gap: 6 },
+  mealTypeBtn: { flex: 1, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, paddingVertical: 6, alignItems: 'center' },
+  mealTypeBtnActive: { backgroundColor: colours.cyan, borderColor: colours.cyan },
+  mealTypeBtnText: { ...typography.label, color: colours.muted, fontSize: 10 },
+  mealTypeBtnTextActive: { color: colours.background, fontWeight: '900' },
+  mealInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 10, padding: 10, color: colours.text, backgroundColor: 'rgba(255,255,255,0.04)', fontSize: 14 },
+  mealMacroRow: { flexDirection: 'row', gap: 6 },
+  mealMacroInput: { flex: 1, textAlign: 'center', paddingHorizontal: 4 },
+  mealSaveBtn: { backgroundColor: colours.cyan, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  mealSaveBtnText: { color: colours.background, fontWeight: '900', letterSpacing: 1 },
+  mealRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.borderSoft, gap: 8, marginTop: 4 },
+  mealRowLeft: { flex: 1 },
+  mealRowType: { ...typography.label, color: colours.muted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 },
+  mealRowName: { color: colours.text, fontWeight: '700', fontSize: 13 },
+  mealRowRight: { alignItems: 'flex-end' },
+  mealRowCals: { color: colours.amber, fontWeight: '900', fontSize: 13 },
+  mealRowMacros: { ...typography.label, color: colours.muted, fontSize: 10 },
+  mealEmpty: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: responsiveSpacing('md') },
   guidance: { ...typography.caption, color: colours.textSoft, lineHeight: 19, marginTop: responsiveSpacing('md') },
   zoneRow: { marginTop: responsiveSpacing('md') },
   zoneTop: { flexDirection: 'row', justifyContent: 'space-between', gap: responsiveSpacing('sm'), marginBottom: responsiveSpacing('xs') },

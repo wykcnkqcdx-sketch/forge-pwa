@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups } from '../data/mockData';
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
-import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../data/domain';
 import { secureGetItem, secureRemoveItem, secureSetItem } from '../lib/secureStorage';
 
 function safeJsonParse<T>(json: string, key: string): T | null {
@@ -21,6 +21,8 @@ export function useLocalStore() {
   const [programmeTemplates, setProgrammeTemplates] = useState<ProgrammeTemplate[]>(initialProgrammeTemplates);
   const [readinessLogs, setReadinessLogs] = useState<ReadinessLog[]>([]);
   const [workoutCompletions, setWorkoutCompletions] = useState<WorkoutCompletion[]>([]);
+  const [mealEntries, setMealEntries] = useState<MealEntry[]>([]);
+  const [injuryLogs, setInjuryLogs] = useState<InjuryLog[]>([]);
   const [googleSheetsEndpoint, setGoogleSheetsEndpoint] = useState('');
   const [savedPin, setSavedPin] = useState<string | null>(null);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState(false);
@@ -52,6 +54,14 @@ export function useLocalStore() {
         const parsedCompletions = storedCompletions ? safeJsonParse<WorkoutCompletion[]>(storedCompletions, 'forge:workout_completions') : null;
         if (parsedCompletions) setWorkoutCompletions(parsedCompletions);
 
+        const storedMeals = await secureGetItem('forge:meal_entries');
+        const parsedMeals = storedMeals ? safeJsonParse<MealEntry[]>(storedMeals, 'forge:meal_entries') : null;
+        if (parsedMeals) setMealEntries(parsedMeals);
+
+        const storedInjuries = await secureGetItem('forge:injury_logs');
+        const parsedInjuries = storedInjuries ? safeJsonParse<InjuryLog[]>(storedInjuries, 'forge:injury_logs') : null;
+        if (parsedInjuries) setInjuryLogs(parsedInjuries);
+
         const storedEndpoint = await secureGetItem('forge:google_sheets_endpoint');
         if (storedEndpoint) setGoogleSheetsEndpoint(storedEndpoint);
 
@@ -75,6 +85,8 @@ export function useLocalStore() {
   useEffect(() => { if (isReady) secureSetItem('forge:programme_templates', JSON.stringify(programmeTemplates)); }, [programmeTemplates, isReady]);
   useEffect(() => { if (isReady) secureSetItem('forge:readiness_logs', JSON.stringify(readinessLogs)); }, [readinessLogs, isReady]);
   useEffect(() => { if (isReady) secureSetItem('forge:workout_completions', JSON.stringify(workoutCompletions)); }, [workoutCompletions, isReady]);
+  useEffect(() => { if (isReady) secureSetItem('forge:meal_entries', JSON.stringify(mealEntries)); }, [mealEntries, isReady]);
+  useEffect(() => { if (isReady) secureSetItem('forge:injury_logs', JSON.stringify(injuryLogs)); }, [injuryLogs, isReady]);
   useEffect(() => { if (isReady) secureSetItem('forge:google_sheets_endpoint', googleSheetsEndpoint); }, [googleSheetsEndpoint, isReady]);
   useEffect(() => {
     if (!isReady) return;
@@ -94,6 +106,8 @@ export function useLocalStore() {
     programmeTemplates, setProgrammeTemplates,
     readinessLogs, setReadinessLogs,
     workoutCompletions, setWorkoutCompletions,
+    mealEntries, setMealEntries,
+    injuryLogs, setInjuryLogs,
     googleSheetsEndpoint, setGoogleSheetsEndpoint,
     savedPin, setSavedPin,
     hasSeenOnboarding, setHasSeenOnboarding,

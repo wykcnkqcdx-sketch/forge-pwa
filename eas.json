@@ -25,7 +25,7 @@
       "ios": {
         "appleId": "leowemyss@icloud.com",
         "ascAppId": "YOUR_APP_STORE_CONNECT_APP_ID",
-        "appleTeamId": "YOUR_APPLE_TEAM_ID"
+        "appleTeamId": "R8XS6C3KNU"
       },
       "android": {
         "serviceAccountKeyPath": "./google-service-account.json",

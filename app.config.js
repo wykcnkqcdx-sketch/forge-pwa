@@ -10,6 +10,14 @@ module.exports = ({ config }) => ({
         "isIosBackgroundLocationEnabled": true,
         "isAndroidBackgroundLocationEnabled": true
       }
+    ],
+    [
+      "expo-notifications",
+      {
+        "icon": "./assets/icon.png",
+        "color": "#04080F",
+        "sounds": []
+      }
     ]
   ],
   experiments: {

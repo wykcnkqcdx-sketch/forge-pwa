@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Haptics from 'expo-haptics';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -177,6 +178,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
     addSession(session);
     setSavedKeys((current) => [...current, activeMode.key]);
+    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Session saved', `${selectedExercises.length} exercises have been added to your training log.`);
   }
 
@@ -193,6 +195,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
     };
 
     addSession(session);
+    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     showAlert('Session saved', `${template.label} logged. It will appear on Today and Recent Load.`);
   }
 

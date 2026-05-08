@@ -1,5 +1,5 @@
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
-import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../data/domain';
 
 export type Tab = 'home' | 'train' | 'ruck' | 'fuel' | 'analytics' | 'settings' | 'readiness';
 export type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
@@ -44,6 +44,11 @@ export type AppActions = {
   addProgrammeTemplate: (template: ProgrammeTemplate) => void;
   deleteProgrammeTemplate: (id: string) => void;
   addReadinessLog: (log: ReadinessLog) => void;
+  addMealEntry: (entry: MealEntry) => void;
+  deleteMealEntry: (id: string) => void;
+  addInjuryLog: (log: InjuryLog) => void;
+  deleteInjuryLog: (id: string) => void;
+  resolveInjuryLog: (id: string) => void;
   completeOnboarding: (mode: 'fresh' | 'demo') => void;
   exportData: () => void;
   importData: () => void;
@@ -51,4 +56,4 @@ export type AppActions = {
 
 // Re-export types from other modules for convenience
 export type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
-export type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+export type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../data/domain';

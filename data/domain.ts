@@ -85,6 +85,30 @@ export type FuelLog = {
   hydrationTargetMl: number;
 };
 
+export type MealEntry = {
+  id: string;
+  date: string;
+  name: string;
+  mealType: 'Breakfast' | 'Lunch' | 'Dinner' | 'Snack';
+  caloriesKcal: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  note?: string;
+};
+
+export type InjuryLog = {
+  id: string;
+  date: string;
+  memberId?: string;
+  bodyArea: 'Knee' | 'Back' | 'Shoulder' | 'Hip' | 'Ankle' | 'Neck' | 'Other';
+  severity: 1 | 2 | 3 | 4 | 5;
+  description?: string;
+  limitsTraining: boolean;
+  resolvedDate?: string;
+  updatedAt?: string;
+};
+
 export type WorkoutCompletionType = 'assigned' | 'quick_log' | 'ad_hoc';
 
 export type LoggedExercise = {

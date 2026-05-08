@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { PanResponder, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
-import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../data/domain';
 import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups } from '../data/mockData';
 import { clearActiveRoute } from '../lib/ruckRouteStore';
 import { secureDestroyLocalData } from '../lib/secureStorage';
@@ -45,6 +45,8 @@ type AppContextType = {
   programmeTemplates: ProgrammeTemplate[];
   readinessLogs: ReadinessLog[];
   workoutCompletions: WorkoutCompletion[];
+  mealEntries: MealEntry[];
+  injuryLogs: InjuryLog[];
   googleSheetsEndpoint: string;
   isReady: boolean;
   hasSeenOnboarding: boolean;
@@ -101,8 +103,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const store = useLocalStore();
   const {
     sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions,
+    mealEntries, injuryLogs,
     googleSheetsEndpoint, isReady, hasSeenOnboarding, savedPin,
     setSessions, setMembers, setGroups, setProgrammeTemplates, setReadinessLogs, setWorkoutCompletions,
+    setMealEntries, setInjuryLogs,
     setGoogleSheetsEndpoint, setHasSeenOnboarding
   } = store;
 
@@ -122,11 +126,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       setProgrammeTemplates([]);
       setReadinessLogs([]);
       setWorkoutCompletions([]);
+      setMealEntries([]);
+      setInjuryLogs([]);
       setGoogleSheetsEndpoint('');
       store.setSavedPin(null);
       await Promise.all([
         cloud.resetCloudForWipe(),
-        secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:google_sheets_endpoint', 'forge:pin']),
+        secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:meal_entries', 'forge:injury_logs', 'forge:google_sheets_endpoint', 'forge:pin']),
         clearActiveRoute(),
       ]).catch((error) => console.error('Failed to clear local app data', error));
       setPendingSyncCount(0);
@@ -305,6 +311,27 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     enqueueCloudMutation({ type: 'upsert_readiness_log', payload: updated });
   }
 
+  function addMealEntry(entry: MealEntry) {
+    setMealEntries((curr) => [entry, ...curr]);
+  }
+
+  function deleteMealEntry(id: string) {
+    setMealEntries((curr) => curr.filter((e) => e.id !== id));
+  }
+
+  function addInjuryLog(log: InjuryLog) {
+    const updated = { ...log, updatedAt: new Date().toISOString() };
+    setInjuryLogs((curr) => [updated, ...curr]);
+  }
+
+  function deleteInjuryLog(id: string) {
+    setInjuryLogs((curr) => curr.filter((l) => l.id !== id));
+  }
+
+  function resolveInjuryLog(id: string) {
+    setInjuryLogs((curr) => curr.map((l) => l.id === id ? { ...l, resolvedDate: new Date().toISOString().slice(0, 10), updatedAt: new Date().toISOString() } : l));
+  }
+
   function completeOnboarding(mode: 'fresh' | 'demo') {
     if (mode === 'fresh') {
       setSessions([]);
@@ -419,6 +446,11 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     addProgrammeTemplate,
     deleteProgrammeTemplate,
     addReadinessLog,
+    addMealEntry,
+    deleteMealEntry,
+    addInjuryLog,
+    deleteInjuryLog,
+    resolveInjuryLog,
     completeOnboarding,
     exportData,
     importData,
@@ -452,6 +484,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const contextValue: AppContextType = {
     // Store data
     sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions,
+    mealEntries, injuryLogs,
     googleSheetsEndpoint, isReady, hasSeenOnboarding, savedPin,
 
     // Store setters
