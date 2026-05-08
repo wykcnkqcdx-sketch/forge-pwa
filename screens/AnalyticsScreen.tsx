@@ -25,7 +25,7 @@ import { SessionCard } from '../components/SessionCard';
 import { SessionEditModal } from '../components/SessionEditModal';
 import { ReadinessModal } from '../components/ReadinessModal';
 import { DayDetailModal } from '../components/DayDetailModal';
-import { addDaysToDateKey, isSameLocalDate, toLocalDateKey } from '../utils/date';
+import { addDaysToDateKey, getDateKey, isSameLocalDate, toLocalDateKey } from '../utils/date';
 
 export function AnalyticsScreen({
   sessions,
@@ -52,6 +52,7 @@ export function AnalyticsScreen({
   
   const screenWidth = Dimensions.get('window').width;
   const [trendDays, setTrendDays] = useState<7 | 28 | 90>(7);
+  const todayStr = toLocalDateKey();
 
   const latestReadiness = useMemo(() => {
     const log = getLatestReadinessLog(readinessLogs);
@@ -96,15 +97,14 @@ export function AnalyticsScreen({
 
     const dailyScores: Record<string, number[]> = {};
     sessions.forEach(s => {
-      const d = s.completedAt ? new Date(s.completedAt) : new Date();
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = getDateKey(s.completedAt) ?? todayStr;
       if (!dailyScores[dateStr]) dailyScores[dateStr] = [];
       dailyScores[dateStr].push(s.score);
     });
 
     for (let i = trendDays - 1; i >= 0; i--) {
       const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
-      const dateStr = d.toISOString().split('T')[0];
+      const dateStr = toLocalDateKey(d);
       const scores = dailyScores[dateStr];
       const avgScore = scores ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
       
@@ -126,7 +126,7 @@ export function AnalyticsScreen({
       labels,
       datasets: [{ data: data.some(d => d > 0) ? data : data.map(() => 0) }]
     };
-  }, [sessions, trendDays]);
+  }, [sessions, trendDays, todayStr]);
 
   const ruckSessions = sessions.filter((session) => session.type === 'Ruck');
   const strengthSessions = sessions.filter((session) => session.type === 'Strength');
@@ -146,7 +146,6 @@ export function AnalyticsScreen({
   const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
   const [displayLimit, setDisplayLimit] = useState(10);
 
-  const todayStr = toLocalDateKey();
   const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
 
   function changeDateOffset(offset: number) {

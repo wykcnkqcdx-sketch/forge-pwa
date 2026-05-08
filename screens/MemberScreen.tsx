@@ -195,7 +195,7 @@ export function MemberScreen({
 
   function finishWorkout(effort: 'About Right' | 'Too Easy' | 'Too Hard') {
     if (!member) return;
-    if (assignmentSession?.status === 'completed') {
+    if (assignmentSession?.status === 'completed' || finishFeedback.includes('Logged ')) {
       setFinishFeedback('This assigned workout is already logged.');
       return;
     }
@@ -494,7 +494,10 @@ export function MemberScreen({
           <TextInput
             style={styles.quickLogInput}
             value={completedDuration}
-            onChangeText={setCompletedDuration}
+            onChangeText={(value) => {
+              setCompletedDuration(value);
+              if (finishFeedback.includes('Logged ')) setFinishFeedback('');
+            }}
             keyboardType="number-pad"
             placeholder={`${defaultAssignedDuration}`}
             placeholderTextColor={colours.soft}
@@ -503,7 +506,10 @@ export function MemberScreen({
         <TextInput
           style={styles.noteInput}
           value={workoutNote}
-          onChangeText={setWorkoutNote}
+          onChangeText={(value) => {
+            setWorkoutNote(value);
+            if (finishFeedback.includes('Logged ')) setFinishFeedback('');
+          }}
           placeholder="How did this feel?"
           placeholderTextColor={colours.soft}
           multiline
@@ -512,9 +518,12 @@ export function MemberScreen({
           {(['Too Easy', 'About Right', 'Too Hard'] as const).map((label) => (
             <Pressable
               key={label}
-              style={[styles.finishButton, assignmentSession?.status === 'completed' && styles.finishButtonDisabled]}
+              style={[
+                styles.finishButton,
+                (assignmentSession?.status === 'completed' || finishFeedback.includes('Logged ')) && styles.finishButtonDisabled,
+              ]}
               onPress={() => finishWorkout(label)}
-              disabled={assignmentSession?.status === 'completed'}
+              disabled={assignmentSession?.status === 'completed' || finishFeedback.includes('Logged ')}
             >
               <Text style={styles.finishButtonText}>{label}</Text>
             </Pressable>
