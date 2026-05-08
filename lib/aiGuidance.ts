@@ -275,6 +275,97 @@ export async function getRuckMissionBrief(
   }
 }
 
+export type DayRecommendation = {
+  type: TrainingSession['type'];
+  headline: string;
+  rationale: string;
+  tone: string;
+  suggestedDuration: number;
+  suggestedRpe: number;
+  exercises: string[];
+};
+
+function _strengthRec(elevated: boolean): DayRecommendation {
+  return {
+    type: 'Strength',
+    headline: elevated ? 'Moderate Strength' : 'Strength Session',
+    rationale: elevated
+      ? 'Load is elevated — keep intensity at 70%, prioritise movement quality over weight.'
+      : 'Compound lifts today. Progressive loading drives the most systemic adaptation.',
+    tone: colours.green,
+    suggestedDuration: elevated ? 35 : 55,
+    suggestedRpe: elevated ? 6 : 8,
+    exercises: ['Deadlift 4×5', 'Bench press 3×8', 'Pull-ups 3×max', 'Overhead press 3×10', 'Farmer carry 3×30m'],
+  };
+}
+
+function _cardioRec(elevated: boolean): DayRecommendation {
+  return {
+    type: elevated ? 'Cardio' : 'Run',
+    headline: elevated ? 'Zone 2 Aerobic' : 'Run / Conditioning',
+    rationale: elevated
+      ? 'Elevated load — keep HR in Z2 (60-70% max). Build the engine without adding fatigue.'
+      : 'Aerobic conditioning day. Sustained pace builds the base that powers everything else.',
+    tone: colours.cyan,
+    suggestedDuration: elevated ? 30 : 40,
+    suggestedRpe: elevated ? 4 : 6,
+    exercises: ['5 min warm-up walk', 'Target: Z2 HR (130-150 bpm)', 'Breathe through nose if possible', '5 min cool-down + calf stretch'],
+  };
+}
+
+export function buildDayRecommendation(dateStr: string, allSessions: TrainingSession[]): DayRecommendation {
+  const profile = buildPerformanceProfile(allSessions);
+  const date = new Date(dateStr + 'T12:00:00');
+  const dow = date.getDay(); // 0=Sun … 6=Sat
+
+  if (profile.loadRisk === 'High') {
+    return {
+      type: 'Mobility',
+      headline: 'Mandatory Recovery',
+      rationale: `ACWR is ${profile.acuteChronicRatio} — system needs deload. Mobility and breathwork only today.`,
+      tone: colours.red,
+      suggestedDuration: 30,
+      suggestedRpe: 2,
+      exercises: ['Foam rolling 10 min', 'Hip flexor stretch 3×30s', 'Thoracic rotation 3×10', 'Box breathing 5 min'],
+    };
+  }
+
+  const elevated = profile.acuteChronicRatio > 1.2;
+  const yesterday = new Date(date.getTime() - 86400000).toISOString().slice(0, 10);
+  const yesterdayType = allSessions.find(s => s.completedAt?.slice(0, 10) === yesterday)?.type;
+  const recentTypes = allSessions
+    .filter(s => {
+      if (!s.completedAt) return false;
+      const d = new Date(s.completedAt).getTime();
+      return d < date.getTime() && d > date.getTime() - 7 * 86400000;
+    })
+    .map(s => s.type);
+  const ruckCount = recentTypes.filter(t => t === 'Ruck').length;
+
+  if (dow === 0) {
+    return { type: 'Mobility', headline: 'Mobility & Reset', rationale: 'Sunday is your system reset. Active recovery preserves adaptations without adding fatigue.', tone: colours.violet, suggestedDuration: 40, suggestedRpe: 3, exercises: ['Hip 90/90 3×60s', 'Couch stretch 3×45s each', 'Thoracic extension on roller', 'Dead hangs 3×20s', 'Breathing 5 min'] };
+  }
+  if (dow === 6) {
+    if (ruckCount < 1) return { type: 'Ruck', headline: 'Long Ruck Day', rationale: `No ruck logged this week. Saturday is ideal for your longest loaded carry — build the base.`, tone: colours.amber, suggestedDuration: elevated ? 60 : 90, suggestedRpe: elevated ? 5 : 7, exercises: ['Load: 15–20 kg', 'Pace: controlled, conversational', 'Hydrate every 20 min', 'Cool-down hip flexor stretch'] };
+    return _strengthRec(elevated);
+  }
+  if (dow === 1) {
+    if (yesterdayType === 'Strength' || yesterdayType === 'Resistance') return _cardioRec(elevated);
+    return { type: 'Strength', headline: 'Lower Body Strength', rationale: 'Monday sets the tone. Compound lower body work drives the most systemic adaptation.', tone: colours.green, suggestedDuration: elevated ? 40 : 55, suggestedRpe: elevated ? 6 : 8, exercises: ['Back squat 4×5', 'Romanian deadlift 3×8', 'Bulgarian split squat 3×10', 'Calf raises 3×15', 'Plank 3×45s'] };
+  }
+  if (dow === 2) {
+    if (yesterdayType === 'Cardio' || yesterdayType === 'Run') return _strengthRec(elevated);
+    return _cardioRec(elevated);
+  }
+  if (dow === 3) {
+    if (yesterdayType === 'Strength' || yesterdayType === 'Resistance') return { type: 'Ruck', headline: 'Midweek Ruck', rationale: 'Strength was yesterday. Midweek ruck builds loaded conditioning without more muscle damage.', tone: colours.amber, suggestedDuration: elevated ? 45 : 60, suggestedRpe: elevated ? 5 : 6, exercises: ['Load: 15–20 kg', 'Pace: comfortable and sustained', 'Flat terrain preferred', 'Post: stretch calves and hip flexors'] };
+    return _strengthRec(elevated);
+  }
+  if (dow === 4) return _cardioRec(elevated);
+  if (yesterdayType === 'Strength' || yesterdayType === 'Resistance') return _cardioRec(elevated);
+  return _strengthRec(elevated);
+}
+
 export function buildCoachGuidance(members: SquadMember[], sessions: TrainingSession[]): AiGuidance {
   const atRisk = members.filter((member) => member.risk !== 'Low').length;
   const unassigned = members.filter((member) => !member.assignment).length;

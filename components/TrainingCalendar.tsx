@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { colours, typography } from '../theme';
 import type { TrainingSession } from '../data/domain';
 
 type Props = {
   sessions: TrainingSession[];
+  onDayPress?: (date: string, daySessions: TrainingSession[]) => void;
 };
 
 const SESSION_COLOURS: Record<TrainingSession['type'], string> = {
@@ -30,7 +31,7 @@ function hexToRgb(hex: string): string {
   return `${r},${g},${b}`;
 }
 
-export function TrainingCalendar({ sessions }: Props) {
+export function TrainingCalendar({ sessions, onDayPress }: Props) {
   const { weeks, maxWeekLoad } = useMemo(() => {
     const today = startOfDay(new Date());
     const dayOfWeek = (today.getDay() + 6) % 7;
@@ -112,20 +113,23 @@ export function TrainingCalendar({ sessions }: Props) {
                 const bgOpacity = cell.maxRpe >= 8 ? 0.30 : cell.maxRpe >= 5 ? 0.18 : isActive ? 0.11 : 0;
 
                 return (
-                  <View
+                  <Pressable
                     key={cell.date}
-                    style={[
+                    onPress={() => {
+                      const daySessions = sessions.filter(s => s.completedAt?.slice(0, 10) === cell.date);
+                      onDayPress?.(cell.date, daySessions);
+                    }}
+                    style={({ pressed }) => [
                       styles.cell,
                       isActive && primaryHex && { backgroundColor: `rgba(${hexToRgb(primaryHex)},${bgOpacity})` },
                       cell.isToday && styles.cellToday,
                       cell.maxRpe >= 8 && styles.cellHighRpe,
                       cell.isFuture && styles.cellFuture,
+                      pressed && styles.cellPressed,
                     ]}
                   >
-                    {/* New-month dot indicator */}
                     {cell.isNewMonth && <View style={styles.newMonthDot} />}
 
-                    {/* Date number */}
                     <Text style={[
                       styles.cellDay,
                       isActive && styles.cellDayActive,
@@ -134,7 +138,6 @@ export function TrainingCalendar({ sessions }: Props) {
                       {cell.day}
                     </Text>
 
-                    {/* Session type strips at bottom */}
                     {isActive && (
                       <View style={styles.typeStrips}>
                         {cell.types.slice(0, 4).map((t, i) => (
@@ -146,13 +149,12 @@ export function TrainingCalendar({ sessions }: Props) {
                       </View>
                     )}
 
-                    {/* RPE badge top-right */}
                     {cell.maxRpe >= 8 && (
                       <View style={styles.rpeBadge}>
                         <Text style={styles.rpeBadgeText}>{cell.maxRpe}</Text>
                       </View>
                     )}
-                  </View>
+                  </Pressable>
                 );
               })}
 
@@ -210,6 +212,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  cellPressed: { opacity: 0.65 },
   cellToday: {
     borderColor: colours.cyan,
     borderWidth: 2,

@@ -81,6 +81,7 @@ export function AppRouter() {
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
             addReadinessLog={actions.addReadinessLog}
+            addSession={actions.addSession}
             deleteSession={actions.deleteSession}
             editSession={actions.editSession}
           />

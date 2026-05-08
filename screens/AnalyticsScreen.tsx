@@ -8,28 +8,28 @@ import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { colours, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
-import { TrainingSession, TrackPoint } from '../data/mockData';
+import { TrainingSession } from '../data/mockData';
 import { ReadinessLog } from '../data/domain';
-import { formatCoordinate } from '../utils/coordinates';
-import { distanceBetween, getMapPoints } from '../utils/mapUtils';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 import { TrainingCalendar } from '../components/TrainingCalendar';
 import { exportSessionsToPdf } from '../lib/pdfExport';
 import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
-import type { WorkoutCompletion, LoggedExercise } from '../data/domain';
+import type { WorkoutCompletion } from '../data/domain';
 import { calculateWHtR } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { getProtocol } from '../lib/injuryProtocols';
-import { showAlert, showConfirm } from '../lib/dialogs';
+import { showConfirm } from '../lib/dialogs';
 import { SessionCard } from '../components/SessionCard';
 import { SessionEditModal } from '../components/SessionEditModal';
 import { ReadinessModal } from '../components/ReadinessModal';
+import { DayDetailModal } from '../components/DayDetailModal';
 
 export function AnalyticsScreen({
   sessions,
   readinessLogs,
   workoutCompletions = [],
   addReadinessLog,
+  addSession,
   deleteSession,
   editSession,
 }: {
@@ -37,6 +37,7 @@ export function AnalyticsScreen({
   readinessLogs: ReadinessLog[];
   workoutCompletions?: WorkoutCompletion[];
   addReadinessLog: (log: ReadinessLog) => void;
+  addSession: (session: TrainingSession) => void;
   deleteSession: (id: string) => void;
   editSession: (id: string, updates: Partial<TrainingSession>) => void;
 }) {
@@ -44,9 +45,6 @@ export function AnalyticsScreen({
   const orderedSessions = useMemo(() => sortSessionsByDate(sessions), [sessions]);
   const recentSessions = orderedSessions.slice(0, 7);
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
-  const averageScore = hasSessions
-    ? Math.round(sessions.reduce((total, session) => total + session.score, 0) / sessions.length)
-    : 0;
   const compliance = hasSessions ? Math.min(100, Math.round(55 + recentSessions.length * 6 + Math.max(0, 20 - performance.highIntensityCount * 4))) : 0;
   
   const screenWidth = Dimensions.get('window').width;
@@ -140,7 +138,6 @@ export function AnalyticsScreen({
   const nextLevelProgressPct = Math.round((currentLevelProgress / 500) * 100);
   const pointsToNext = 500 - currentLevelProgress;
   const badgeColor = currentLevel > 10 ? colours.amber : colours.cyan;
-  const badgeDim = currentLevel > 10 ? colours.amberDim : colours.cyanDim;
 
   const [filterType, setFilterType] = useState<TrainingSession['type'] | 'All'>('All');
   const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
@@ -164,6 +161,8 @@ export function AnalyticsScreen({
   const displayedSessions = filteredSessions.slice(0, displayLimit);
 
   const [editingSession, setEditingSession] = useState<TrainingSession | null>(null);
+  const [dayModalDate, setDayModalDate] = useState<string | null>(null);
+  const [dayModalSessions, setDayModalSessions] = useState<TrainingSession[]>([]);
 
   // Body Metrics state
   const [waistCm, setWaistCm] = useState('88');
@@ -272,7 +271,13 @@ export function AnalyticsScreen({
       <Card>
         <Text style={styles.cardTitle}>Training Calendar</Text>
         <Text style={[styles.muted, { marginBottom: 10 }]}>Last 4 weeks — today highlighted</Text>
-        <TrainingCalendar sessions={sessions} />
+        <TrainingCalendar
+          sessions={sessions}
+          onDayPress={(date, daySessions) => {
+            setDayModalDate(date);
+            setDayModalSessions(daySessions);
+          }}
+        />
       </Card>
 
       {hasSessions && typeDistributionData.length > 0 && (
@@ -552,7 +557,6 @@ export function AnalyticsScreen({
           const proto = getProtocol(selectedSegment);
           const pain = painMap[selectedSegment] ?? 0;
           const severity = pain >= 7 ? 'severe' : pain >= 4 ? 'moderate' : 'mild';
-          const rttDays = proto.returnToTrainDays[severity];
           const modalityColor = proto.modality === 'ice' ? colours.cyan : proto.modality === 'heat' ? colours.amber : colours.violet;
           return (
             <View style={styles.protoPanel}>
@@ -639,6 +643,15 @@ export function AnalyticsScreen({
           );
         })()}
       </Card>
+
+      <DayDetailModal
+        visible={dayModalDate !== null}
+        date={dayModalDate ?? new Date().toISOString().slice(0, 10)}
+        daySessions={dayModalSessions}
+        allSessions={sessions}
+        onClose={() => setDayModalDate(null)}
+        onAddSession={(session) => { addSession(session); setDayModalDate(null); }}
+      />
 
       <SessionEditModal
         visible={!!editingSession}
