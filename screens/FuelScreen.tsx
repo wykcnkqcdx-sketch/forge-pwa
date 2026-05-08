@@ -151,16 +151,39 @@ export function FuelScreen({
   const bmiInfo = useMemo(() => getBmiCategory(bmi), [bmi]);
   const maxHr = useMemo(() => Math.max(120, 220 - age), [age]);
   const estimatedBodyFat = useMemo(() => Math.round(clamp(5 + skinfoldMm * 0.45, 5, 45) * 10) / 10, [skinfoldMm]);
-  const caloriesUsed = useMemo(
-    () => performance.weeklyLoad,
-    [performance.weeklyLoad]
+  // Katch-McArdle BMR: most accurate for athletes with body composition data; sex-neutral
+  const leanMassKg = useMemo(() => bodyWeightKg * (1 - estimatedBodyFat / 100), [bodyWeightKg, estimatedBodyFat]);
+  const bmr = useMemo(() => Math.round(370 + 21.6 * leanMassKg), [leanMassKg]);
+  // Exercise kcal: 7-day TRIMP body-weight-scaled (1 TRIMP ≈ 1 kcal per 70 kg; Banister 1991)
+  const dailyExerciseKcal = useMemo(
+    () => Math.min(1200, Math.round((performance.weeklyLoad * (bodyWeightKg / 70)) / 7)),
+    [performance.weeklyLoad, bodyWeightKg]
   );
-  const baseCalories = useMemo(() => Math.round(bodyWeightKg * 31), [bodyWeightKg]);
-  const calorieTarget = useMemo(() => baseCalories + activeGoal.offset + Math.min(800, Math.round(caloriesUsed / 7)), [baseCalories, activeGoal.offset, caloriesUsed]);
-  const proteinTarget = useMemo(() => Math.round(bodyWeightKg * (goal === 'gain' ? 2.0 : 1.8)), [bodyWeightKg, goal]);
-  const carbTarget = useMemo(() => Math.round((calorieTarget * (goal === 'loss' ? 0.38 : 0.48)) / 4), [calorieTarget, goal]);
-  const fatTarget = useMemo(() => Math.round((calorieTarget * 0.25) / 9), [calorieTarget]);
-  const hydrationTargetMl = useMemo(() => Math.round(bodyWeightKg * 35 + Math.min(1200, caloriesUsed / 7)), [bodyWeightKg, caloriesUsed]);
+  // TDEE: BMR × 1.4 (active military NEAT baseline) + exercise + goal offset
+  const calorieTarget = useMemo(
+    () => Math.round(bmr * 1.4) + activeGoal.offset + dailyExerciseKcal,
+    [bmr, activeGoal.offset, dailyExerciseKcal]
+  );
+  // Protein: 1.8–2.0 g/kg (ISSN 2017 position stand)
+  const proteinTarget = useMemo(
+    () => Math.round(bodyWeightKg * (goal === 'gain' ? 2.0 : 1.8)),
+    [bodyWeightKg, goal]
+  );
+  // Carbs: g/kg by goal (ACSM/AND/DC 2016: loss 4 g/kg, maintain 5 g/kg, gain 6 g/kg)
+  const carbTarget = useMemo(
+    () => Math.round(bodyWeightKg * (goal === 'loss' ? 4 : goal === 'gain' ? 6 : 5)),
+    [bodyWeightKg, goal]
+  );
+  // Fat: 25% of kcal (28% for gain) — ACSM performance nutrition guidelines
+  const fatTarget = useMemo(
+    () => Math.round((calorieTarget * (goal === 'gain' ? 0.28 : 0.25)) / 9),
+    [calorieTarget, goal]
+  );
+  // Hydration: 35 ml/kg baseline + sweat replacement from exercise (ACSM fluid guidelines)
+  const hydrationTargetMl = useMemo(
+    () => Math.round(bodyWeightKg * 35 + Math.min(1200, dailyExerciseKcal)),
+    [bodyWeightKg, dailyExerciseKcal]
+  );
   const hydrationPct = useMemo(() => Math.round((hydrationLoggedMl / hydrationTargetMl) * 100), [hydrationLoggedMl, hydrationTargetMl]);
   const sleepTone = sleepScore === undefined ? colours.muted : sleepScore >= 80 ? colours.green : sleepScore >= 65 ? colours.amber : colours.red;
   const fuelTiming = goal === 'gain'
