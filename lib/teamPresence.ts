@@ -14,8 +14,27 @@ export type Teammate = {
     message?: string;
     since: number;
   };
+  sharedObjects?: SharedFieldObject[];
   updatedAt: number;
   color: string;
+};
+
+export type SharedFieldObject = {
+  id: string;
+  sender: string;
+  type: 'mark' | 'measurement';
+  label: string;
+  sentAt: number;
+  geometry: {
+    kind: 'point' | 'line' | 'polygon';
+    points: Array<{ lat: number; lon: number }>;
+  };
+  meta?: {
+    markType?: string;
+    measurementMode?: string;
+    distanceKm?: number;
+    areaSquareMeters?: number;
+  };
 };
 
 type PresenceState = {
@@ -30,6 +49,7 @@ type PresenceState = {
     message?: string;
     since: number;
   };
+  sharedObjects?: SharedFieldObject[];
   updatedAt: number;
 };
 
@@ -79,6 +99,7 @@ export function useTeamPresence(callsign: string, enabled: boolean) {
             speed: latest.speed,
             accuracy: latest.accuracy,
             emergency: latest.emergency,
+            sharedObjects: latest.sharedObjects,
             updatedAt: latest.updatedAt,
             color: colorForCallsign(latest.callsign ?? key),
           });

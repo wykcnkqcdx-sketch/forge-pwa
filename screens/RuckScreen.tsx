@@ -28,7 +28,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { strFromU8, unzipSync } from 'fflate';
 import { parseGpx } from '../lib/gpxParser';
-import { useTeamPresence, type Teammate } from '../lib/teamPresence';
+import { useTeamPresence, type SharedFieldObject, type Teammate } from '../lib/teamPresence';
 
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
@@ -110,6 +110,14 @@ type MeasurementMode = 'range' | 'route' | 'area';
 type MeasurementPoint = { latitude: number; longitude: number };
 type NavTarget = { type: 'mark' | 'teammate'; id: string };
 type TeamEvent = { id: string; time: number; tone: string; title: string; detail: string };
+type PersistedFieldState = {
+  checkpoints: RuckCheckpoint[];
+  drawLines: Array<{ color: string; points: Array<{ lat: number; lon: number }> }>;
+  measurementMode: MeasurementMode | null;
+  measurementPoints: MeasurementPoint[];
+  mapOverlays: MapOverlay[];
+  teamEvents: TeamEvent[];
+};
 type MapOverlay = {
   id: string;
   name: string;
@@ -509,6 +517,7 @@ const ruckTemplates: RuckTemplate[] = [
 ];
 
 const CUSTOM_RUCK_TEMPLATES_KEY = 'forge:ruck_templates';
+const RUCK_FIELD_STATE_KEY = 'forge:ruck_field_state';
 
 type TrackingState = {
   status: TrackingStatus;
@@ -704,6 +713,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [teamEnabled, setTeamEnabled] = useState(false);
   const [emergencyBeacon, setEmergencyBeacon] = useState<{ active: boolean; since: number; message?: string } | null>(null);
   const [teamEvents, setTeamEvents] = useState<TeamEvent[]>([]);
+  const [sharedObjects, setSharedObjects] = useState<SharedFieldObject[]>([]);
+  const [receivedSharedObjects, setReceivedSharedObjects] = useState<SharedFieldObject[]>([]);
   // AI Mission Brief
   const [missionBrief, setMissionBrief] = useState<RuckMissionBrief | null>(null);
   const [missionBriefLoading, setMissionBriefLoading] = useState(false);
@@ -723,6 +734,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const measurementModeRef = useRef(measurementMode);
   measurementModeRef.current = measurementMode;
   const seenEmergencyRef = useRef<Set<string>>(new Set());
+  const seenSharedObjectRef = useRef<Set<string>>(new Set());
 
   // Team PLI
   const { teammates, broadcast: broadcastTeamPosition, connected: teamConnected } = useTeamPresence(callsign, teamEnabled);
@@ -1184,8 +1196,9 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         : undefined,
       accuracy: currentPoint.accuracy ?? undefined,
       emergency: emergencyBeacon ?? { active: false, since: Date.now() },
+      sharedObjects,
     });
-  }, [activeHeading, broadcastTeamPosition, currentDistance, currentPoint, elapsedSeconds, emergencyBeacon, teamEnabled]);
+  }, [activeHeading, broadcastTeamPosition, currentDistance, currentPoint, elapsedSeconds, emergencyBeacon, sharedObjects, teamEnabled]);
 
   async function handleGpxImport() {
     try {
@@ -1435,6 +1448,66 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     addTeamEvent('Emergency beacon cleared', callsign, colours.green);
   }
 
+  function shareSelectedMark() {
+    if (!selectedCheckpointPoint || !selectedCheckpoint) {
+      showAlert('No mark selected', 'Select a mapped FORGE mark before sharing.');
+      return;
+    }
+    setTeamEnabled(true);
+    const shared: SharedFieldObject = {
+      id: `shared-mark-${selectedCheckpoint.id}-${Date.now()}`,
+      sender: callsign,
+      type: 'mark',
+      label: formatFieldMarkLabel(selectedCheckpoint),
+      sentAt: Date.now(),
+      geometry: {
+        kind: 'point',
+        points: [{ lat: selectedCheckpointPoint.latitude, lon: selectedCheckpointPoint.longitude }],
+      },
+      meta: { markType: selectedCheckpoint.markType },
+    };
+    setSharedObjects((current) => [shared, ...current].slice(0, 12));
+    addTeamEvent('Mark shared', shared.label, colours.cyan);
+  }
+
+  function shareMeasurement() {
+    if (!measurementMode || measurementPoints.length < (measurementMode === 'area' ? 3 : 2)) {
+      showAlert('No measurement ready', 'Create a range, route, or area measurement before sharing.');
+      return;
+    }
+    setTeamEnabled(true);
+    const label = measurementMode === 'area'
+      ? `Area ${formatMeasureArea(measurementAreaMeters)}`
+      : `${measurementMode === 'range' ? 'Range' : 'Route'} ${formatMeasureDistance(measurementDistanceKm)}`;
+    const shared: SharedFieldObject = {
+      id: `shared-measure-${Date.now()}`,
+      sender: callsign,
+      type: 'measurement',
+      label,
+      sentAt: Date.now(),
+      geometry: {
+        kind: measurementMode === 'area' ? 'polygon' : 'line',
+        points: measurementPoints.map((point) => ({ lat: point.latitude, lon: point.longitude })),
+      },
+      meta: { measurementMode, distanceKm: measurementDistanceKm, areaSquareMeters: measurementAreaMeters },
+    };
+    setSharedObjects((current) => [shared, ...current].slice(0, 12));
+    addTeamEvent('Measurement shared', label, '#facc15');
+  }
+
+  function centerMapOnSharedObject(object: SharedFieldObject) {
+    const point = object.geometry.points[0];
+    if (!point) return;
+    setMapCenter({
+      latitude: point.lat,
+      longitude: point.lon,
+      altitude: null,
+      accuracy: null,
+      timestamp: Date.now(),
+    });
+    setGpsFollowMode(false);
+  }
+
   const mapNormalGestures = useMemo(() => {
     const panGesture = Gesture.Pan()
       .enabled(Boolean(effectiveMapCenterRef.current))
@@ -1600,6 +1673,21 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
         }
         const savedCallsign = await secureGetItem('forge:callsign');
         if (savedCallsign) setCallsign(savedCallsign);
+        const storedFieldState = await secureGetItem(RUCK_FIELD_STATE_KEY);
+        if (storedFieldState) {
+          try {
+            const parsed = JSON.parse(storedFieldState) as PersistedFieldState;
+            setPlannedCheckpoints(parsed.checkpoints ?? []);
+            setDrawLines(parsed.drawLines ?? []);
+            setMeasurementMode(parsed.measurementMode ?? null);
+            setMeasurementPoints(parsed.measurementPoints ?? []);
+            setMapOverlays(parsed.mapOverlays ?? []);
+            setTeamEvents(parsed.teamEvents ?? []);
+            setSelectedCheckpointId(parsed.checkpoints?.[0]?.id ?? null);
+          } catch {
+            console.error('Failed to parse saved ruck field state');
+          }
+        }
 
         if (plan) {
           setTargetDistanceKm(plan.targetDistanceKm);
@@ -1651,6 +1739,21 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       console.error('Failed to persist custom ruck templates', error);
     });
   }, [customTemplates, planRestored]);
+
+  useEffect(() => {
+    if (!planRestored) return;
+    const state: PersistedFieldState = {
+      checkpoints: plannedCheckpoints,
+      drawLines,
+      measurementMode,
+      measurementPoints,
+      mapOverlays,
+      teamEvents: teamEvents.slice(0, 8),
+    };
+    secureSetItem(RUCK_FIELD_STATE_KEY, JSON.stringify(state)).catch((error) => {
+      console.error('Failed to persist ruck field state', error);
+    });
+  }, [drawLines, mapOverlays, measurementMode, measurementPoints, plannedCheckpoints, planRestored, teamEvents]);
 
   useEffect(() => {
     setCheckpointLabelInput(selectedCheckpoint?.label ?? '');
@@ -1778,6 +1881,22 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       }
     });
   }, [emergencyTeammates]);
+
+  useEffect(() => {
+    const incoming = teammates.flatMap((teammate) => (
+      (teammate.sharedObjects ?? []).filter((object) => object.sender !== callsign)
+    ));
+    setReceivedSharedObjects(incoming.slice(0, 24));
+    incoming.forEach((object) => {
+      if (seenSharedObjectRef.current.has(object.id)) return;
+      seenSharedObjectRef.current.add(object.id);
+      addTeamEvent(
+        object.type === 'mark' ? 'Mark received' : 'Measurement received',
+        `${object.sender}: ${object.label}`,
+        object.type === 'mark' ? colours.cyan : '#facc15'
+      );
+    });
+  }, [callsign, teammates]);
 
   const stopTracking = async () => {
     dispatchTracking({ type: 'stopped' });
@@ -2541,6 +2660,34 @@ function updateSelectedCheckpointHere() {
                     opacity={0.8}
                   />
                 )}
+                {receivedSharedObjects.map((object) => {
+                  if (!effectiveMapCenter) return null;
+                  const points = getMercatorRoutePoints(
+                    object.geometry.points.map((point) => ({
+                      latitude: point.lat,
+                      longitude: point.lon,
+                      altitude: null,
+                      accuracy: null,
+                      timestamp: 0,
+                    })),
+                    effectiveMapCenter,
+                    renderViewport,
+                    mapZoom
+                  );
+                  const svgPoints = points.map((point) => `${point.x},${point.y}`).join(' ');
+                  if (object.geometry.kind === 'point' && points[0]) {
+                    return (
+                      <G key={object.id} transform={`translate(${points[0].x}, ${points[0].y})`}>
+                        <Circle r={9} fill="#facc15" stroke="rgba(7,17,30,0.9)" strokeWidth={2} />
+                        <SvgText x={0} y={23} textAnchor="middle" fontSize="8" fontWeight="900" fill="#facc15">{object.sender}</SvgText>
+                      </G>
+                    );
+                  }
+                  if (object.geometry.kind === 'polygon' && points.length >= 3) {
+                    return <Polygon key={object.id} points={`${svgPoints} ${points[0].x},${points[0].y}`} fill="rgba(250,204,21,0.13)" stroke="#facc15" strokeWidth={2.5} />;
+                  }
+                  return svgPoints ? <Polyline key={object.id} points={svgPoints} fill="none" stroke="#facc15" strokeWidth={3} strokeDasharray="8,5" /> : null;
+                })}
                 {renderedOverlayFeatures.map(({ overlay, pointFeatures, lineFeatures, polygonFeatures }) => (
                   <React.Fragment key={overlay.id}>
                     {polygonFeatures.map((polygon) => (
@@ -3178,6 +3325,14 @@ function updateSelectedCheckpointHere() {
                         <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Emergency</Text>
                       </Pressable>
                     )}
+                    <Pressable style={styles.forgePanelBtn} onPress={shareSelectedMark} disabled={!selectedCheckpointPoint}>
+                      <Ionicons name="share-social-outline" size={13} color={selectedCheckpointPoint ? colours.cyan : colours.muted} />
+                      <Text style={[styles.forgePanelBtnText, !selectedCheckpointPoint && { color: colours.muted }]}>Share Mark</Text>
+                    </Pressable>
+                    <Pressable style={styles.forgePanelBtn} onPress={shareMeasurement} disabled={!measurementMode}>
+                      <Ionicons name="git-network-outline" size={13} color={measurementMode ? '#facc15' : colours.muted} />
+                      <Text style={[styles.forgePanelBtnText, measurementMode && { color: '#facc15' }, !measurementMode && { color: colours.muted }]}>Share Measure</Text>
+                    </Pressable>
                   </View>
                   {teammates.length > 0 && (
                     <View style={styles.forgeCpRow}>
@@ -3264,6 +3419,16 @@ function updateSelectedCheckpointHere() {
                             <Ionicons name="trash-outline" size={15} color={colours.red} />
                           </Pressable>
                         </View>
+                      ))}
+                    </View>
+                  )}
+                  {receivedSharedObjects.length > 0 && (
+                    <View style={styles.teamSharedList}>
+                      {receivedSharedObjects.slice(0, 5).map((object) => (
+                        <Pressable key={object.id} style={styles.teamSharedRow} onPress={() => centerMapOnSharedObject(object)}>
+                          <Ionicons name={object.type === 'mark' ? 'flag-outline' : 'analytics-outline'} size={13} color="#facc15" />
+                          <Text style={styles.teamSharedText} numberOfLines={1}>{object.sender}: {object.label}</Text>
+                        </Pressable>
                       ))}
                     </View>
                   )}
@@ -5382,6 +5547,21 @@ const styles = StyleSheet.create({
   teamEventTitle: { color: colours.text, fontSize: 10, fontWeight: '900' },
   teamEventDetail: { color: colours.muted, fontSize: 9, fontWeight: '800', marginTop: 1 },
   teamEventTime: { color: colours.muted, fontSize: 9, fontWeight: '900' },
+  teamSharedList: {
+    gap: 6,
+  },
+  teamSharedRow: {
+    minHeight: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(250,204,21,0.18)',
+    backgroundColor: 'rgba(250,204,21,0.06)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 9,
+  },
+  teamSharedText: { color: colours.text, fontSize: 10, fontWeight: '900', flex: 1 },
   forgeNavRow: {
     flexDirection: 'row', justifyContent: 'space-between', gap: 4,
   },
