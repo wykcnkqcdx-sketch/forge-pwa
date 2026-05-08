@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Card } from './Card';
 import { buildProgrammeRecommendation, ProgrammeBuilderInput } from '../lib/aiGuidance';
 import { colours, typography } from '../theme';
@@ -38,6 +39,7 @@ export function ProgrammeBuilder({
   onSetFeedback,
 }: ProgrammeBuilderProps) {
   const [templateName, setTemplateName] = useState('');
+  const [loadedTitle, setLoadedTitle] = useState<string | null>(null);
   const [programmeGoal, setProgrammeGoal] = useState<ProgrammeBuilderInput['goal']>('Tactical Hybrid');
   const [programmeDays, setProgrammeDays] = useState<ProgrammeBuilderInput['daysPerWeek']>(3);
   const [programmeMinutes, setProgrammeMinutes] = useState<ProgrammeBuilderInput['sessionMinutes']>(45);
@@ -65,6 +67,8 @@ export function ProgrammeBuilder({
 
     onLoadIntoStage(programmeRecommendation.assignmentTitle, programmeRecommendation.coachNote, nextExercises);
     onSetFeedback(`AI plan loaded: ${programmeRecommendation.assignmentTitle}. Review the staged session, then deploy.`);
+    setLoadedTitle(programmeRecommendation.assignmentTitle);
+    setTimeout(() => setLoadedTitle(null), 4000);
   }
 
   function saveProgrammeTemplate() {
@@ -242,8 +246,17 @@ export function ProgrammeBuilder({
 
       <TextInput style={styles.memberInput} value={templateName} onChangeText={setTemplateName} placeholder="Template name" placeholderTextColor={colours.soft} />
 
+      {loadedTitle && (
+        <View style={styles.loadedBanner}>
+          <Ionicons name="checkmark-circle" size={16} color={colours.green} />
+          <Text style={styles.loadedBannerText}>Staged: {loadedTitle}</Text>
+        </View>
+      )}
+
       <View style={styles.programmeActionRow}>
-        <Pressable style={styles.programmeLoadButton} onPress={loadProgrammeIntoStage}><Text style={styles.programmeLoadButtonText}>Load AI Plan</Text></Pressable>
+        <Pressable style={[styles.programmeLoadButton, loadedTitle && styles.programmeLoadButtonDone]} onPress={loadProgrammeIntoStage}>
+          <Text style={styles.programmeLoadButtonText}>{loadedTitle ? 'Staged' : 'Load AI Plan'}</Text>
+        </Pressable>
         <Pressable style={styles.programmeSaveButton} onPress={saveProgrammeTemplate}><Text style={styles.programmeSaveButtonText}>Save Template</Text></Pressable>
       </View>
 
@@ -305,7 +318,10 @@ const styles = StyleSheet.create({
   memberInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 12, color: colours.text, backgroundColor: 'rgba(255,255,255,0.05)', paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, fontWeight: '800', marginBottom: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   programmeActionRow: { flexDirection: 'row', gap: responsiveSpacing('md'), marginTop: 4 },
   programmeLoadButton: { flex: 1, alignItems: 'center', backgroundColor: colours.green, borderRadius: 14, paddingVertical: 12 },
+  programmeLoadButtonDone: { backgroundColor: colours.cyan },
   programmeLoadButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
+  loadedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: statusColors(colours.green).borderMed, backgroundColor: statusColors(colours.green).bgMed, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 8 },
+  loadedBannerText: { ...typography.caption, color: colours.green, fontWeight: '900', flex: 1 },
   programmeSaveButton: { flex: 1, alignItems: 'center', backgroundColor: colours.cyan, borderRadius: 14, paddingVertical: 12 },
   programmeSaveButtonText: { color: colours.background, fontSize: 14, fontWeight: '900' },
   templateList: { gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('sm') },

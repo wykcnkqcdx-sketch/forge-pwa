@@ -97,6 +97,7 @@ export type SessionCardProps = {
 
 export const SessionCard = React.memo(function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
   const mapPoints = getMapPoints(session.routePoints || []);
 
   const actualDistanceKm = routeDistanceKm(session.routePoints);
@@ -152,6 +153,11 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
           <Text style={styles.scoreLabel}>SCORE</Text>
         </View>
         <View style={styles.actions}>
+          {!session.ruckMission && (
+            <Pressable onPress={() => setDetailOpen((v) => !v)} style={styles.actionBtn}>
+              <Ionicons name={detailOpen ? 'chevron-up' : 'chevron-down'} size={18} color={colours.muted} />
+            </Pressable>
+          )}
           <Pressable onPress={() => onEdit(session)} style={styles.actionBtn}>
             <Ionicons name="pencil" size={18} color={colours.cyan} />
           </Pressable>
@@ -160,6 +166,53 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
           </Pressable>
         </View>
       </View>
+
+      {detailOpen && !session.ruckMission && (() => {
+        const trimp = session.durationMinutes * session.rpe;
+        const tone = sessionTone(session.type);
+        const scorePct = Math.min(100, Math.round((session.score / 500) * 100));
+        const dateStr = session.completedAt
+          ? new Date(session.completedAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
+          : 'Date unknown';
+        return (
+          <View style={styles.sessionDetail}>
+            <View style={styles.sessionDetailGrid}>
+              <View style={styles.sessionDetailItem}>
+                <Text style={[styles.sessionDetailValue, { color: tone }]}>{session.durationMinutes}</Text>
+                <Text style={styles.sessionDetailLabel}>MINUTES</Text>
+              </View>
+              <View style={styles.sessionDetailItem}>
+                <Text style={[styles.sessionDetailValue, { color: tone }]}>{session.rpe}</Text>
+                <Text style={styles.sessionDetailLabel}>RPE</Text>
+              </View>
+              <View style={styles.sessionDetailItem}>
+                <Text style={[styles.sessionDetailValue, { color: tone }]}>{trimp}</Text>
+                <Text style={styles.sessionDetailLabel}>TRIMP</Text>
+              </View>
+              <View style={styles.sessionDetailItem}>
+                <Text style={[styles.sessionDetailValue, { color: tone }]}>{session.score}</Text>
+                <Text style={styles.sessionDetailLabel}>SCORE</Text>
+              </View>
+            </View>
+            <View style={styles.sessionDetailScoreRow}>
+              <View style={styles.sessionDetailBarBg}>
+                <View style={[styles.sessionDetailBarFill, { width: `${scorePct}%`, backgroundColor: tone }]} />
+              </View>
+              <Text style={styles.sessionDetailBarLabel}>{scorePct}% to next level</Text>
+            </View>
+            <Text style={styles.sessionDetailDate}>{dateStr}</Text>
+            {session.loadKg != null && (
+              <Text style={styles.sessionDetailMeta}>Load: {session.loadKg} kg</Text>
+            )}
+            {session.note ? (
+              <View style={styles.sessionDetailNote}>
+                <Ionicons name="document-text-outline" size={12} color={colours.muted} />
+                <Text style={styles.sessionDetailNoteText}>{session.note}</Text>
+              </View>
+            ) : null}
+          </View>
+        );
+      })()}
 
       {mapPoints.length > 0 && (
         <View style={styles.miniMapStage}>
@@ -396,4 +449,17 @@ const styles = StyleSheet.create({
   ruckSplitKm: { color: colours.text, fontSize: 12, fontWeight: '900', width: 56 },
   ruckSplitValue: { color: colours.cyan, fontSize: 14, fontWeight: '900', flex: 1, textAlign: 'center' },
   ruckSplitMeta: { color: colours.muted, fontSize: 11, fontWeight: '800', width: 90, textAlign: 'right' },
+  sessionDetail: { borderTopWidth: 1, borderColor: colours.borderSoft, padding: 12, gap: 10, backgroundColor: 'rgba(0,0,0,0.25)' },
+  sessionDetailGrid: { flexDirection: 'row', gap: 8 },
+  sessionDetailItem: { flex: 1, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.03)', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  sessionDetailValue: { fontSize: 18, fontWeight: '900' },
+  sessionDetailLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
+  sessionDetailScoreRow: { gap: 4 },
+  sessionDetailBarBg: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)', overflow: 'hidden' },
+  sessionDetailBarFill: { height: 4, borderRadius: 2 },
+  sessionDetailBarLabel: { color: colours.muted, fontSize: 10, fontWeight: '800' },
+  sessionDetailDate: { color: colours.textSoft, fontSize: 11, fontWeight: '800' },
+  sessionDetailMeta: { color: colours.muted, fontSize: 11, fontWeight: '700' },
+  sessionDetailNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: colours.borderSoft },
+  sessionDetailNoteText: { flex: 1, color: colours.textSoft, fontSize: 12, lineHeight: 17 },
 });

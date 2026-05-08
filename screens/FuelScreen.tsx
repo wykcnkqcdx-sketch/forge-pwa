@@ -113,6 +113,7 @@ export function FuelScreen({
   const [mealCarbs, setMealCarbs] = useState('');
   const [mealFat, setMealFat] = useState('');
   const [showMealForm, setShowMealForm] = useState(false);
+  const [mealToast, setMealToast] = useState<string | null>(null);
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayMeals = useMemo(() => mealEntries.filter((e) => e.date === todayStr), [mealEntries, todayStr]);
@@ -138,8 +139,11 @@ export function FuelScreen({
       fatG: fat,
     });
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const savedName = mealName.trim();
     setMealName(''); setMealCals(''); setMealProtein(''); setMealCarbs(''); setMealFat('');
     setShowMealForm(false);
+    setMealToast(`${savedName} logged`);
+    setTimeout(() => setMealToast(null), 2500);
   }
 
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
@@ -206,19 +210,35 @@ export function FuelScreen({
           </Pressable>
         </View>
 
+        {mealToast && (
+          <View style={styles.mealToast}>
+            <Ionicons name="checkmark-circle" size={16} color={colours.green} />
+            <Text style={styles.mealToastText}>{mealToast}</Text>
+          </View>
+        )}
+
         <View style={styles.macroGrid}>
           {[
             { label: 'Calories', logged: loggedCals, target: calorieTarget, unit: 'kcal', tone: colours.amber },
             { label: 'Protein', logged: loggedProtein, target: proteinTarget, unit: 'g', tone: colours.cyan },
             { label: 'Carbs', logged: loggedCarbs, target: carbTarget, unit: 'g', tone: colours.green },
             { label: 'Fat', logged: loggedFat, target: fatTarget, unit: 'g', tone: colours.sand },
-          ].map(({ label, logged, target, unit, tone }) => (
-            <View key={label} style={styles.macroItem}>
-              <Text style={[styles.macroValue, { color: tone }]}>{logged}<Text style={styles.macroUnit}>{unit}</Text></Text>
-              <Text style={styles.macroLabel}>{label}</Text>
-              <Text style={[styles.macroTarget, { color: logged >= target ? colours.green : colours.muted }]}>/ {target}{unit}</Text>
-            </View>
-          ))}
+          ].map(({ label, logged, target, unit, tone }) => {
+            const pct = Math.min(100, target > 0 ? Math.round((logged / target) * 100) : 0);
+            const over = logged > target;
+            return (
+              <View key={label} style={styles.macroItem}>
+                <Text style={[styles.macroValue, { color: over ? colours.red : tone }]}>{logged}<Text style={styles.macroUnit}>{unit}</Text></Text>
+                <Text style={styles.macroLabel}>{label}</Text>
+                <View style={styles.macroBarBg}>
+                  <View style={[styles.macroBarFill, { width: `${pct}%`, backgroundColor: over ? colours.red : tone }]} />
+                </View>
+                <Text style={[styles.macroTarget, { color: over ? colours.red : pct >= 90 ? colours.green : colours.muted }]}>
+                  {pct}% · {target}{unit}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
         {showMealForm && (
@@ -490,7 +510,9 @@ const styles = StyleSheet.create({
   },
   macroValue: { color: colours.cyan, fontSize: 22, fontWeight: '900' },
   macroUnit: { fontSize: 12, color: colours.muted },
-  macroTarget: { ...typography.label, marginTop: 2 },
+  macroBarBg: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)', marginTop: 6, overflow: 'hidden' },
+  macroBarFill: { height: 4, borderRadius: 2 },
+  macroTarget: { ...typography.label, marginTop: 4 },
   macroLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
   addMealBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colours.cyan, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
   addMealBtnText: { ...typography.label, color: colours.background, fontWeight: '900' },
@@ -513,6 +535,8 @@ const styles = StyleSheet.create({
   mealRowCals: { color: colours.amber, fontWeight: '900', fontSize: 13 },
   mealRowMacros: { ...typography.label, color: colours.muted, fontSize: 10 },
   mealEmpty: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: responsiveSpacing('md') },
+  mealToast: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: statusColors(colours.green).bgMed, borderWidth: 1, borderColor: statusColors(colours.green).borderMed, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginTop: 8 },
+  mealToastText: { ...typography.caption, color: colours.green, fontWeight: '900', flex: 1 },
   guidance: { ...typography.caption, color: colours.textSoft, lineHeight: 19, marginTop: responsiveSpacing('md') },
   zoneRow: { marginTop: responsiveSpacing('md') },
   zoneTop: { flexDirection: 'row', justifyContent: 'space-between', gap: responsiveSpacing('sm'), marginBottom: responsiveSpacing('xs') },

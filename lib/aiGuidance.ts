@@ -172,6 +172,67 @@ export type RuckMissionBrief = {
   tone: string;
 };
 
+function buildRuleMissionBrief(
+  targetDistanceKm: number,
+  targetMinutes: number,
+  loadKg: number,
+  readinessLog: ReadinessLog | null,
+  recentSessions: TrainingSession[],
+): RuckMissionBrief {
+  const profile = buildPerformanceProfile(recentSessions);
+  const pace = targetDistanceKm > 0 ? targetMinutes / targetDistanceKm : 0;
+
+  const loadHeavy = loadKg >= 25;
+  const loadMod = loadKg >= 18;
+  const acwrHigh = profile.acuteChronicRatio > 1.5;
+  const acwrElevated = profile.acuteChronicRatio > 1.2;
+  const readinessPoor = readinessLog ? (readinessLog.soreness >= 4 || (readinessLog.stress ?? 0) >= 4) : false;
+
+  let status: 'GO' | 'CAUTION' | 'NO-GO';
+  let recommendation: string;
+
+  if (acwrHigh || (profile.loadRisk === 'High' && loadHeavy)) {
+    status = 'NO-GO';
+    recommendation = 'Acute:chronic load ratio is too high for a heavy ruck today. Rest or reduce load significantly.';
+  } else if (acwrElevated || profile.loadRisk === 'High' || readinessPoor || loadHeavy) {
+    status = 'CAUTION';
+    recommendation = loadHeavy
+      ? 'Heavy load with elevated cumulative fatigue. Reduce pace, monitor lower back, and plan extra recovery.'
+      : 'Load risk or readiness flags present. Proceed at controlled pace and watch for early fatigue signs.';
+  } else {
+    status = 'GO';
+    recommendation = profile.ruckKm > 20
+      ? 'Ruck load is well-conditioned this week. Execute at target pace.'
+      : 'Training base is manageable. This ruck is a solid progressive stimulus — execute as planned.';
+  }
+
+  const loadGuidance = loadKg < 10
+    ? 'Light load — standard hydration, no harness adjustments needed.'
+    : loadKg < 18
+      ? 'Moderate load — increase hydration by 0.5L, check shoulder strap fit before moving.'
+      : loadKg < 25
+        ? 'Heavy load — tighten hip belt for weight transfer, monitor lumbar on descents, add electrolytes.'
+        : 'Very heavy load — verify harness fit is firm on hips, keep pace conservative throughout.';
+
+  const paceGuidance = pace <= 0
+    ? 'Set a target distance and time to get pace guidance.'
+    : pace < 8
+      ? `${pace.toFixed(1)} min/km is an aggressive pace — build to it only if recent ruck volume is high.`
+      : pace < 10
+        ? `${pace.toFixed(1)} min/km is a solid tactical pace — sustainable with adequate base fitness.`
+        : pace < 13
+          ? `${pace.toFixed(1)} min/km is controlled — appropriate for this load or training phase.`
+          : `${pace.toFixed(1)} min/km is a recovery pace — good choice given load or readiness.`;
+
+  return {
+    status,
+    recommendation,
+    loadGuidance,
+    paceGuidance,
+    tone: status === 'GO' ? colours.green : status === 'NO-GO' ? colours.red : colours.amber,
+  };
+}
+
 export async function getRuckMissionBrief(
   targetDistanceKm: number,
   targetMinutes: number,
@@ -179,7 +240,9 @@ export async function getRuckMissionBrief(
   readinessLog: ReadinessLog | null,
   recentSessions: TrainingSession[],
 ): Promise<RuckMissionBrief | null> {
-  if (!ANTHROPIC_API_KEY) return null;
+  if (!ANTHROPIC_API_KEY) {
+    return buildRuleMissionBrief(targetDistanceKm, targetMinutes, loadKg, readinessLog, recentSessions);
+  }
 
   const profile = buildPerformanceProfile(recentSessions);
   const targetPace = targetDistanceKm > 0 ? (targetMinutes / targetDistanceKm).toFixed(1) : '--';
