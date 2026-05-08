@@ -3118,6 +3118,94 @@ function updateSelectedCheckpointHere() {
                   </View>
                 </View>
               )}
+              {atakTab === 'ops' && (
+                <View style={styles.forgePanelContent}>
+                  <View style={styles.forgePanelRow}>
+                    <Pressable
+                      style={[styles.forgePanelBtn, teamEnabled && styles.forgePanelBtnActive]}
+                      onPress={() => setTeamEnabled((v) => !v)}
+                    >
+                      <Ionicons name="people-outline" size={13} color={teamEnabled ? colours.background : colours.text} />
+                      <Text style={[styles.forgePanelBtnText, teamEnabled && styles.forgePanelBtnTextActive]}>
+                        {teamEnabled ? (teamConnected ? `Team ON - ${teammates.length} online` : 'Connecting...') : 'Team PLI'}
+                      </Text>
+                    </Pressable>
+                    {emergencyBeacon?.active ? (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.green }]} onPress={clearEmergencyBeacon}>
+                        <Ionicons name="checkmark-circle-outline" size={13} color={colours.green} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.green }]}>Clear Beacon</Text>
+                      </Pressable>
+                    ) : (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={triggerEmergencyBeacon}>
+                        <Ionicons name="alert-circle-outline" size={13} color={colours.red} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Emergency</Text>
+                      </Pressable>
+                    )}
+                    <Pressable style={styles.forgePanelBtn} onPress={shareSelectedMark} disabled={!selectedCheckpointPoint}>
+                      <Ionicons name="share-social-outline" size={13} color={selectedCheckpointPoint ? colours.cyan : colours.muted} />
+                      <Text style={[styles.forgePanelBtnText, !selectedCheckpointPoint && { color: colours.muted }]}>Share Mark</Text>
+                    </Pressable>
+                    <Pressable style={styles.forgePanelBtn} onPress={shareMeasurement} disabled={!measurementMode}>
+                      <Ionicons name="git-network-outline" size={13} color={measurementMode ? '#facc15' : colours.muted} />
+                      <Text style={[styles.forgePanelBtnText, measurementMode && { color: '#facc15' }, !measurementMode && { color: colours.muted }]}>Share Measure</Text>
+                    </Pressable>
+                  </View>
+                  <View style={styles.forgeNavRow}>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={styles.forgeNavValue}>{teammates.length}</Text>
+                      <Text style={styles.forgeNavLabel}>Team</Text>
+                    </View>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={styles.forgeNavValue}>{receivedSharedObjects.length}</Text>
+                      <Text style={styles.forgeNavLabel}>Received</Text>
+                    </View>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={styles.forgeNavValue}>{sharedObjects.length}</Text>
+                      <Text style={styles.forgeNavLabel}>Sent</Text>
+                    </View>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={[styles.forgeNavValue, emergencyBeacon?.active && { color: colours.red }]}>{teamEvents.length}</Text>
+                      <Text style={styles.forgeNavLabel}>Events</Text>
+                    </View>
+                  </View>
+                  {teammates.length > 0 && (
+                    <View style={styles.forgeCpRow}>
+                      {teammates.map((tm) => (
+                        <Pressable key={tm.callsign} style={[styles.forgeCpPill, { borderColor: tm.color }]} onPress={() => focusTeammate(tm)}>
+                          <Text style={[styles.forgeCpPillText, { color: tm.color }]}>{tm.callsign}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {receivedSharedObjects.length > 0 && (
+                    <View style={styles.teamSharedList}>
+                      {receivedSharedObjects.slice(0, 5).map((object) => (
+                        <Pressable key={object.id} style={styles.teamSharedRow} onPress={() => centerMapOnSharedObject(object)}>
+                          <Ionicons name={object.type === 'mark' ? 'flag-outline' : 'analytics-outline'} size={13} color="#facc15" />
+                          <Text style={styles.teamSharedText} numberOfLines={1}>{object.sender}: {object.label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  )}
+                  {teamEvents.length > 0 && (
+                    <View style={styles.teamEventList}>
+                      {teamEvents.slice(0, 4).map((event) => (
+                        <View key={event.id} style={styles.teamEventRow}>
+                          <View style={[styles.teamEventDot, { backgroundColor: event.tone }]} />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.teamEventTitle}>{event.title}</Text>
+                            <Text style={styles.teamEventDetail} numberOfLines={1}>{event.detail}</Text>
+                          </View>
+                          <Text style={styles.teamEventTime}>{formatElapsed(Math.max(0, Math.round((Date.now() - event.time) / 1000)))}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                  {teammates.length === 0 && receivedSharedObjects.length === 0 && teamEvents.length === 0 && (
+                    <Text style={styles.forgePanelHint}>Enable Team PLI to populate live teammates, shared objects, and alerts.</Text>
+                  )}
+                </View>
+              )}
             </View>
           )}
 
@@ -3168,6 +3256,7 @@ function updateSelectedCheckpointHere() {
               ['cp', 'flag-outline', 'CP'],
               ['offline', 'cloud-download-outline', 'OFFLINE'],
               ['nav', 'navigate-outline', 'NAV'],
+              ['ops', 'radio-outline', 'OPS'],
             ] as const).map(([tab, icon, label]) => (
               <Pressable
                 key={tab}
