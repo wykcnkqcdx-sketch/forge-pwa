@@ -9,6 +9,7 @@ export type TrackPoint = {
 export type RuckCheckpoint = {
   id: string;
   label: string;
+  markType?: 'checkpoint' | 'rv' | 'hazard' | 'water' | 'medic' | 'observation' | 'objective';
   source: 'current' | 'manual';
   status: 'planned' | 'reached' | 'skipped';
   latitude: number | null;

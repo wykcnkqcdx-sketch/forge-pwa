@@ -101,6 +101,34 @@ const BEARING_CAUTION_DEGREES = 20;
 const BEARING_OFF_DEGREES = 45;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 type FinishMode = 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
+type FieldMarkType = NonNullable<RuckCheckpoint['markType']>;
+
+const fieldMarkTypes: {
+  key: FieldMarkType;
+  label: string;
+  shortLabel: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  tone: string;
+}[] = [
+  { key: 'checkpoint', label: 'Checkpoint', shortLabel: 'CP', icon: 'flag-outline', tone: colours.cyan },
+  { key: 'rv', label: 'Rendezvous', shortLabel: 'RV', icon: 'people-outline', tone: colours.green },
+  { key: 'hazard', label: 'Hazard', shortLabel: 'HZ', icon: 'warning-outline', tone: colours.red },
+  { key: 'water', label: 'Water', shortLabel: 'WT', icon: 'water-outline', tone: '#60a5fa' },
+  { key: 'medic', label: 'Medic', shortLabel: 'MED', icon: 'medical-outline', tone: colours.amber },
+  { key: 'observation', label: 'Observation', shortLabel: 'OP', icon: 'eye-outline', tone: '#a78bfa' },
+  { key: 'objective', label: 'Objective', shortLabel: 'OBJ', icon: 'radio-button-on-outline', tone: '#f97316' },
+];
+
+function getFieldMarkType(markType?: RuckCheckpoint['markType']) {
+  return fieldMarkTypes.find((type) => type.key === markType) ?? fieldMarkTypes[0];
+}
+
+function formatFieldMarkLabel(checkpoint: RuckCheckpoint) {
+  const meta = getFieldMarkType(checkpoint.markType);
+  return checkpoint.label.toUpperCase().startsWith(meta.shortLabel)
+    ? checkpoint.label
+    : `${meta.shortLabel} ${checkpoint.label}`;
+}
 
 type RuckTemplate = {
   id: string;
@@ -324,6 +352,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [checkpointCoordinateInput, setCheckpointCoordinateInput] = useState('');
   const [checkpointLabelInput, setCheckpointLabelInput] = useState('');
   const [checkpointBulkInput, setCheckpointBulkInput] = useState('');
+  const [activeMarkType, setActiveMarkType] = useState<FieldMarkType>('checkpoint');
+  const [tapMarkMode, setTapMarkMode] = useState(false);
   const [finishMode, setFinishMode] = useState<FinishMode>('target');
   const [activeTemplateId, setActiveTemplateId] = useState<string | null>(null);
   const [customTemplates, setCustomTemplates] = useState<RuckTemplate[]>([]);
@@ -358,6 +388,10 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   drawColorRef.current = drawColor;
   const drawModeRef = useRef(drawMode);
   drawModeRef.current = drawMode;
+  const tapMarkModeRef = useRef(tapMarkMode);
+  tapMarkModeRef.current = tapMarkMode;
+  const activeMarkTypeRef = useRef(activeMarkType);
+  activeMarkTypeRef.current = activeMarkType;
 
   // Team PLI
   const { teammates, broadcast: broadcastTeamPosition, connected: teamConnected } = useTeamPresence(callsign, teamEnabled);
@@ -516,6 +550,12 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const selectedCheckpointEtaMinutes = selectedCheckpointDistanceKm == null
     ? null
     : selectedCheckpointDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
+  const selectedCheckpointMeta = getFieldMarkType(selectedCheckpoint?.markType);
+  const selectedNavLinePoints = useMemo(() => {
+    if (!currentPoint || !selectedCheckpointPoint) return null;
+    const points = getMercatorRoutePoints([currentPoint, selectedCheckpointPoint], effectiveMapCenter, renderViewport, mapZoom);
+    return points.length === 2 ? points.map((point) => `${point.x},${point.y}`).join(' ') : null;
+  }, [currentPoint, selectedCheckpointPoint, effectiveMapCenter, renderViewport, mapZoom]);
   const bearingGuidance = useMemo(() => {
     if (!selectedCheckpoint || selectedCheckpointBearing == null) {
       return { label: 'NO CP', detail: 'select checkpoint', tone: colours.muted };
@@ -749,6 +789,33 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const pinchStartZoom = useRef(mapZoom);
   const zoomAnimFrame = useRef<number | null>(null);
 
+  function mapEventToPoint(x: number, y: number) {
+    const center = effectiveMapCenterRef.current;
+    const viewport = mapViewportRef.current;
+    if (!center || viewport.width <= 0 || viewport.height <= 0) return null;
+
+    const zoom = mapZoomRef.current;
+    const tileZoom = Math.round(zoom);
+    const centerPixel = latLonToWorldPixel(center.latitude, center.longitude, tileZoom);
+    let dx = x - viewport.width / 2;
+    let dy = y - viewport.height / 2;
+
+    if (!mapNorthUpRef.current && activeHeadingRef.current != null) {
+      const rad = (activeHeadingRef.current * Math.PI) / 180;
+      dx = (x - viewport.width / 2) * Math.cos(rad) - (y - viewport.height / 2) * Math.sin(rad);
+      dy = (x - viewport.width / 2) * Math.sin(rad) + (y - viewport.height / 2) * Math.cos(rad);
+    }
+
+    const { latitude, longitude } = worldPixelToLatLon(centerPixel.x + dx, centerPixel.y + dy, tileZoom);
+    return { latitude, longitude, altitude: null, accuracy: null };
+  }
+
+  function addCheckpointAtMapEvent(x: number, y: number) {
+    const point = mapEventToPoint(x, y);
+    if (!point) return;
+    addCheckpoint(point, 'manual', activeMarkTypeRef.current);
+  }
+
   const mapNormalGestures = useMemo(() => {
     const panGesture = Gesture.Pan()
       .enabled(Boolean(effectiveMapCenterRef.current))
@@ -835,7 +902,16 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       })
       .runOnJS(true);
 
-    return Gesture.Simultaneous(panGesture, pinchGesture, doubleTapGesture);
+    const markTapGesture = Gesture.Tap()
+      .numberOfTaps(1)
+      .enabled(Boolean(effectiveMapCenterRef.current))
+      .onEnd((event: { x: number; y: number }, success: boolean) => {
+        if (!success || !tapMarkModeRef.current) return;
+        addCheckpointAtMapEvent(event.x, event.y);
+      })
+      .runOnJS(true);
+
+    return Gesture.Simultaneous(panGesture, pinchGesture, doubleTapGesture, markTapGesture);
   }, [!!effectiveMapCenter]);
 
   const mapDrawGesture = useMemo(() => Gesture.Pan()
@@ -1376,20 +1452,30 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     setCheckpointIndex((current) => Math.max(0, current - 1));
   }
 
-  function addCheckpoint(point: Pick<TrackPoint, 'latitude' | 'longitude' | 'altitude' | 'accuracy'>, source: RuckCheckpoint['source']) {
-    const checkpoint: RuckCheckpoint = {
-      id: `cp-${Date.now()}-${plannedCheckpoints.length + 1}`,
-      label: `CP ${plannedCheckpoints.length + 1}`,
-      source,
-      status: 'planned',
-      latitude: point.latitude,
-      longitude: point.longitude,
-      altitude: point.altitude ?? null,
-      accuracy: point.accuracy ?? null,
-      timestamp: Date.now(),
-    };
-    setPlannedCheckpoints((current) => [...current, checkpoint]);
-    setSelectedCheckpointId(checkpoint.id);
+  function addCheckpoint(
+    point: Pick<TrackPoint, 'latitude' | 'longitude' | 'altitude' | 'accuracy'>,
+    source: RuckCheckpoint['source'],
+    markType: FieldMarkType = activeMarkType
+  ) {
+    const createdAt = Date.now();
+    const meta = getFieldMarkType(markType);
+    const id = `cp-${createdAt}-${Math.round(point.latitude * 100000)}-${Math.round(point.longitude * 100000)}`;
+    setPlannedCheckpoints((current) => {
+      const checkpoint: RuckCheckpoint = {
+        id,
+        label: `${meta.shortLabel} ${current.length + 1}`,
+        markType,
+        source,
+        status: 'planned',
+        latitude: point.latitude,
+        longitude: point.longitude,
+        altitude: point.altitude ?? null,
+        accuracy: point.accuracy ?? null,
+        timestamp: createdAt,
+      };
+      return [...current, checkpoint];
+    });
+    setSelectedCheckpointId(id);
   }
 
   function updateSelectedCheckpoint(updates: Partial<RuckCheckpoint>) {
@@ -1701,7 +1787,7 @@ function updateSelectedCheckpointHere() {
     if (selectedCheckpoint?.id === checkpoint.id) return colours.amber;
     if (checkpoint.status === 'reached') return colours.green;
     if (checkpoint.status === 'skipped') return colours.red;
-    return colours.cyan;
+    return getFieldMarkType(checkpoint.markType).tone;
   }
 
   function renderMapStage(fullscreen: boolean) {
@@ -1799,7 +1885,19 @@ function updateSelectedCheckpointHere() {
                     opacity={0.8}
                   />
                 )}
-                {checkpointMapPoints.map((checkpoint, index) => (
+                {selectedNavLinePoints && (
+                  <Polyline
+                    points={selectedNavLinePoints}
+                    fill="none"
+                    stroke={selectedCheckpointMeta.tone}
+                    strokeWidth={2.5}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray="4,5"
+                    opacity={0.86}
+                  />
+                )}
+                {checkpointMapPoints.map((checkpoint) => (
                   <React.Fragment key={checkpoint.id}>
                     <Circle
                       cx={checkpoint.x}
@@ -1818,7 +1916,7 @@ function updateSelectedCheckpointHere() {
                       fill={colours.background}
                       transform={!mapNorthUp && activeHeading != null ? `rotate(${activeHeading}, ${checkpoint.x}, ${checkpoint.y})` : undefined}
                     >
-                      {index + 1}
+                      {getFieldMarkType(checkpoint.markType).shortLabel.slice(0, 3)}
                     </SvgText>
                   </React.Fragment>
                 ))}
@@ -1982,8 +2080,15 @@ function updateSelectedCheckpointHere() {
               <Text style={styles.mapSelectButtonText}>My Position</Text>
             </Pressable>
             <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={addCheckpointHere}>
-              <Ionicons name="flag" size={14} color={colours.cyan} />
-              <Text style={styles.mapSelectButtonText}>Add CP</Text>
+              <Ionicons name={getFieldMarkType(activeMarkType).icon} size={14} color={colours.cyan} />
+              <Text style={styles.mapSelectButtonText}>Drop {getFieldMarkType(activeMarkType).shortLabel}</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.mapSelectButton, tapMarkMode && styles.mapSelectButtonActive, shadow.subtle]}
+              onPress={() => setTapMarkMode((value) => !value)}
+            >
+              <Ionicons name="finger-print-outline" size={14} color={tapMarkMode ? colours.background : colours.cyan} />
+              <Text style={[styles.mapSelectButtonText, tapMarkMode && styles.mapSelectButtonTextActive]}>Tap Mark</Text>
             </Pressable>
             {selectedCheckpoint ? (
               <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={updateSelectedCheckpointHere}>
@@ -2046,7 +2151,7 @@ function updateSelectedCheckpointHere() {
             <Ionicons name="layers-outline" size={22} color="#fff" />
           </Pressable>
           <Pressable style={styles.atakTopBtn} onPress={addCheckpointHere}>
-            <Ionicons name="location-outline" size={22} color="#fff" />
+            <Ionicons name={getFieldMarkType(activeMarkType).icon} size={22} color="#fff" />
           </Pressable>
           <Pressable style={styles.atakTopBtn} onPress={() => setMapNorthUp((v) => !v)}>
             <Ionicons name="compass-outline" size={22} color={mapNorthUp ? colours.cyan : '#fff'} />
@@ -2191,9 +2296,31 @@ function updateSelectedCheckpointHere() {
               {atakTab === 'cp' && (
                 <View style={styles.forgePanelContent}>
                   <View style={styles.forgePanelRow}>
+                    {fieldMarkTypes.map((markType) => {
+                      const selected = activeMarkType === markType.key;
+                      return (
+                        <Pressable
+                          key={markType.key}
+                          style={[styles.forgeMarkTypeBtn, selected && { borderColor: markType.tone, backgroundColor: `${markType.tone}22` }]}
+                          onPress={() => setActiveMarkType(markType.key)}
+                        >
+                          <Ionicons name={markType.icon} size={13} color={selected ? markType.tone : colours.muted} />
+                          <Text style={[styles.forgeMarkTypeText, selected && { color: markType.tone }]}>{markType.shortLabel}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <View style={styles.forgePanelRow}>
                     <Pressable style={styles.forgePanelBtn} onPress={addCheckpointHere}>
-                      <Ionicons name="flag-outline" size={13} color={colours.cyan} />
-                      <Text style={[styles.forgePanelBtnText, { color: colours.cyan }]}>Add CP</Text>
+                      <Ionicons name={getFieldMarkType(activeMarkType).icon} size={13} color={colours.cyan} />
+                      <Text style={[styles.forgePanelBtnText, { color: colours.cyan }]}>Drop {getFieldMarkType(activeMarkType).shortLabel}</Text>
+                    </Pressable>
+                    <Pressable
+                      style={[styles.forgePanelBtn, tapMarkMode && styles.forgePanelBtnActive]}
+                      onPress={() => setTapMarkMode((value) => !value)}
+                    >
+                      <Ionicons name="finger-print-outline" size={13} color={tapMarkMode ? colours.background : colours.text} />
+                      <Text style={[styles.forgePanelBtnText, tapMarkMode && styles.forgePanelBtnTextActive]}>{tapMarkMode ? 'Tap Drop ON' : 'Tap Drop'}</Text>
                     </Pressable>
                     {selectedCheckpoint && (
                       <Pressable style={styles.forgePanelBtn} onPress={updateSelectedCheckpointHere}>
@@ -2216,12 +2343,14 @@ function updateSelectedCheckpointHere() {
                           style={[styles.forgeCpPill, selectedCheckpointId === cp.id && styles.forgeCpPillActive]}
                           onPress={() => setSelectedCheckpointId(cp.id)}
                         >
-                          <Text style={[styles.forgeCpPillText, selectedCheckpointId === cp.id && styles.forgeCpPillTextActive]}>{cp.label}</Text>
+                          <Text style={[styles.forgeCpPillText, selectedCheckpointId === cp.id && styles.forgeCpPillTextActive]}>
+                            {formatFieldMarkLabel(cp)}
+                          </Text>
                         </Pressable>
                       ))}
                     </View>
                   ) : (
-                    <Text style={styles.forgePanelHint}>Pan map then tap Add CP to drop a checkpoint</Text>
+                    <Text style={styles.forgePanelHint}>Pick a mark type, pan or enable Tap Drop, then place it on the field map.</Text>
                   )}
                   {/* Team PLI */}
                   <View style={styles.forgePanelRow}>
@@ -2268,7 +2397,7 @@ function updateSelectedCheckpointHere() {
                   <View style={styles.forgePanelRow}>
                     <Pressable style={[styles.forgePanelBtn, { flex: 1 }]} onPress={handleGpxImport}>
                       <Ionicons name="document-outline" size={13} color="#facc15" />
-                      <Text style={[styles.forgePanelBtnText, { color: '#facc15' }]}>Import GPX</Text>
+                      <Text style={[styles.forgePanelBtnText, { color: '#facc15' }]}>Import GPX Overlay</Text>
                     </Pressable>
                     {importedRoute.length > 0 && (
                       <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => { setImportedRoute([]); setImportedRouteName(null); }}>
@@ -2285,7 +2414,7 @@ function updateSelectedCheckpointHere() {
                     </Text>
                   )}
                   {!importedRouteName && (
-                    <Text style={styles.forgePanelHint}>Import a .gpx file to overlay a planned route on the map</Text>
+                    <Text style={styles.forgePanelHint}>Overlay manager: GPX is active first; KML/KMZ and GeoJSON can slot in next.</Text>
                   )}
                 </View>
               )}
@@ -2297,16 +2426,16 @@ function updateSelectedCheckpointHere() {
                       <Text style={styles.forgeNavLabel}>{bearingGuidance.detail}</Text>
                     </View>
                     <View style={styles.forgeNavItem}>
-                      <Text style={styles.forgeNavValue}>{targetPaceLabel}</Text>
-                      <Text style={styles.forgeNavLabel}>Target pace</Text>
+                      <Text style={[styles.forgeNavValue, { color: selectedCheckpointMeta.tone }]}>{selectedCheckpointMeta.shortLabel}</Text>
+                      <Text style={styles.forgeNavLabel}>{selectedCheckpoint ? formatFieldMarkLabel(selectedCheckpoint) : 'No mark'}</Text>
                     </View>
                     <View style={styles.forgeNavItem}>
-                      <Text style={[styles.forgeNavValue, { color: finishOnTarget ? colours.green : colours.amber }]}>{finishOnTarget ? 'ON TIME' : 'AT RISK'}</Text>
-                      <Text style={styles.forgeNavLabel}>{finishDistanceRemainingKm.toFixed(1)}km left</Text>
+                      <Text style={styles.forgeNavValue}>{selectedCheckpointDistanceKm == null ? '--' : `${selectedCheckpointDistanceKm.toFixed(1)}km`}</Text>
+                      <Text style={styles.forgeNavLabel}>To object</Text>
                     </View>
                     <View style={styles.forgeNavItem}>
-                      <Text style={styles.forgeNavValue}>{formatDuration(finishEtaMinutes)}</Text>
-                      <Text style={styles.forgeNavLabel}>ETA</Text>
+                      <Text style={styles.forgeNavValue}>{selectedCheckpointEtaMinutes == null ? '--' : formatDuration(selectedCheckpointEtaMinutes)}</Text>
+                      <Text style={styles.forgeNavLabel}>Object ETA</Text>
                     </View>
                   </View>
                 </View>
@@ -2922,18 +3051,18 @@ function updateSelectedCheckpointHere() {
       <Card>
         <View style={styles.navHeader}>
           <View>
-            <Text style={styles.cardTitle}>Checkpoint Planner</Text>
+            <Text style={styles.cardTitle}>FORGE Field Marks</Text>
             <Text style={styles.muted}>
               {arrivalCheckpoint
-                ? `${arrivalCheckpoint.label} reached inside ${CHECKPOINT_ARRIVAL_RADIUS_METERS}m`
+                ? `${formatFieldMarkLabel(arrivalCheckpoint)} reached inside ${CHECKPOINT_ARRIVAL_RADIUS_METERS}m`
                 : plannedCheckpoints.length > 0
                   ? `${plannedCheckpoints.length} mapped${nearestCheckpoint ? ` | nearest ${Math.round(nearestCheckpoint.distanceKm * 1000)}m` : ''}`
-                  : 'Add current GPS or enter grid'}
+                  : 'Drop a mark from GPS, map tap, or grid'}
             </Text>
           </View>
           <Pressable style={styles.checkpointButton} onPress={addCheckpointHere}>
-            <Ionicons name="locate" size={16} color={colours.background} />
-            <Text style={styles.checkpointButtonText}>Here</Text>
+            <Ionicons name={getFieldMarkType(activeMarkType).icon} size={16} color={colours.background} />
+            <Text style={styles.checkpointButtonText}>Drop</Text>
           </Pressable>
         </View>
 
@@ -2961,6 +3090,25 @@ function updateSelectedCheckpointHere() {
           <Pressable style={styles.coordinateAddButton} onPress={addCheckpointFromInput}>
             <Ionicons name="add" size={18} color={colours.background} />
           </Pressable>
+        </View>
+        <View style={styles.markTypeGrid}>
+          {fieldMarkTypes.map((markType) => {
+            const active = activeMarkType === markType.key;
+            const selectedForMark = selectedCheckpoint?.markType === markType.key;
+            return (
+              <Pressable
+                key={markType.key}
+                style={[styles.markTypeButton, active && { borderColor: markType.tone, backgroundColor: `${markType.tone}1f` }]}
+                onPress={() => {
+                  setActiveMarkType(markType.key);
+                  if (selectedCheckpoint) updateSelectedCheckpoint({ markType: markType.key });
+                }}
+              >
+                <Ionicons name={markType.icon} size={15} color={active || selectedForMark ? markType.tone : colours.muted} />
+                <Text style={[styles.markTypeText, (active || selectedForMark) && { color: markType.tone }]}>{markType.shortLabel}</Text>
+              </Pressable>
+            );
+          })}
         </View>
         <View style={styles.checkpointActions}>
           <Pressable style={styles.clearCheckpointButton} onPress={updateSelectedCheckpointFromInput} disabled={!selectedCheckpoint}>
@@ -3004,8 +3152,8 @@ function updateSelectedCheckpointHere() {
 
             <View style={styles.navGrid}>
               <View style={styles.navItem}>
-                <Text style={styles.navValue}>{selectedCheckpoint.label}</Text>
-                <Text style={styles.navLabel}>{selectedCheckpoint.status} | {selectedCheckpoint.source === 'current' ? 'GPS checkpoint' : 'Manual checkpoint'}</Text>
+                <Text style={[styles.navValue, { color: selectedCheckpointMeta.tone }]}>{formatFieldMarkLabel(selectedCheckpoint)}</Text>
+                <Text style={styles.navLabel}>{selectedCheckpoint.status} | {selectedCheckpoint.source === 'current' ? 'GPS mark' : 'Manual mark'}</Text>
               </View>
               <View style={styles.navItem}>
                 <Text style={styles.navValue}>{selectedCheckpointDistanceKm == null ? '--' : `${selectedCheckpointDistanceKm.toFixed(2)}km`}</Text>
@@ -3034,7 +3182,7 @@ function updateSelectedCheckpointHere() {
                     style={[styles.checkpointPill, selected && styles.checkpointPillActive]}
                     onPress={() => setSelectedCheckpointId(checkpoint.id)}
                   >
-                    <Text style={[styles.checkpointPillText, selected && styles.checkpointPillTextActive]}>{checkpoint.label}</Text>
+                    <Text style={[styles.checkpointPillText, selected && styles.checkpointPillTextActive]}>{formatFieldMarkLabel(checkpoint)}</Text>
                   </Pressable>
                 );
               })}
@@ -3997,6 +4145,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  markTypeGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  markTypeButton: {
+    minHeight: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+  },
+  markTypeText: { ...typography.label, color: colours.muted, fontWeight: '900' },
   bulkInput: {
     minHeight: 96,
     borderRadius: 8,
@@ -4217,6 +4384,18 @@ const styles = StyleSheet.create({
   },
   forgePanelBtnText: { color: colours.text, fontSize: 12, fontWeight: '800' },
   forgePanelBtnTextActive: { color: colours.background },
+  forgeMarkTypeBtn: {
+    minHeight: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.18)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+  },
+  forgeMarkTypeText: { color: colours.muted, fontSize: 10, fontWeight: '900' },
   forgeCpRow: {
     flexDirection: 'row', flexWrap: 'wrap', gap: 6,
   },
