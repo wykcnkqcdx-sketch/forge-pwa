@@ -1,7 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, useWindowDimensions, Animated } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PieChart } from 'react-native-chart-kit';
+import { Swipeable } from 'react-native-gesture-handler';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { Screen } from '../components/Screen';
@@ -324,21 +325,39 @@ export function FuelScreen({
           </View>
         )}
 
-        {todayMeals.map((meal) => (
-          <View key={meal.id} style={styles.mealRow}>
-            <View style={styles.mealRowLeft}>
-              <Text style={styles.mealRowType}>{meal.mealType}</Text>
-              <Text style={styles.mealRowName}>{meal.name}</Text>
+        {todayMeals.map((meal) => {
+          const renderRightActions = (progress: any, dragX: any) => {
+            const opacity = dragX.interpolate({ inputRange: [-20, 0], outputRange: [1, 0], extrapolate: 'clamp' });
+            const scale = dragX.interpolate({ inputRange: [-70, 0], outputRange: [1, 0], extrapolate: 'clamp' });
+            return (
+              <Animated.View style={[styles.mealDeleteAction, { opacity }]}>
+                <Pressable style={styles.mealDeleteActionBtn} onPress={() => onDeleteMealEntry?.(meal.id)}>
+                  <Animated.View style={{ transform: [{ scale }] }}>
+                    <Ionicons name="trash" size={20} color={colours.background} />
+                  </Animated.View>
+                </Pressable>
+              </Animated.View>
+            );
+          };
+
+          return (
+            <View key={meal.id} style={styles.mealSwipeContainer}>
+              <Swipeable renderRightActions={renderRightActions} overshootRight={false}>
+                <View style={styles.mealRow}>
+                  <View style={styles.mealRowLeft}>
+                    <Text style={styles.mealRowType}>{meal.mealType}</Text>
+                    <Text style={styles.mealRowName}>{meal.name}</Text>
+                  </View>
+                  <View style={styles.mealRowRight}>
+                    <Text style={styles.mealRowCals}>{meal.caloriesKcal} kcal</Text>
+                    <Text style={styles.mealRowMacros}>{meal.proteinG}p · {meal.carbsG}c · {meal.fatG}f</Text>
+                  </View>
+                  <Ionicons name="chevron-back" size={14} color={colours.muted} style={{ opacity: 0.4 }} />
+                </View>
+              </Swipeable>
             </View>
-            <View style={styles.mealRowRight}>
-              <Text style={styles.mealRowCals}>{meal.caloriesKcal} kcal</Text>
-              <Text style={styles.mealRowMacros}>{meal.proteinG}p · {meal.carbsG}c · {meal.fatG}f</Text>
-            </View>
-            <Pressable onPress={() => onDeleteMealEntry?.(meal.id)} hitSlop={8}>
-              <Ionicons name="trash-outline" size={14} color={colours.muted} />
-            </Pressable>
-          </View>
-        ))}
+          );
+        })}
         {todayMeals.length === 0 && !showMealForm && (
           <Text style={styles.mealEmpty}>No meals logged today. Tap Add Meal to start tracking.</Text>
         )}
@@ -595,7 +614,10 @@ const styles = StyleSheet.create({
   mealSaveBtn: { backgroundColor: colours.cyan, borderRadius: 10, paddingVertical: 12, alignItems: 'center', justifyContent: 'center', minHeight: 44 },
   mealSaveBtnDisabled: { opacity: 0.6 },
   mealSaveBtnText: { color: colours.background, fontWeight: '900', letterSpacing: 1 },
-  mealRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderTopWidth: 1, borderTopColor: colours.borderSoft, gap: 8, marginTop: 4 },
+  mealSwipeContainer: { borderTopWidth: 1, borderTopColor: colours.borderSoft, marginTop: 4 },
+  mealRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, gap: 8, backgroundColor: 'transparent' },
+  mealDeleteAction: { width: 70, backgroundColor: colours.red },
+  mealDeleteActionBtn: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   mealRowLeft: { flex: 1 },
   mealRowType: { ...typography.label, color: colours.muted, fontSize: 10, textTransform: 'uppercase', letterSpacing: 1 },
   mealRowName: { color: colours.text, fontWeight: '700', fontSize: 13 },
