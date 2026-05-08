@@ -6,7 +6,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
+import { WorkoutTimer } from '../components/WorkoutTimer';
 import { colours, touchTarget } from '../theme';
+import { useResponsive } from '../utils/responsive';
 import { TrainingSession, ExerciseCategory, Exercise, MovementPattern, exerciseLibrary, trainingModes } from '../data/mockData';
 import { showAlert } from '../lib/dialogs';
 import { buildProgrammeRecommendation, ProgrammeBuilderInput, ProgrammeGoal, ProgrammeEquipment, ProgrammeReadiness, ProgrammeRecommendation } from '../lib/aiGuidance';
@@ -45,9 +47,11 @@ function getExercisePattern(exercise: Exercise): MovementPattern {
 }
 
 export function TrainScreen({ addSession, sessions }: { addSession: (session: TrainingSession) => void; sessions: TrainingSession[] }) {
+  const { fs, sp, isTablet, gap } = useResponsive();
+
   const totalScore = useMemo(() => sessions.reduce((total, s) => total + s.score, 0), [sessions]);
   const currentLevel = Math.floor(totalScore / 500) + 1;
-  const unlockProgressPct = Math.min(100, Math.round((totalScore / 4500) * 100)); // 4500 pts = Level 10
+  const unlockProgressPct = Math.min(100, Math.round((totalScore / 4500) * 100));
 
   const availableModes = useMemo(() => {
     return trainingModes.filter((mode) => !mode.unlockLevel || currentLevel >= mode.unlockLevel);
@@ -58,10 +62,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
       if (currentLevel >= 10) {
         const hasSeen = await AsyncStorage.getItem('forge:elite_unlocked_alert');
         if (!hasSeen) {
-          showAlert(
-            'Tier 1 Operator Unlocked',
-            'Congratulations! You have reached Level 10 and unlocked the Elite training block.'
-          );
+          showAlert('Tier 1 Operator Unlocked', 'Congratulations! You have reached Level 10 and unlocked the Elite training block.');
           await AsyncStorage.setItem('forge:elite_unlocked_alert', 'true');
         }
       }
@@ -77,6 +78,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
   const [selectedByMode, setSelectedByMode] = useState<Record<string, string[]>>(
     Object.fromEntries(trainingModes.map((mode) => [mode.key, mode.defaultExerciseIds]))
   );
+  const [showTimer, setShowTimer] = useState(false);
 
   // Programme builder state
   const [showProgramme, setShowProgramme] = useState(false);
@@ -152,6 +154,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
     const nextMode = availableModes.find((mode) => mode.key === key) ?? availableModes[0];
     setActiveKey(nextMode.key);
     setFocusedExerciseId((selectedByMode[nextMode.key] ?? nextMode.defaultExerciseIds)[0]);
+    setShowTimer(false);
   }
 
   function toggleExercise(exercise: Exercise) {
@@ -223,40 +226,57 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
     showAlert('Session saved', `${template.label} logged. It will appear on Today and Recent Load.`);
   }
 
+  function handleTimerLog(durationMinutes: number, rpe: number) {
+    const session: TrainingSession = {
+      id: `timer-${activeMode.key}-${Date.now()}`,
+      type: activeMode.type,
+      title: `${activeMode.title} — ${durationMinutes}min`,
+      score: Math.round(durationMinutes * rpe * 0.75),
+      durationMinutes,
+      rpe,
+      completedAt: new Date().toISOString(),
+    };
+    addSession(session);
+    setSavedKeys((current) => [...current, activeMode.key]);
+    setShowTimer(false);
+    if (Platform.OS !== 'web') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    showAlert('Session Logged', `${durationMinutes} min ${activeMode.label} saved with RPE ${rpe}.`);
+  }
+
   return (
     <Screen>
       {activeProgramme && (
         <Card>
           <View style={styles.activeProgHeader}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.activeProgLabel, { color: activeProgramme.tone }]}>ACTIVE PROGRAMME</Text>
-              <Text style={styles.activeProgTitle}>{activeProgramme.assignmentTitle}</Text>
-              <Text style={styles.activeProgMeta}>
+              <Text style={[styles.activeProgLabel, { color: activeProgramme.tone, fontSize: fs(9, { min: 8, max: 11 }) }]}>ACTIVE PROGRAMME</Text>
+              <Text style={[styles.activeProgTitle, { fontSize: fs(15, { min: 13, max: 18 }) }]}>{activeProgramme.assignmentTitle}</Text>
+              <Text style={[styles.activeProgMeta, { fontSize: fs(11, { min: 10, max: 13 }) }]}>
                 {activeProgramme.daysPerWeek}d/week · started {new Date(activeProgramme.startedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
               </Text>
             </View>
             <Pressable style={styles.activeProgClear} onPress={clearProgramme}>
-              <Ionicons name="close" size={16} color={colours.muted} />
+              <Ionicons name="close" size={isTablet ? 18 : 16} color={colours.muted} />
             </Pressable>
           </View>
           <View style={styles.activeProgWeek}>
             {activeProgramme.weeklyStructure.map((day, i) => (
               <View key={i} style={styles.activeProgDay}>
-                <Text style={[styles.activeProgDayNum, { color: activeProgramme.tone }]}>D{i + 1}</Text>
-                <Text style={styles.activeProgDayText} numberOfLines={2}>{day}</Text>
+                <Text style={[styles.activeProgDayNum, { color: activeProgramme.tone, fontSize: fs(10, { min: 9, max: 12 }) }]}>D{i + 1}</Text>
+                <Text style={[styles.activeProgDayText, { fontSize: fs(12, { min: 11, max: 14 }) }]} numberOfLines={2}>{day}</Text>
               </View>
             ))}
           </View>
         </Card>
       )}
 
-      <Text style={styles.muted}>Training block</Text>
-      <Text style={styles.title}>{activeMode.title}</Text>
+      <Text style={[styles.muted, { fontSize: fs(12, { min: 11, max: 14 }) }]}>Training block</Text>
+      <Text style={[styles.title, { fontSize: fs(28, { min: 22, max: 36 }) }]}>{activeMode.title}</Text>
 
       <Card accent={colours.cyan}>
-        <Text style={styles.cardTitle}>Quick Log</Text>
-        <Text style={styles.trainingHint}>Save a basic session now. Use the builder below when you want exercise detail.</Text>
-        <View style={styles.quickLogGrid}>
+        <Text style={[styles.cardTitle, { fontSize: fs(17, { min: 14, max: 21 }) }]}>Quick Log</Text>
+        <Text style={[styles.trainingHint, { fontSize: fs(12, { min: 11, max: 14 }) }]}>Save a basic session now. Use the builder below when you want exercise detail.</Text>
+        <View style={[styles.quickLogGrid, { gap: sp(8) }]}>
           {quickLogTemplates.map((template) => (
             <Pressable
               key={template.label}
@@ -265,15 +285,15 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
               style={[styles.quickLogButton, { borderColor: `${template.tone}55`, backgroundColor: `${template.tone}12` }]}
               onPress={() => quickLogSession(template)}
             >
-              <Ionicons name={template.icon} size={19} color={template.tone} />
-              <Text style={[styles.quickLogLabel, { color: template.tone }]}>{template.label}</Text>
-              <Text style={styles.quickLogMeta}>{template.minutes}m / RPE {template.rpe}</Text>
+              <Ionicons name={template.icon} size={isTablet ? 22 : 19} color={template.tone} />
+              <Text style={[styles.quickLogLabel, { color: template.tone, fontSize: fs(13, { min: 12, max: 15 }) }]}>{template.label}</Text>
+              <Text style={[styles.quickLogMeta, { fontSize: fs(11, { min: 10, max: 12 }) }]}>{template.minutes}m / RPE {template.rpe}</Text>
             </Pressable>
           ))}
         </View>
       </Card>
 
-      <View style={styles.modeTabs}>
+      <View style={[styles.modeTabs, { gap: sp(8) }]}>
         {availableModes.map((mode) => {
           const isActive = mode.key === activeMode.key;
           return (
@@ -288,8 +308,8 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
               ]}
               onPress={() => switchMode(mode.key)}
             >
-              <Ionicons name={mode.icon} size={16} color={isActive ? mode.tone : colours.muted} />
-              <Text style={[styles.modeTabText, { color: isActive ? mode.tone : colours.muted }]}>{mode.label}</Text>
+              <Ionicons name={mode.icon} size={isTablet ? 18 : 16} color={isActive ? mode.tone : colours.muted} />
+              <Text style={[styles.modeTabText, { color: isActive ? mode.tone : colours.muted, fontSize: fs(12, { min: 10, max: 14 }) }]}>{mode.label}</Text>
             </Pressable>
           );
         })}
@@ -297,7 +317,7 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
         {currentLevel < 10 && (
           <View style={[styles.modeTab, styles.lockedTab]}>
             <Ionicons name="lock-closed" size={13} color={colours.soft} />
-            <Text style={styles.lockedText}>{unlockProgressPct}%</Text>
+            <Text style={[styles.lockedText, { fontSize: fs(11, { min: 10, max: 12 }) }]}>{unlockProgressPct}%</Text>
             <View style={styles.lockedBarBg}>
               <View style={[styles.lockedBarFill, { width: `${unlockProgressPct}%` }]} />
             </View>
@@ -305,13 +325,13 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
         )}
       </View>
 
-      <View style={styles.grid}>
+      <View style={[styles.grid, { gap: isTablet ? 14 : 10 }]}>
         <MetricCard icon="time" label="Target" value={`${estimatedMinutes}`} sub="minutes" tone={activeMode.tone} />
         <MetricCard icon="list" label="Selected" value={`${selectedExercises.length}`} sub={`${recommendedExerciseCount} recommended`} tone={selectedStatusTone} />
       </View>
 
       <View style={[styles.selectionStatus, { borderColor: `${selectedStatusTone}55`, backgroundColor: `${selectedStatusTone}12` }]}>
-        <Text style={[styles.selectionStatusText, { color: selectedStatusTone }]}>
+        <Text style={[styles.selectionStatusText, { color: selectedStatusTone, fontSize: fs(12, { min: 11, max: 14 }) }]}>
           {selectedExercises.length <= recommendedExerciseCount
             ? 'Selection fits the time target.'
             : selectedExercises.length <= recommendedExerciseCount + 2
@@ -322,10 +342,10 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
       <Card>
         <View style={styles.headerRow}>
-          <Text style={styles.cardTitle}>Session Length</Text>
-          <Text style={[styles.badge, { color: activeMode.tone, backgroundColor: `${activeMode.tone}14` }]}>Tap a time</Text>
+          <Text style={[styles.cardTitle, { fontSize: fs(17, { min: 14, max: 21 }) }]}>Session Length</Text>
+          <Text style={[styles.badge, { color: activeMode.tone, backgroundColor: `${activeMode.tone}14`, fontSize: fs(11, { min: 9, max: 13 }) }]}>Tap a time</Text>
         </View>
-        <View style={styles.timeGrid}>
+        <View style={[styles.timeGrid, { gap: sp(8) }]}>
           {timeTargets.map((minutes) => {
             const active = minutes === targetMinutes;
             return (
@@ -334,29 +354,29 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
                 style={[styles.timeButton, active && { borderColor: activeMode.tone, backgroundColor: `${activeMode.tone}18` }]}
                 onPress={() => changeTargetMinutes(minutes)}
               >
-                <Text style={[styles.timeButtonText, active && { color: activeMode.tone }]}>{minutes} min</Text>
+                <Text style={[styles.timeButtonText, { fontSize: fs(13, { min: 12, max: 15 }) }, active && { color: activeMode.tone }]}>{minutes} min</Text>
               </Pressable>
             );
           })}
         </View>
-        <Text style={styles.trainingHint}>Coach recommendation: choose fewer exercises for short sessions, then keep reps cleaner.</Text>
+        <Text style={[styles.trainingHint, { fontSize: fs(12, { min: 11, max: 14 }) }]}>Coach recommendation: choose fewer exercises for short sessions, then keep reps cleaner.</Text>
       </Card>
 
       <Card>
         <View style={styles.headerRow}>
-          <Text style={styles.cardTitle}>Selected Exercises</Text>
-          <Text style={[styles.badge, { color: activeMode.tone, backgroundColor: `${activeMode.tone}14` }]}>Tap X to remove</Text>
+          <Text style={[styles.cardTitle, { fontSize: fs(17, { min: 14, max: 21 }) }]}>Selected Exercises</Text>
+          <Text style={[styles.badge, { color: activeMode.tone, backgroundColor: `${activeMode.tone}14`, fontSize: fs(11, { min: 9, max: 13 }) }]}>Tap X to remove</Text>
         </View>
 
         {selectedExercises.length > 0 ? (
           selectedExercises.map((exercise, index) => (
             <Pressable key={exercise.id} style={styles.exerciseRow} onPress={() => setFocusedExerciseId(exercise.id)}>
               <View style={[styles.exerciseNumber, { backgroundColor: `${activeMode.tone}18` }]}>
-                <Text style={[styles.exerciseNumberText, { color: activeMode.tone }]}>{index + 1}</Text>
+                <Text style={[styles.exerciseNumberText, { color: activeMode.tone, fontSize: fs(13, { min: 12, max: 15 }) }]}>{index + 1}</Text>
               </View>
               <View style={styles.exerciseCopy}>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-                <Text style={styles.muted}>{exercise.dose}</Text>
+                <Text style={[styles.exerciseName, { fontSize: fs(14, { min: 12, max: 16 }) }]}>{exercise.name}</Text>
+                <Text style={[styles.muted, { fontSize: fs(12, { min: 11, max: 13 }) }]}>{exercise.dose}</Text>
               </View>
               <Pressable
                 style={[styles.removeExerciseButton, pinnedIds.includes(exercise.id) && styles.removeExerciseButtonLocked]}
@@ -365,26 +385,58 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
                   toggleExercise(exercise);
                 }}
               >
-                <Ionicons name={pinnedIds.includes(exercise.id) ? 'lock-closed' : 'close'} size={18} color={pinnedIds.includes(exercise.id) ? colours.amber : colours.red} />
+                <Ionicons name={pinnedIds.includes(exercise.id) ? 'lock-closed' : 'close'} size={isTablet ? 20 : 18} color={pinnedIds.includes(exercise.id) ? colours.amber : colours.red} />
               </Pressable>
             </Pressable>
           ))
         ) : (
           <View style={styles.emptySelection}>
-            <Text style={styles.emptyTitle}>No exercises selected</Text>
-            <Text style={styles.muted}>Pick from the exercise library below.</Text>
+            <Text style={[styles.emptyTitle, { fontSize: fs(14, { min: 13, max: 16 }) }]}>No exercises selected</Text>
+            <Text style={[styles.muted, { fontSize: fs(12, { min: 11, max: 13 }) }]}>Pick from the exercise library below.</Text>
           </View>
         )}
       </Card>
 
+      {/* ── Workout Timer ─────────────────────────────────────────── */}
+      {!showTimer ? (
+        <Card accent={activeMode.tone}>
+          <View style={styles.timerLaunchRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.cardTitle, { fontSize: fs(17, { min: 14, max: 21 }) }]}>Workout Timer</Text>
+              <Text style={[styles.trainingHint, { fontSize: fs(12, { min: 11, max: 14 }), marginTop: 4 }]}>
+                Track your session in real time. Timer logs duration and RPE automatically.
+              </Text>
+            </View>
+            <Pressable
+              style={[styles.timerLaunchBtn, { backgroundColor: activeMode.tone }]}
+              onPress={() => setShowTimer(true)}
+              disabled={selectedExercises.length === 0}
+            >
+              <Ionicons name="play" size={isTablet ? 22 : 18} color={colours.background} />
+              <Text style={[styles.timerLaunchBtnText, { fontSize: fs(13, { min: 11, max: 15 }) }]}>START</Text>
+            </Pressable>
+          </View>
+          {selectedExercises.length === 0 && (
+            <Text style={[styles.timerHint, { fontSize: fs(11, { min: 10, max: 13 }) }]}>Select at least one exercise to start the timer.</Text>
+          )}
+        </Card>
+      ) : (
+        <WorkoutTimer
+          exercises={selectedExercises.map((e) => e.name)}
+          sessionType={activeMode.type}
+          defaultMinutes={targetMinutes}
+          onLogSession={handleTimerLog}
+        />
+      )}
+
       <Card style={{ backgroundColor: `${activeMode.tone}10` }}>
-        <Text style={styles.cardTitle}>Exercise Guidance</Text>
-        <Text style={styles.guidanceTitle}>{focusedExercise.name}</Text>
-        <Text style={styles.coach}>{focusedExercise.guidance}</Text>
+        <Text style={[styles.cardTitle, { fontSize: fs(17, { min: 14, max: 21 }), marginBottom: 6 }]}>Exercise Guidance</Text>
+        <Text style={[styles.guidanceTitle, { fontSize: fs(16, { min: 14, max: 20 }) }]}>{focusedExercise.name}</Text>
+        <Text style={[styles.coach, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{focusedExercise.guidance}</Text>
         <View style={styles.cueList}>
           {focusedExercise.cues.map((cue) => (
             <View key={cue} style={styles.cuePill}>
-              <Text style={styles.cueText}>{cue}</Text>
+              <Text style={[styles.cueText, { fontSize: fs(11, { min: 10, max: 13 }) }]}>{cue}</Text>
             </View>
           ))}
         </View>
@@ -392,11 +444,11 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
       <Card>
         <View style={styles.headerRow}>
-          <Text style={styles.cardTitle}>Exercise Library</Text>
-          <Text style={styles.libraryCount}>{exerciseLibrary.length} total</Text>
+          <Text style={[styles.cardTitle, { fontSize: fs(17, { min: 14, max: 21 }) }]}>Exercise Library</Text>
+          <Text style={[styles.libraryCount, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{exerciseLibrary.length} total</Text>
         </View>
 
-        <View style={styles.categoryTabs}>
+        <View style={[styles.categoryTabs, { gap: sp(8) }]}>
           {categories.map((category) => {
             const isActive = category === activeCategory;
             return (
@@ -405,13 +457,13 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
                 style={[styles.categoryTab, isActive && { borderColor: activeMode.tone, backgroundColor: `${activeMode.tone}14` }]}
                 onPress={() => setActiveCategory(category)}
               >
-                <Text style={[styles.categoryText, isActive && { color: activeMode.tone }]}>{category}</Text>
+                <Text style={[styles.categoryText, { fontSize: fs(11, { min: 10, max: 13 }) }, isActive && { color: activeMode.tone }]}>{category}</Text>
               </Pressable>
             );
           })}
         </View>
 
-        <View style={styles.libraryGrid}>
+        <View style={[styles.libraryGrid, { gap: sp(9) }]}>
           {filteredExercises.map((exercise) => {
             const isSelected = selectedIds.includes(exercise.id);
             const isPinned = pinnedIds.includes(exercise.id);
@@ -425,15 +477,15 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
                 onPress={() => toggleExercise(exercise)}
               >
                 <View style={styles.libraryTop}>
-                  <Text style={[styles.libraryName, isSelected && { color: activeMode.tone }]}>{exercise.name}</Text>
-                  <Ionicons name={isPinned ? 'ribbon' : isSelected ? 'checkmark-circle' : 'add-circle-outline'} size={18} color={isPinned ? colours.amber : isSelected ? activeMode.tone : colours.muted} />
+                  <Text style={[styles.libraryName, { fontSize: fs(13, { min: 12, max: 15 }) }, isSelected && { color: activeMode.tone }]}>{exercise.name}</Text>
+                  <Ionicons name={isPinned ? 'ribbon' : isSelected ? 'checkmark-circle' : 'add-circle-outline'} size={isTablet ? 20 : 18} color={isPinned ? colours.amber : isSelected ? activeMode.tone : colours.muted} />
                 </View>
-                <Text style={styles.libraryMeta}>{exercise.category} - {exercise.dose}</Text>
+                <Text style={[styles.libraryMeta, { fontSize: fs(11, { min: 10, max: 12 }) }]}>{exercise.category} - {exercise.dose}</Text>
                 <View style={styles.libraryBadgeRow}>
-                  {isPinned && <Text style={styles.coachPickBadge}>Coach's Pick</Text>}
-                  <Text style={styles.patternBadge}>{getExercisePattern(exercise)}</Text>
+                  {isPinned && <Text style={[styles.coachPickBadge, { fontSize: fs(10, { min: 9, max: 11 }) }]}>Coach's Pick</Text>}
+                  <Text style={[styles.patternBadge, { fontSize: fs(10, { min: 9, max: 11 }) }]}>{getExercisePattern(exercise)}</Text>
                 </View>
-                <Text style={[styles.libraryAction, isSelected && { color: activeMode.tone }]}>{isPinned ? 'Locked in by coach' : isSelected ? 'Selected - tap to remove' : 'Tap to add'}</Text>
+                <Text style={[styles.libraryAction, { fontSize: fs(11, { min: 10, max: 12 }) }, isSelected && { color: activeMode.tone }]}>{isPinned ? 'Locked in by coach' : isSelected ? 'Selected - tap to remove' : 'Tap to add'}</Text>
               </Pressable>
             );
           })}
@@ -441,96 +493,96 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
       </Card>
 
       <Card style={{ backgroundColor: `${activeMode.tone}10` }}>
-        <Text style={styles.coach}>AI Coach: {activeMode.coach}</Text>
-        {trainingFeedback ? <Text style={styles.trainingFeedback}>{trainingFeedback}</Text> : null}
-        {balanceTip ? <Text style={styles.balanceTip}>{balanceTip}</Text> : null}
+        <Text style={[styles.coach, { fontSize: fs(13, { min: 12, max: 15 }) }]}>AI Coach: {activeMode.coach}</Text>
+        {trainingFeedback ? <Text style={[styles.trainingFeedback, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{trainingFeedback}</Text> : null}
+        {balanceTip ? <Text style={[styles.balanceTip, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{balanceTip}</Text> : null}
       </Card>
 
       <Card>
         <Pressable style={styles.progHeader} onPress={() => setShowProgramme((v) => !v)}>
           <View style={styles.progHeaderLeft}>
-            <Ionicons name="construct-outline" size={16} color={colours.cyan} />
-            <Text style={styles.cardTitle}>AI Programme Builder</Text>
+            <Ionicons name="construct-outline" size={isTablet ? 18 : 16} color={colours.cyan} />
+            <Text style={[styles.cardTitle, { fontSize: fs(17, { min: 14, max: 21 }) }]}>AI Programme Builder</Text>
           </View>
-          <Ionicons name={showProgramme ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+          <Ionicons name={showProgramme ? 'chevron-up' : 'chevron-down'} size={isTablet ? 18 : 16} color={colours.muted} />
         </Pressable>
 
         {showProgramme && (
           <View style={styles.progBody}>
-            <Text style={styles.progLabel}>GOAL</Text>
-            <View style={styles.progPills}>
+            <Text style={[styles.progLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>GOAL</Text>
+            <View style={[styles.progPills, { gap: sp(8) }]}>
               {(['Tactical Hybrid', 'Strength Base', 'Hypertrophy', 'Conditioning', 'Recovery'] as ProgrammeGoal[]).map((g) => (
                 <Pressable key={g} style={[styles.progPill, progGoal === g && styles.progPillActive]} onPress={() => setProgGoal(g)}>
-                  <Text style={[styles.progPillText, progGoal === g && styles.progPillTextActive]}>{g}</Text>
+                  <Text style={[styles.progPillText, { fontSize: fs(12, { min: 11, max: 14 }) }, progGoal === g && styles.progPillTextActive]}>{g}</Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.progLabel}>DAYS / WEEK</Text>
-            <View style={styles.progPills}>
+            <Text style={[styles.progLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>DAYS / WEEK</Text>
+            <View style={[styles.progPills, { gap: sp(8) }]}>
               {([2, 3, 4, 5] as const).map((d) => (
                 <Pressable key={d} style={[styles.progPill, progDays === d && styles.progPillActive]} onPress={() => setProgDays(d)}>
-                  <Text style={[styles.progPillText, progDays === d && styles.progPillTextActive]}>{d}d</Text>
+                  <Text style={[styles.progPillText, { fontSize: fs(12, { min: 11, max: 14 }) }, progDays === d && styles.progPillTextActive]}>{d}d</Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.progLabel}>SESSION LENGTH</Text>
-            <View style={styles.progPills}>
+            <Text style={[styles.progLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>SESSION LENGTH</Text>
+            <View style={[styles.progPills, { gap: sp(8) }]}>
               {([30, 45, 60] as const).map((m) => (
                 <Pressable key={m} style={[styles.progPill, progMinutes === m && styles.progPillActive]} onPress={() => setProgMinutes(m)}>
-                  <Text style={[styles.progPillText, progMinutes === m && styles.progPillTextActive]}>{m}m</Text>
+                  <Text style={[styles.progPillText, { fontSize: fs(12, { min: 11, max: 14 }) }, progMinutes === m && styles.progPillTextActive]}>{m}m</Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.progLabel}>EQUIPMENT</Text>
-            <View style={styles.progPills}>
+            <Text style={[styles.progLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>EQUIPMENT</Text>
+            <View style={[styles.progPills, { gap: sp(8) }]}>
               {(['Full Gym', 'Minimal Kit', 'Bodyweight'] as ProgrammeEquipment[]).map((e) => (
                 <Pressable key={e} style={[styles.progPill, progEquipment === e && styles.progPillActive]} onPress={() => setProgEquipment(e)}>
-                  <Text style={[styles.progPillText, progEquipment === e && styles.progPillTextActive]}>{e}</Text>
+                  <Text style={[styles.progPillText, { fontSize: fs(12, { min: 11, max: 14 }) }, progEquipment === e && styles.progPillTextActive]}>{e}</Text>
                 </Pressable>
               ))}
             </View>
 
-            <Text style={styles.progLabel}>READINESS APPROACH</Text>
-            <View style={styles.progPills}>
+            <Text style={[styles.progLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>READINESS APPROACH</Text>
+            <View style={[styles.progPills, { gap: sp(8) }]}>
               {(['Conservative', 'Standard', 'Push'] as ProgrammeReadiness[]).map((r) => (
                 <Pressable key={r} style={[styles.progPill, progReadiness === r && styles.progPillActive]} onPress={() => setProgReadiness(r)}>
-                  <Text style={[styles.progPillText, progReadiness === r && styles.progPillTextActive]}>{r}</Text>
+                  <Text style={[styles.progPillText, { fontSize: fs(12, { min: 11, max: 14 }) }, progReadiness === r && styles.progPillTextActive]}>{r}</Text>
                 </Pressable>
               ))}
             </View>
 
             {programmeRec && (
               <View style={styles.progResult}>
-                <Text style={[styles.progResultTitle, { color: programmeRec.tone }]}>{programmeRec.assignmentTitle}</Text>
-                <Text style={styles.progResultSummary}>{programmeRec.summary}</Text>
+                <Text style={[styles.progResultTitle, { color: programmeRec.tone, fontSize: fs(15, { min: 13, max: 18 }) }]}>{programmeRec.assignmentTitle}</Text>
+                <Text style={[styles.progResultSummary, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{programmeRec.summary}</Text>
 
-                <Text style={styles.progSectionLabel}>WEEKLY STRUCTURE</Text>
+                <Text style={[styles.progSectionLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>WEEKLY STRUCTURE</Text>
                 {programmeRec.weeklyStructure.map((day, i) => (
                   <View key={i} style={styles.progDayRow}>
-                    <Text style={[styles.progDayNum, { color: programmeRec.tone }]}>D{i + 1}</Text>
-                    <Text style={styles.progDayText}>{day}</Text>
+                    <Text style={[styles.progDayNum, { color: programmeRec.tone, fontSize: fs(11, { min: 10, max: 13 }) }]}>D{i + 1}</Text>
+                    <Text style={[styles.progDayText, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{day}</Text>
                   </View>
                 ))}
 
-                <Text style={styles.progSectionLabel}>COACH NOTE</Text>
-                <Text style={styles.progCoachNote}>{programmeRec.coachNote}</Text>
+                <Text style={[styles.progSectionLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>COACH NOTE</Text>
+                <Text style={[styles.progCoachNote, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{programmeRec.coachNote}</Text>
 
-                <Text style={styles.progSectionLabel}>EVIDENCE</Text>
+                <Text style={[styles.progSectionLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>EVIDENCE</Text>
                 {programmeRec.scienceNotes.map((note, i) => (
                   <View key={i} style={styles.progSciRow}>
-                    <Text style={[styles.progSciBullet, { color: programmeRec.tone }]}>›</Text>
-                    <Text style={styles.progSciText}>{note}</Text>
+                    <Text style={[styles.progSciBullet, { color: programmeRec.tone, fontSize: fs(13, { min: 12, max: 15 }) }]}>›</Text>
+                    <Text style={[styles.progSciText, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{note}</Text>
                   </View>
                 ))}
 
-                <Text style={styles.progEvidenceLabel}>{programmeRec.evidencePack.label}</Text>
+                <Text style={[styles.progEvidenceLabel, { fontSize: fs(10, { min: 9, max: 11 }) }]}>{programmeRec.evidencePack.label}</Text>
 
                 <Pressable style={styles.progSaveBtn} onPress={() => saveProgramme(programmeRec)}>
-                  <Ionicons name="checkmark-circle-outline" size={15} color={colours.background} />
-                  <Text style={styles.progSaveBtnText}>Follow This Programme</Text>
+                  <Ionicons name="checkmark-circle-outline" size={isTablet ? 17 : 15} color={colours.background} />
+                  <Text style={[styles.progSaveBtnText, { fontSize: fs(13, { min: 12, max: 15 }) }]}>Follow This Programme</Text>
                 </Pressable>
               </View>
             )}
@@ -547,16 +599,16 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
         onPress={completeWorkout}
         disabled={saved || selectedExercises.length === 0}
       >
-        <Text style={styles.primaryButtonText}>{saved ? 'Session Saved' : `Complete ${activeMode.label}`}</Text>
+        <Text style={[styles.primaryButtonText, { fontSize: fs(15, { min: 13, max: 18 }) }]}>{saved ? 'Session Saved' : `Complete ${activeMode.label}`}</Text>
       </Pressable>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  muted: { color: colours.muted, fontSize: 13 },
-  title: { color: colours.text, fontSize: 30, fontWeight: '900', marginBottom: 14 },
-  modeTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  muted: { color: colours.muted },
+  title: { color: colours.text, fontWeight: '900', marginBottom: 14 },
+  modeTabs: { flexDirection: 'row', flexWrap: 'wrap' },
   modeTab: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -566,23 +618,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
   },
-  modeTabText: { fontSize: 12, fontWeight: '900' },
+  modeTabText: { fontWeight: '900' },
   lockedTab: { borderColor: 'rgba(255,255,255,0.03)', backgroundColor: 'transparent', gap: 6 },
-  lockedText: { color: colours.soft, fontSize: 11, fontWeight: '900' },
+  lockedText: { color: colours.soft, fontWeight: '900' },
   lockedBarBg: { width: 32, height: 4, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 2, overflow: 'hidden' },
   lockedBarFill: { height: '100%', backgroundColor: colours.soft },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap' },
   selectionStatus: {
     borderWidth: 1,
     borderRadius: 10,
     padding: 10,
   },
-  selectionStatusText: { fontSize: 12, fontWeight: '900' },
+  selectionStatusText: { fontWeight: '900' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14, gap: 12 },
-  cardTitle: { color: colours.text, fontSize: 18, fontWeight: '900' },
-  badge: { fontSize: 11, fontWeight: '900', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999 },
-  timeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  quickLogGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  cardTitle: { color: colours.text, fontWeight: '900' },
+  badge: { fontWeight: '900', paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999 },
+  timeGrid: { flexDirection: 'row', flexWrap: 'wrap' },
+  quickLogGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12 },
   quickLogButton: {
     width: '48%',
     flexGrow: 1,
@@ -592,8 +644,8 @@ const styles = StyleSheet.create({
     padding: 10,
     justifyContent: 'center',
   },
-  quickLogLabel: { fontSize: 13, fontWeight: '900', marginTop: 5 },
-  quickLogMeta: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 2 },
+  quickLogLabel: { fontWeight: '900', marginTop: 5 },
+  quickLogMeta: { color: colours.muted, fontWeight: '800', marginTop: 2 },
   timeButton: {
     minHeight: 48,
     flex: 1,
@@ -605,9 +657,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  timeButtonText: { color: colours.muted, fontSize: 13, fontWeight: '900' },
-  trainingHint: { color: colours.textSoft, fontSize: 12, lineHeight: 18, marginTop: 10 },
-  libraryCount: { color: colours.muted, fontSize: 12, fontWeight: '800' },
+  timeButtonText: { color: colours.muted, fontWeight: '900' },
+  trainingHint: { color: colours.textSoft, lineHeight: 18, marginTop: 10 },
+  libraryCount: { color: colours.muted, fontWeight: '800' },
   exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -651,8 +703,26 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
   emptyTitle: { color: colours.text, fontWeight: '900' },
-  guidanceTitle: { color: colours.text, fontSize: 17, fontWeight: '900', marginBottom: 6 },
-  coach: { color: colours.text, fontSize: 14, lineHeight: 21 },
+  // Timer launch card
+  timerLaunchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  timerLaunchBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    minWidth: 80,
+    justifyContent: 'center',
+  },
+  timerLaunchBtnText: { color: colours.background, fontWeight: '900' },
+  timerHint: { color: colours.amber, fontWeight: '800', marginTop: 8 },
+  guidanceTitle: { color: colours.text, fontWeight: '900', marginBottom: 6 },
+  coach: { color: colours.text, lineHeight: 21 },
   cueList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
   cuePill: {
     borderWidth: 1,
@@ -662,8 +732,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.05)',
   },
-  cueText: { color: colours.textSoft, fontSize: 11, fontWeight: '800' },
-  categoryTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  cueText: { color: colours.textSoft, fontWeight: '800' },
+  categoryTabs: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
   categoryTab: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
@@ -672,8 +742,8 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
-  categoryText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
-  libraryGrid: { gap: 9 },
+  categoryText: { color: colours.muted, fontWeight: '900' },
+  libraryGrid: {},
   libraryItem: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
@@ -682,8 +752,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.16)',
   },
   libraryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
-  libraryName: { color: colours.text, fontSize: 14, fontWeight: '900', flex: 1 },
-  libraryMeta: { color: colours.muted, fontSize: 11, marginTop: 4 },
+  libraryName: { color: colours.text, fontWeight: '900', flex: 1 },
+  libraryMeta: { color: colours.muted, marginTop: 4 },
   libraryBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
   coachPickBadge: {
     color: colours.background,
@@ -691,7 +761,6 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    fontSize: 10,
     fontWeight: '900',
   },
   patternBadge: {
@@ -701,54 +770,52 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     paddingHorizontal: 8,
     paddingVertical: 4,
-    fontSize: 10,
     fontWeight: '900',
   },
-  libraryAction: { color: colours.textSoft, fontSize: 11, fontWeight: '900', marginTop: 8 },
-  trainingFeedback: { color: colours.green, fontSize: 12, lineHeight: 18, fontWeight: '900', marginTop: 10 },
-  balanceTip: { color: colours.amber, fontSize: 12, lineHeight: 18, fontWeight: '900', marginTop: 10 },
+  libraryAction: { color: colours.textSoft, fontWeight: '900', marginTop: 8 },
+  trainingFeedback: { color: colours.green, lineHeight: 18, fontWeight: '900', marginTop: 10 },
+  balanceTip: { color: colours.amber, lineHeight: 18, fontWeight: '900', marginTop: 10 },
   primaryButton: {
     borderRadius: 16,
     paddingVertical: 15,
     alignItems: 'center',
   },
   primaryButtonDisabled: { opacity: 0.62 },
-  primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
+  primaryButtonText: { color: '#07111E', fontWeight: '900' },
   progHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   progBody: { marginTop: 16, gap: 4 },
-  progLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginTop: 12, marginBottom: 6 },
-  progPills: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  progLabel: { color: colours.muted, fontWeight: '900', letterSpacing: 1.2, marginTop: 12, marginBottom: 6 },
+  progPills: { flexDirection: 'row', flexWrap: 'wrap' },
   progPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
   progPillActive: { borderColor: colours.cyan, backgroundColor: 'rgba(0,230,255,0.12)' },
-  progPillText: { color: colours.muted, fontSize: 12, fontWeight: '900' },
+  progPillText: { color: colours.muted, fontWeight: '900' },
   progPillTextActive: { color: colours.cyan },
   progResult: { marginTop: 20, gap: 6, borderTopWidth: 1, borderTopColor: colours.borderSoft, paddingTop: 16 },
-  progResultTitle: { fontSize: 16, fontWeight: '900', marginBottom: 4 },
-  progResultSummary: { color: colours.textSoft, fontSize: 13, fontWeight: '800', lineHeight: 19 },
-  progSectionLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2, marginTop: 14, marginBottom: 6 },
+  progResultTitle: { fontWeight: '900', marginBottom: 4 },
+  progResultSummary: { color: colours.textSoft, fontWeight: '800', lineHeight: 19 },
+  progSectionLabel: { color: colours.muted, fontWeight: '900', letterSpacing: 1.2, marginTop: 14, marginBottom: 6 },
   progDayRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 4 },
-  progDayNum: { fontSize: 11, fontWeight: '900', width: 20, marginTop: 1 },
-  progDayText: { flex: 1, color: colours.text, fontSize: 13, fontWeight: '800', lineHeight: 18 },
-  progCoachNote: { color: colours.textSoft, fontSize: 13, fontWeight: '800', lineHeight: 19 },
+  progDayNum: { fontWeight: '900', width: 20, marginTop: 1 },
+  progDayText: { flex: 1, color: colours.text, fontWeight: '800', lineHeight: 18 },
+  progCoachNote: { color: colours.textSoft, fontWeight: '800', lineHeight: 19 },
   progSciRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 4 },
-  progSciBullet: { fontSize: 14, fontWeight: '900', marginTop: 1 },
-  progSciText: { flex: 1, color: colours.textSoft, fontSize: 12, fontWeight: '800', lineHeight: 17 },
-  progEvidenceLabel: { color: colours.soft, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 12 },
+  progSciBullet: { fontWeight: '900', marginTop: 1 },
+  progSciText: { flex: 1, color: colours.textSoft, fontWeight: '800', lineHeight: 17 },
+  progEvidenceLabel: { color: colours.soft, fontWeight: '900', letterSpacing: 1, marginTop: 12 },
   progSaveBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     marginTop: 16, paddingVertical: 12, borderRadius: 10,
     backgroundColor: colours.cyan,
   },
-  progSaveBtnText: { color: colours.background, fontSize: 13, fontWeight: '900' },
-  // Active Programme card
+  progSaveBtnText: { color: colours.background, fontWeight: '900' },
   activeProgHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 },
-  activeProgLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 1, marginBottom: 2 },
-  activeProgTitle: { color: colours.text, fontSize: 15, fontWeight: '900' },
-  activeProgMeta: { color: colours.muted, fontSize: 11, fontWeight: '700', marginTop: 2 },
+  activeProgLabel: { fontWeight: '900', letterSpacing: 1, marginBottom: 2 },
+  activeProgTitle: { color: colours.text, fontWeight: '900' },
+  activeProgMeta: { color: colours.muted, fontWeight: '700', marginTop: 2 },
   activeProgClear: { padding: 4 },
   activeProgWeek: { gap: 6 },
   activeProgDay: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
-  activeProgDayNum: { fontSize: 10, fontWeight: '900', letterSpacing: 0.5, minWidth: 22, paddingTop: 1 },
-  activeProgDayText: { flex: 1, color: colours.textSoft, fontSize: 12, fontWeight: '700', lineHeight: 17 },
+  activeProgDayNum: { fontWeight: '900', letterSpacing: 0.5, minWidth: 22, paddingTop: 1 },
+  activeProgDayText: { flex: 1, color: colours.textSoft, fontWeight: '700', lineHeight: 17 },
 });

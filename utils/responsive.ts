@@ -48,17 +48,13 @@ export function contentLayout(width: number) {
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export function useResponsive() {
   const { width, height } = useWindowDimensions();
-  const tier = getDeviceTier(width);
   const scale = scaleFor(width);
-  const isTablet = width >= 600;
   const layout = contentLayout(width);
 
   return {
     width,
     height,
-    tier,
     scale,
-    isTablet,
     isLandscape: width > height,
     ...layout,
     /** Fluid font size: rfs(16) → ~14 on SE, 16 at 390, 20 on tablet */
