@@ -102,6 +102,19 @@ const BEARING_OFF_DEGREES = 45;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 type FinishMode = 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
 type FieldMarkType = NonNullable<RuckCheckpoint['markType']>;
+type OverlayPoint = { id: string; label: string; latitude: number; longitude: number };
+type OverlayLine = { id: string; label: string; points: Array<{ lat: number; lon: number }> };
+type OverlayPolygon = { id: string; label: string; rings: Array<Array<{ lat: number; lon: number }>> };
+type MapOverlay = {
+  id: string;
+  name: string;
+  format: 'geojson';
+  visible: boolean;
+  color: string;
+  points: OverlayPoint[];
+  lines: OverlayLine[];
+  polygons: OverlayPolygon[];
+};
 
 const fieldMarkTypes: {
   key: FieldMarkType;
@@ -128,6 +141,129 @@ function formatFieldMarkLabel(checkpoint: RuckCheckpoint) {
   return checkpoint.label.toUpperCase().startsWith(meta.shortLabel)
     ? checkpoint.label
     : `${meta.shortLabel} ${checkpoint.label}`;
+}
+
+function isLonLatPair(value: unknown): value is [number, number, ...number[]] {
+  return Array.isArray(value)
+    && value.length >= 2
+    && typeof value[0] === 'number'
+    && typeof value[1] === 'number'
+    && Number.isFinite(value[0])
+    && Number.isFinite(value[1])
+    && Math.abs(value[0]) <= 180
+    && Math.abs(value[1]) <= 90;
+}
+
+function overlayPointFromCoordinate(id: string, label: string, coordinate: unknown): OverlayPoint | null {
+  if (!isLonLatPair(coordinate)) return null;
+  return { id, label, latitude: coordinate[1], longitude: coordinate[0] };
+}
+
+function overlayLineFromCoordinates(id: string, label: string, coordinates: unknown): OverlayLine | null {
+  if (!Array.isArray(coordinates)) return null;
+  const points = coordinates
+    .map((coordinate) => isLonLatPair(coordinate) ? { lat: coordinate[1], lon: coordinate[0] } : null)
+    .filter((point): point is { lat: number; lon: number } => point != null);
+  return points.length >= 2 ? { id, label, points } : null;
+}
+
+function overlayPolygonFromCoordinates(id: string, label: string, coordinates: unknown): OverlayPolygon | null {
+  if (!Array.isArray(coordinates)) return null;
+  const rings = coordinates
+    .map((ring) => Array.isArray(ring)
+      ? ring
+          .map((coordinate) => isLonLatPair(coordinate) ? { lat: coordinate[1], lon: coordinate[0] } : null)
+          .filter((point): point is { lat: number; lon: number } => point != null)
+      : [])
+    .filter((ring) => ring.length >= 3);
+  return rings.length > 0 ? { id, label, rings } : null;
+}
+
+function geoJsonFeatureLabel(feature: any, fallback: string) {
+  const props = feature?.properties;
+  return String(props?.name ?? props?.title ?? props?.label ?? props?.id ?? feature?.id ?? fallback);
+}
+
+function collectGeoJsonGeometry(overlay: MapOverlay, geometry: any, label: string, idPrefix: string) {
+  if (!geometry || typeof geometry !== 'object') return;
+  const { type, coordinates, geometries } = geometry;
+
+  if (type === 'GeometryCollection' && Array.isArray(geometries)) {
+    geometries.forEach((child, index) => collectGeoJsonGeometry(overlay, child, label, `${idPrefix}-g${index}`));
+    return;
+  }
+
+  if (type === 'Point') {
+    const point = overlayPointFromCoordinate(`${idPrefix}-pt`, label, coordinates);
+    if (point) overlay.points.push(point);
+    return;
+  }
+
+  if (type === 'MultiPoint' && Array.isArray(coordinates)) {
+    coordinates.forEach((coordinate, index) => {
+      const point = overlayPointFromCoordinate(`${idPrefix}-pt${index}`, label, coordinate);
+      if (point) overlay.points.push(point);
+    });
+    return;
+  }
+
+  if (type === 'LineString') {
+    const line = overlayLineFromCoordinates(`${idPrefix}-ln`, label, coordinates);
+    if (line) overlay.lines.push(line);
+    return;
+  }
+
+  if (type === 'MultiLineString' && Array.isArray(coordinates)) {
+    coordinates.forEach((lineCoordinates, index) => {
+      const line = overlayLineFromCoordinates(`${idPrefix}-ln${index}`, label, lineCoordinates);
+      if (line) overlay.lines.push(line);
+    });
+    return;
+  }
+
+  if (type === 'Polygon') {
+    const polygon = overlayPolygonFromCoordinates(`${idPrefix}-pg`, label, coordinates);
+    if (polygon) overlay.polygons.push(polygon);
+    return;
+  }
+
+  if (type === 'MultiPolygon' && Array.isArray(coordinates)) {
+    coordinates.forEach((polygonCoordinates, index) => {
+      const polygon = overlayPolygonFromCoordinates(`${idPrefix}-pg${index}`, label, polygonCoordinates);
+      if (polygon) overlay.polygons.push(polygon);
+    });
+  }
+}
+
+function parseGeoJsonOverlay(content: string, fileName: string, color: string): MapOverlay {
+  const parsed = JSON.parse(content);
+  const overlay: MapOverlay = {
+    id: `overlay-${Date.now()}`,
+    name: fileName.replace(/\.(geo)?json$/i, '') || 'GeoJSON Overlay',
+    format: 'geojson',
+    visible: true,
+    color,
+    points: [],
+    lines: [],
+    polygons: [],
+  };
+  const features = parsed?.type === 'FeatureCollection'
+    ? parsed.features
+    : parsed?.type === 'Feature'
+      ? [parsed]
+      : [{ type: 'Feature', properties: { name: fileName }, geometry: parsed }];
+
+  if (!Array.isArray(features)) throw new Error('GeoJSON has no features.');
+  features.forEach((feature, index) => {
+    const label = geoJsonFeatureLabel(feature, `Feature ${index + 1}`);
+    collectGeoJsonGeometry(overlay, feature.geometry, label, `${overlay.id}-${index}`);
+  });
+
+  if (overlay.points.length + overlay.lines.length + overlay.polygons.length === 0) {
+    throw new Error('GeoJSON has no supported map features.');
+  }
+
+  return overlay;
 }
 
 type RuckTemplate = {
@@ -369,6 +505,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   // GPX import
   const [importedRoute, setImportedRoute] = useState<Array<{ lat: number; lon: number }>>([]);
   const [importedRouteName, setImportedRouteName] = useState<string | null>(null);
+  const [mapOverlays, setMapOverlays] = useState<MapOverlay[]>([]);
   // Map drawing
   const [drawMode, setDrawMode] = useState(false);
   const [drawColor, setDrawColor] = useState('#ff4444');
@@ -556,6 +693,56 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     const points = getMercatorRoutePoints([currentPoint, selectedCheckpointPoint], effectiveMapCenter, renderViewport, mapZoom);
     return points.length === 2 ? points.map((point) => `${point.x},${point.y}`).join(' ') : null;
   }, [currentPoint, selectedCheckpointPoint, effectiveMapCenter, renderViewport, mapZoom]);
+  const visibleMapOverlays = useMemo(() => mapOverlays.filter((overlay) => overlay.visible), [mapOverlays]);
+  const renderedOverlayFeatures = useMemo(() => {
+    if (!effectiveMapCenter || renderViewport.width <= 0) return [];
+
+    return visibleMapOverlays.map((overlay) => {
+      const pointFeatures = getMercatorRoutePoints(
+        overlay.points.map((point) => ({
+          ...point,
+          altitude: null,
+          accuracy: null,
+          timestamp: 0,
+        })),
+        effectiveMapCenter,
+        renderViewport,
+        mapZoom
+      );
+      const lineFeatures = overlay.lines.map((line) => {
+        const points = getMercatorRoutePoints(
+          line.points.map((point) => ({
+            latitude: point.lat,
+            longitude: point.lon,
+            altitude: null,
+            accuracy: null,
+            timestamp: 0,
+          })),
+          effectiveMapCenter,
+          renderViewport,
+          mapZoom
+        );
+        return { ...line, svgPoints: points.map((point) => `${point.x},${point.y}`).join(' ') };
+      });
+      const polygonFeatures = overlay.polygons.flatMap((polygon) => polygon.rings.map((ring, ringIndex) => {
+        const points = getMercatorRoutePoints(
+          ring.map((point) => ({
+            latitude: point.lat,
+            longitude: point.lon,
+            altitude: null,
+            accuracy: null,
+            timestamp: 0,
+          })),
+          effectiveMapCenter,
+          renderViewport,
+          mapZoom
+        );
+        return { id: `${polygon.id}-r${ringIndex}`, label: polygon.label, svgPoints: points.map((point) => `${point.x},${point.y}`).join(' ') };
+      }));
+
+      return { overlay, pointFeatures, lineFeatures, polygonFeatures };
+    });
+  }, [effectiveMapCenter, renderViewport, visibleMapOverlays, mapZoom]);
   const bearingGuidance = useMemo(() => {
     if (!selectedCheckpoint || selectedCheckpointBearing == null) {
       return { label: 'NO CP', detail: 'select checkpoint', tone: colours.muted };
@@ -762,6 +949,71 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     } catch {
       showAlert('Import Failed', 'Could not read the file. Please select a valid .gpx file.');
     }
+  }
+
+  async function handleGeoJsonImport() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'utf8' });
+      const colors = ['#facc15', '#60a5fa', '#34d399', '#f97316', '#a78bfa', colours.red];
+      const overlay = parseGeoJsonOverlay(content, asset.name ?? 'GeoJSON Overlay', colors[mapOverlays.length % colors.length]);
+
+      setMapOverlays((current) => [...current, overlay]);
+      const firstPoint = getOverlayCenterPoint(overlay);
+      if (firstPoint) {
+        setMapCenter({
+          latitude: firstPoint.latitude,
+          longitude: firstPoint.longitude,
+          altitude: null,
+          accuracy: null,
+          timestamp: Date.now(),
+        });
+        setGpsFollowMode(false);
+      }
+    } catch (error) {
+      console.error('GeoJSON import failed', error);
+      showAlert('Import Failed', 'Could not read GeoJSON features. Use a valid .geojson or .json file with Point, LineString, or Polygon geometry.');
+    }
+  }
+
+  function getOverlayCenterPoint(overlay: MapOverlay) {
+    const point = overlay.points[0];
+    if (point) return point;
+
+    const linePoint = overlay.lines[0]?.points[0];
+    if (linePoint) return { latitude: linePoint.lat, longitude: linePoint.lon };
+
+    const polygonPoint = overlay.polygons[0]?.rings[0]?.[0];
+    if (polygonPoint) return { latitude: polygonPoint.lat, longitude: polygonPoint.lon };
+
+    return null;
+  }
+
+  function centerMapOnOverlay(overlay: MapOverlay) {
+    const point = getOverlayCenterPoint(overlay);
+    if (!point) return;
+    setMapCenter({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      altitude: null,
+      accuracy: null,
+      timestamp: Date.now(),
+    });
+    setGpsFollowMode(false);
+    setMapExpanded(true);
+  }
+
+  function toggleOverlayVisibility(overlayId: string) {
+    setMapOverlays((current) => current.map((overlay) => (
+      overlay.id === overlayId ? { ...overlay, visible: !overlay.visible } : overlay
+    )));
+  }
+
+  function removeOverlay(overlayId: string) {
+    setMapOverlays((current) => current.filter((overlay) => overlay.id !== overlayId));
   }
 
   useEffect(() => {
@@ -1885,6 +2137,41 @@ function updateSelectedCheckpointHere() {
                     opacity={0.8}
                   />
                 )}
+                {renderedOverlayFeatures.map(({ overlay, pointFeatures, lineFeatures, polygonFeatures }) => (
+                  <React.Fragment key={overlay.id}>
+                    {polygonFeatures.map((polygon) => (
+                      <Polygon
+                        key={polygon.id}
+                        points={polygon.svgPoints}
+                        fill={`${overlay.color}22`}
+                        stroke={overlay.color}
+                        strokeWidth={2}
+                        strokeLinejoin="round"
+                        opacity={0.84}
+                      />
+                    ))}
+                    {lineFeatures.map((line) => (
+                      <Polyline
+                        key={line.id}
+                        points={line.svgPoints}
+                        fill="none"
+                        stroke={overlay.color}
+                        strokeWidth={3}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        opacity={0.86}
+                      />
+                    ))}
+                    {pointFeatures.map((point) => (
+                      <G key={point.id} transform={`translate(${point.x}, ${point.y})`}>
+                        <Circle r={7} fill={overlay.color} stroke="rgba(7,17,30,0.86)" strokeWidth={2} />
+                        <SvgText x={0} y={21} textAnchor="middle" fontSize="8" fontWeight="900" fill={overlay.color}>
+                          {point.label.slice(0, 10)}
+                        </SvgText>
+                      </G>
+                    ))}
+                  </React.Fragment>
+                ))}
                 {selectedNavLinePoints && (
                   <Polyline
                     points={selectedNavLinePoints}
@@ -2399,6 +2686,10 @@ function updateSelectedCheckpointHere() {
                       <Ionicons name="document-outline" size={13} color="#facc15" />
                       <Text style={[styles.forgePanelBtnText, { color: '#facc15' }]}>Import GPX Overlay</Text>
                     </Pressable>
+                    <Pressable style={[styles.forgePanelBtn, { flex: 1 }]} onPress={handleGeoJsonImport}>
+                      <Ionicons name="shapes-outline" size={13} color="#60a5fa" />
+                      <Text style={[styles.forgePanelBtnText, { color: '#60a5fa' }]}>Import GeoJSON</Text>
+                    </Pressable>
                     {importedRoute.length > 0 && (
                       <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => { setImportedRoute([]); setImportedRouteName(null); }}>
                         <Ionicons name="close" size={13} color={colours.red} />
@@ -2413,8 +2704,32 @@ function updateSelectedCheckpointHere() {
                         : 'No route loaded'}
                     </Text>
                   )}
-                  {!importedRouteName && (
-                    <Text style={styles.forgePanelHint}>Overlay manager: GPX is active first; KML/KMZ and GeoJSON can slot in next.</Text>
+                  {!importedRouteName && mapOverlays.length === 0 && (
+                    <Text style={styles.forgePanelHint}>Overlay manager supports GPX routes and GeoJSON points, lines, and areas.</Text>
+                  )}
+                  {mapOverlays.length > 0 && (
+                    <View style={styles.overlayList}>
+                      {mapOverlays.map((overlay) => (
+                        <View key={overlay.id} style={styles.overlayRow}>
+                          <View style={[styles.overlaySwatch, { backgroundColor: overlay.color }]} />
+                          <Pressable style={styles.overlayCopy} onPress={() => toggleOverlayVisibility(overlay.id)}>
+                            <Text style={styles.overlayTitle} numberOfLines={1}>{overlay.name}</Text>
+                            <Text style={styles.overlayMeta}>
+                              {overlay.visible ? 'Visible' : 'Hidden'} | {overlay.points.length} pts | {overlay.lines.length} lines | {overlay.polygons.length} areas
+                            </Text>
+                          </Pressable>
+                          <Pressable style={styles.overlayIconBtn} onPress={() => centerMapOnOverlay(overlay)}>
+                            <Ionicons name="scan-outline" size={15} color={colours.cyan} />
+                          </Pressable>
+                          <Pressable style={styles.overlayIconBtn} onPress={() => toggleOverlayVisibility(overlay.id)}>
+                            <Ionicons name={overlay.visible ? 'eye-outline' : 'eye-off-outline'} size={15} color={overlay.visible ? colours.green : colours.muted} />
+                          </Pressable>
+                          <Pressable style={styles.overlayIconBtn} onPress={() => removeOverlay(overlay.id)}>
+                            <Ionicons name="trash-outline" size={15} color={colours.red} />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
                   )}
                 </View>
               )}
@@ -4408,6 +4723,35 @@ const styles = StyleSheet.create({
   forgeCpPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
   forgeCpPillTextActive: { color: colours.background },
   forgePanelHint: { color: colours.muted, fontSize: 11, fontStyle: 'italic' },
+  overlayList: {
+    gap: 6,
+  },
+  overlayRow: {
+    minHeight: 42,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+  },
+  overlaySwatch: { width: 9, height: 26, borderRadius: 3 },
+  overlayCopy: { flex: 1, minWidth: 0 },
+  overlayTitle: { color: colours.text, fontSize: 11, fontWeight: '900' },
+  overlayMeta: { color: colours.muted, fontSize: 9, fontWeight: '800', marginTop: 2 },
+  overlayIconBtn: {
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(4,8,15,0.46)',
+  },
   forgeNavRow: {
     flexDirection: 'row', justifyContent: 'space-between', gap: 4,
   },
