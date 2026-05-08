@@ -488,7 +488,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const displayBearing = routeBearing ?? activeHeading;
   const displayHeading = activeHeading ?? routeBearing;
   const altitudeFt = currentAltitude != null ? Math.round(currentAltitude * 3.28084) : null;
-  const atakPanelHeight = atakTab === 'ops' ? 220 : 168;
+  const atakPanelHeight = atakTab === 'ops' ? 286 : 168;
   const atakBottomHeight = 52 + 56 + (atakTab ? atakPanelHeight : 0); // actionRow + tabBar + panel
 
   // Imported GPX route as SVG-ready point string
@@ -3168,42 +3168,72 @@ function updateSelectedCheckpointHere() {
                       <Text style={styles.forgeNavLabel}>Events</Text>
                     </View>
                   </View>
-                  {teammates.length > 0 && (
-                    <View style={styles.forgeCpRow}>
-                      {teammates.map((tm) => (
-                        <Pressable key={tm.callsign} style={[styles.forgeCpPill, { borderColor: tm.color }]} onPress={() => focusTeammate(tm)}>
-                          <Text style={[styles.forgeCpPillText, { color: tm.color }]}>{tm.callsign}</Text>
-                        </Pressable>
-                      ))}
+                  <View style={styles.opsSection}>
+                    <View style={styles.opsSectionHeader}>
+                      <Text style={styles.opsSectionTitle}>Team</Text>
+                      <Text style={styles.opsSectionMeta}>{teamConnected ? `${teammates.length} online` : teamEnabled ? 'connecting' : 'offline'}</Text>
                     </View>
-                  )}
-                  {receivedSharedObjects.length > 0 && (
-                    <View style={styles.teamSharedList}>
-                      {receivedSharedObjects.slice(0, 5).map((object) => (
-                        <Pressable key={object.id} style={styles.teamSharedRow} onPress={() => centerMapOnSharedObject(object)}>
-                          <Ionicons name={object.type === 'mark' ? 'flag-outline' : 'analytics-outline'} size={13} color="#facc15" />
-                          <Text style={styles.teamSharedText} numberOfLines={1}>{object.sender}: {object.label}</Text>
-                        </Pressable>
-                      ))}
+                    {teammates.length > 0 ? (
+                      <View style={styles.forgeCpRow}>
+                        {teammates.map((tm) => (
+                          <Pressable key={tm.callsign} style={[styles.forgeCpPill, { borderColor: tm.color }]} onPress={() => focusTeammate(tm)}>
+                            <Text style={[styles.forgeCpPillText, { color: tm.color }]}>{tm.callsign}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={styles.opsEmptyRow}>
+                        <Ionicons name="people-outline" size={13} color={colours.muted} />
+                        <Text style={styles.opsEmptyText}>Enable Team PLI to populate live teammates.</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.opsSection}>
+                    <View style={styles.opsSectionHeader}>
+                      <Text style={styles.opsSectionTitle}>Shared Objects</Text>
+                      <Text style={styles.opsSectionMeta}>{receivedSharedObjects.length} received | {sharedObjects.length} sent</Text>
                     </View>
-                  )}
-                  {teamEvents.length > 0 && (
-                    <View style={styles.teamEventList}>
-                      {teamEvents.slice(0, 4).map((event) => (
-                        <View key={event.id} style={styles.teamEventRow}>
-                          <View style={[styles.teamEventDot, { backgroundColor: event.tone }]} />
-                          <View style={{ flex: 1 }}>
-                            <Text style={styles.teamEventTitle}>{event.title}</Text>
-                            <Text style={styles.teamEventDetail} numberOfLines={1}>{event.detail}</Text>
+                    {receivedSharedObjects.length > 0 ? (
+                      <View style={styles.teamSharedList}>
+                        {receivedSharedObjects.slice(0, 3).map((object) => (
+                          <Pressable key={object.id} style={styles.teamSharedRow} onPress={() => centerMapOnSharedObject(object)}>
+                            <Ionicons name={object.type === 'mark' ? 'flag-outline' : 'analytics-outline'} size={13} color="#facc15" />
+                            <Text style={styles.teamSharedText} numberOfLines={1}>{object.sender}: {object.label}</Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={styles.opsEmptyRow}>
+                        <Ionicons name="share-social-outline" size={13} color={colours.muted} />
+                        <Text style={styles.opsEmptyText}>Shared marks and measurements appear here.</Text>
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.opsSection}>
+                    <View style={styles.opsSectionHeader}>
+                      <Text style={styles.opsSectionTitle}>Event Log</Text>
+                      <Text style={styles.opsSectionMeta}>{teamEvents.length} alerts</Text>
+                    </View>
+                    {teamEvents.length > 0 ? (
+                      <View style={styles.teamEventList}>
+                        {teamEvents.slice(0, 2).map((event) => (
+                          <View key={event.id} style={styles.teamEventRow}>
+                            <View style={[styles.teamEventDot, { backgroundColor: event.tone }]} />
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.teamEventTitle}>{event.title}</Text>
+                              <Text style={styles.teamEventDetail} numberOfLines={1}>{event.detail}</Text>
+                            </View>
+                            <Text style={styles.teamEventTime}>{formatElapsed(Math.max(0, Math.round((Date.now() - event.time) / 1000)))}</Text>
                           </View>
-                          <Text style={styles.teamEventTime}>{formatElapsed(Math.max(0, Math.round((Date.now() - event.time) / 1000)))}</Text>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-                  {teammates.length === 0 && receivedSharedObjects.length === 0 && teamEvents.length === 0 && (
-                    <Text style={styles.forgePanelHint}>Enable Team PLI to populate live teammates, shared objects, and alerts.</Text>
-                  )}
+                        ))}
+                      </View>
+                    ) : (
+                      <View style={styles.opsEmptyRow}>
+                        <Ionicons name="notifications-outline" size={13} color={colours.muted} />
+                        <Text style={styles.opsEmptyText}>Emergency beacons and team activity will stack here.</Text>
+                      </View>
+                    )}
+                  </View>
                 </View>
               )}
             </View>
@@ -5247,6 +5277,29 @@ const styles = StyleSheet.create({
   measurePanelItem: { flex: 1, alignItems: 'center' },
   measurePanelValue: { color: '#facc15', fontSize: 12, fontWeight: '900', textAlign: 'center' },
   measurePanelLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', marginTop: 2, textAlign: 'center' },
+  opsSection: {
+    gap: 5,
+  },
+  opsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  opsSectionTitle: { color: colours.text, fontSize: 10, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0 },
+  opsSectionMeta: { color: colours.muted, fontSize: 9, fontWeight: '800', textAlign: 'right' },
+  opsEmptyRow: {
+    minHeight: 30,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.10)',
+    backgroundColor: 'rgba(255,255,255,0.025)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 9,
+  },
+  opsEmptyText: { color: colours.muted, fontSize: 10, fontWeight: '800', flex: 1 },
   teamEventList: {
     gap: 6,
   },
