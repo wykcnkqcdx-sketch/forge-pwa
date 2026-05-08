@@ -393,7 +393,7 @@ export function AnalyticsScreen({
       </Card>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Session Log</Text>
+        <Text style={styles.sectionTitle}>SESSION LOG</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable style={styles.pdfBtn} onPress={() => exportSessionsToPdf(sessions, 'Training Log')}>
             <Ionicons name="download-outline" size={12} color={colours.cyan} />
@@ -618,12 +618,12 @@ const styles = StyleSheet.create({
     marginTop: responsiveSpacing('md'),
   },
   sectionTitle: { ...typography.h4, color: colours.text, letterSpacing: 0.2 },
-  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: statusColors(colours.cyan).bgMed, paddingHorizontal: responsiveSpacing('sm'), paddingVertical: 5, borderRadius: 12, borderWidth: 1, borderColor: statusColors(colours.cyan).borderMed },
-  sortBtnText: { ...typography.label, color: colours.cyan, letterSpacing: 0.5 },
+  sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: statusColors(colours.cyan).bgMed, paddingHorizontal: responsiveSpacing('sm'), paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: statusColors(colours.cyan).borderMed },
+  sortBtnText: { ...typography.label, color: colours.cyan, letterSpacing: 1, fontWeight: '900' },
   filterScroll: { flexGrow: 0, marginBottom: responsiveSpacing('md'), marginHorizontal: -20 },
   filterContainer: { gap: responsiveSpacing('sm'), paddingHorizontal: 20 },
-  filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: responsiveSpacing('md'), paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
-  filterText: { ...typography.label, color: colours.muted },
+  filterPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 6, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
+  filterText: { ...typography.label, color: colours.muted, letterSpacing: 0.5, fontWeight: '800' },
   filterTextActive: { color: colours.cyan },
   logEmptyState: { alignItems: 'center', gap: 6, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 16, padding: responsiveSpacing('lg'), backgroundColor: 'rgba(10, 20, 35, 0.70)' },
   logEmptyText: { ...typography.caption, color: colours.muted, textAlign: 'center', lineHeight: 17 },

@@ -21,6 +21,19 @@ export function sessionIcon(type: TrainingSession['type']) {
   }
 }
 
+export function sessionTone(type: TrainingSession['type']) {
+  switch (type) {
+    case 'Ruck': return colours.amber;
+    case 'Strength': return colours.green;
+    case 'Resistance': return '#f472b6';
+    case 'Cardio': return colours.violet;
+    case 'Mobility': return colours.textSoft;
+    case 'Run': return colours.cyan;
+    case 'Workout':
+    default: return colours.sand;
+  }
+}
+
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
   const mins = Math.floor((seconds % 3600) / 60);
@@ -288,7 +301,7 @@ const styles = StyleSheet.create({
   sessionCard: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
-    borderRadius: 16,
+    borderRadius: 10,
     backgroundColor: 'rgba(10, 20, 35, 0.70)',
     marginBottom: 10,
     overflow: 'hidden',
@@ -302,7 +315,7 @@ const styles = StyleSheet.create({
   sessionIconWrap: {
     width: 38,
     height: 38,
-    borderRadius: 12,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
@@ -311,17 +324,19 @@ const styles = StyleSheet.create({
   sessionCopy: { flex: 1 },
   sessionTitle: {
     color: colours.text,
-    fontWeight: '800',
-    fontSize: 13,
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.5,
   },
   sessionMeta: {
     color: colours.muted,
-    fontSize: 11,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0.5,
     marginTop: 2,
   },
   sessionRight: { alignItems: 'flex-end' },
   score: {
-    color: colours.cyan,
     fontSize: 20,
     fontWeight: '900',
   },
@@ -358,27 +373,27 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyan,
     opacity: 0.8,
   },
-  ruckReview: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderColor: colours.borderSoft, padding: 10, backgroundColor: 'rgba(255,255,255,0.03)' },
-  ruckReviewItem: { flex: 1, minHeight: 44, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  ruckReviewValue: { color: colours.cyan, fontSize: 13, fontWeight: '900' },
-  ruckReviewLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
-  ruckDetail: { borderTopWidth: 1, borderColor: colours.borderSoft, padding: 10, gap: 10, backgroundColor: 'rgba(4,8,15,0.22)' },
+  ruckReview: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderColor: colours.borderSoft, padding: 12, backgroundColor: 'rgba(0,0,0,0.2)' },
+  ruckReviewItem: { flex: 1, minHeight: 46, borderRadius: 6, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.02)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  ruckReviewValue: { color: colours.cyan, fontSize: 14, fontWeight: '900' },
+  ruckReviewLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
+  ruckDetail: { borderTopWidth: 1, borderColor: colours.borderSoft, padding: 12, gap: 12, backgroundColor: 'rgba(0,0,0,0.3)' },
   ruckDetailGrid: { flexDirection: 'row', gap: 8 },
-  ruckDetailItem: { flex: 1, minHeight: 46, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.04)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  ruckDetailValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  aarActions: { flexDirection: 'row', gap: 8 },
-  aarButton: { flex: 1, minHeight: 42, borderRadius: 8, backgroundColor: colours.cyan, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  aarButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
-  ruckSection: { borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.035)', overflow: 'hidden' },
-  ruckSectionTitle: { color: colours.text, fontSize: 12, fontWeight: '900', paddingHorizontal: 10, paddingTop: 10, paddingBottom: 6 },
-  ruckCheckpointRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 10, paddingVertical: 8, borderTopWidth: 1, borderColor: colours.borderSoft },
+  ruckDetailItem: { flex: 1, minHeight: 48, borderRadius: 6, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.02)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  ruckDetailValue: { color: colours.text, fontSize: 14, fontWeight: '900' },
+  aarActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
+  aarButton: { flex: 1, minHeight: 44, borderRadius: 6, backgroundColor: colours.cyan, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  aarButtonText: { color: colours.background, fontSize: 13, fontWeight: '900' },
+  ruckSection: { borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.02)', overflow: 'hidden', marginTop: 4 },
+  ruckSectionTitle: { color: colours.text, fontSize: 12, fontWeight: '900', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
+  ruckCheckpointRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderColor: colours.borderSoft },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   ruckCheckpointCopy: { flex: 1 },
-  ruckCheckpointTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
-  ruckCheckpointCoord: { color: colours.muted, fontSize: 10, fontWeight: '800', marginTop: 2 },
-  ruckCheckpointStatus: { color: colours.muted, fontSize: 9, fontWeight: '900' },
-  ruckSplitRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, paddingHorizontal: 10, borderTopWidth: 1, borderColor: colours.borderSoft },
-  ruckSplitKm: { color: colours.text, fontSize: 11, fontWeight: '900', width: 50 },
-  ruckSplitValue: { color: colours.cyan, fontSize: 13, fontWeight: '900', flex: 1, textAlign: 'center' },
-  ruckSplitMeta: { color: colours.muted, fontSize: 10, fontWeight: '800', width: 82, textAlign: 'right' },
+  ruckCheckpointTitle: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  ruckCheckpointCoord: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 3 },
+  ruckCheckpointStatus: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
+  ruckSplitRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingHorizontal: 12, borderTopWidth: 1, borderColor: colours.borderSoft },
+  ruckSplitKm: { color: colours.text, fontSize: 12, fontWeight: '900', width: 56 },
+  ruckSplitValue: { color: colours.cyan, fontSize: 14, fontWeight: '900', flex: 1, textAlign: 'center' },
+  ruckSplitMeta: { color: colours.muted, fontSize: 11, fontWeight: '800', width: 90, textAlign: 'right' },
 });
