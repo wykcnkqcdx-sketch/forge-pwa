@@ -123,8 +123,13 @@ export function AuthScreen({ loading, error, onSignIn, onSignUp }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Create account"
         >
-          <Ionicons name="person-add-outline" size={isTablet ? 18 : 15} color={colours.cyan} />
-          <Text style={[styles.secondaryText, { fontSize: fs(14, { min: 13, max: 16 }) }]}>Create Account</Text>
+          {loading
+            ? <ActivityIndicator color={colours.cyan} size="small" />
+            : <>
+                <Ionicons name="person-add-outline" size={isTablet ? 18 : 15} color={colours.cyan} />
+                <Text style={[styles.secondaryText, { fontSize: fs(14, { min: 13, max: 16 }) }]}>Create Account</Text>
+              </>
+          }
         </Pressable>
 
         {/* Footer note */}

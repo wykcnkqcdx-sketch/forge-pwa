@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ActivityIndicator, useWindowDimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { PieChart } from 'react-native-chart-kit';
 import * as Haptics from 'expo-haptics';
 import { Platform } from 'react-native';
 import { Screen } from '../components/Screen';
@@ -99,6 +100,8 @@ export function FuelScreen({
   onAddMealEntry?: (entry: MealEntry) => void;
   onDeleteMealEntry?: (id: string) => void;
 }) {
+  const { width: screenWidth } = useWindowDimensions();
+
   const [goal, setGoal] = useState<WeightGoal>('maintain');
   const [bodyWeightKg, setBodyWeightKg] = useState(fuelProfile.bodyWeightKg);
   const [heightCm, setHeightCm] = useState(fuelProfile.heightCm);
@@ -122,6 +125,15 @@ export function FuelScreen({
   const loggedProtein = useMemo(() => todayMeals.reduce((s, e) => s + e.proteinG, 0), [todayMeals]);
   const loggedCarbs = useMemo(() => todayMeals.reduce((s, e) => s + e.carbsG, 0), [todayMeals]);
   const loggedFat = useMemo(() => todayMeals.reduce((s, e) => s + e.fatG, 0), [todayMeals]);
+
+  const macroPieData = useMemo(() => {
+    if (loggedProtein === 0 && loggedCarbs === 0 && loggedFat === 0) return [];
+    return [
+      { name: 'Protein', population: loggedProtein, color: colours.cyan, legendFontColor: colours.muted, legendFontSize: 12 },
+      { name: 'Carbs', population: loggedCarbs, color: colours.green, legendFontColor: colours.muted, legendFontSize: 12 },
+      { name: 'Fats', population: loggedFat, color: colours.sand, legendFontColor: colours.muted, legendFontSize: 12 },
+    ];
+  }, [loggedProtein, loggedCarbs, loggedFat]);
 
   async function saveMealEntry() {
     const cals = Number.parseInt(mealCals, 10);
@@ -248,6 +260,23 @@ export function FuelScreen({
             );
           })}
         </View>
+
+        {macroPieData.length > 0 && (
+          <View style={styles.pieChartContainer}>
+            <Text style={styles.pieChartTitle}>Macro Distribution</Text>
+            <PieChart
+              data={macroPieData}
+              width={screenWidth - 64}
+              height={140}
+              chartConfig={{ color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})` }}
+              accessor="population"
+              backgroundColor="transparent"
+              paddingLeft="0"
+              center={[10, 0]}
+              absolute
+            />
+          </View>
+        )}
 
         {showMealForm && (
           <View style={styles.mealForm}>
@@ -573,6 +602,18 @@ const styles = StyleSheet.create({
   mealRowRight: { alignItems: 'flex-end' },
   mealRowCals: { color: colours.amber, fontWeight: '900', fontSize: 13 },
   mealRowMacros: { ...typography.label, color: colours.muted, fontSize: 10 },
+  pieChartContainer: {
+    alignItems: 'center',
+    marginTop: responsiveSpacing('md'),
+    borderTopWidth: 1,
+    borderTopColor: colours.borderSoft,
+    paddingTop: responsiveSpacing('md'),
+  },
+  pieChartTitle: {
+    ...typography.label,
+    color: colours.muted,
+    alignSelf: 'flex-start',
+  },
   mealEmpty: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: responsiveSpacing('md') },
   mealToast: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: statusColors(colours.green).bgMed, borderWidth: 1, borderColor: statusColors(colours.green).borderMed, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, marginTop: 8 },
   mealToastText: { ...typography.caption, color: colours.green, fontWeight: '900', flex: 1 },
