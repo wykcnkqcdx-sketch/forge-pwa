@@ -552,7 +552,14 @@ export function FuelScreen({
       <Card>
         <View style={styles.rowBetween}>
           <Text style={styles.cardTitle}>Hydration Needs</Text>
-          <Text style={styles.hydrationValue}>{hydrationLoggedMl}ml</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {hydrationLoggedMl > 0 && (
+              <Pressable hitSlop={12} onPress={() => setHydrationByDate((prev) => ({ ...prev, [selectedDateStr]: 0 }))}>
+                <Ionicons name="refresh-outline" size={16} color={colours.muted} />
+              </Pressable>
+            )}
+            <Text style={styles.hydrationValue}>{hydrationLoggedMl}ml</Text>
+          </View>
         </View>
         <ProgressBar value={hydrationPct} colour={colours.cyan} />
         <View style={styles.hydrationActions}>
