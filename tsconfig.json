@@ -3,7 +3,6 @@
   "compilerOptions": {
     "allowJs": false,
     "strict": true,
-    "ignoreDeprecations": "6.0",
     "baseUrl": ".",
     "paths": {
       "expo-image": ["node_modules/expo-image/build/index"]
