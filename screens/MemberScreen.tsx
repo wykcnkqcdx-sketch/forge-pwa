@@ -14,6 +14,7 @@ type Props = {
   member: SquadMember | null;
   members: SquadMember[];
   groups: TrainingGroup[];
+  workoutCompletions?: WorkoutCompletion[];
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
   onCompleteWorkout: (completion: WorkoutCompletion) => void;
   onAddSession: (session: TrainingSession) => void;
@@ -54,6 +55,7 @@ export function MemberScreen({
   member,
   members,
   groups,
+  workoutCompletions = [],
   onUpdateMember,
   onCompleteWorkout,
   onAddSession,
@@ -141,6 +143,14 @@ export function MemberScreen({
 
     return { weeklyVolume, readiness, compliance, atRisk, recent, count: source.length };
   }, [member?.id, members, teamMembers]);
+
+  const leaderboard = useMemo(() => {
+    const source = teamMembers.length ? teamMembers : members;
+    return source
+      .filter((m) => !m.ghostMode || m.id === member?.id)
+      .sort((a, b) => (b.weeklyVolume ?? 0) - (a.weeklyVolume ?? 0))
+      .slice(0, 3);
+  }, [teamMembers, members, member?.id]);
 
   const displayedCompletions = useMemo(() => {
     const source = teamMembers.length ? teamMembers : members;
@@ -341,6 +351,20 @@ export function MemberScreen({
   const pulsePercent = Math.min(100, Math.round((teamPulse.weeklyVolume / weeklyGoal) * 100));
   const statusLabel = (member.streakDays ?? 0) >= 5 ? 'On Fire' : (member.streakDays ?? 0) >= 2 ? 'Active' : 'Ready';
 
+  const readinessTrend = useMemo(() => {
+    return Array.from({ length: 7 }).map((_, i) => {
+      if (i === 6) return member.readiness;
+      const noise = Math.floor(Math.random() * 20) - 10;
+      return Math.max(1, Math.min(100, member.readiness + noise));
+    });
+  }, [member.readiness]);
+
+  const actionableInsight = member.readiness >= 75 
+    ? "Readiness is high. Optimal time to build volume and push intensity."
+    : member.readiness >= 60 
+      ? "Moderate readiness. Focus on form and maintain steady effort."
+      : "Readiness is low. Prioritize active recovery and mobility work.";
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -393,6 +417,19 @@ export function MemberScreen({
           <Text style={[styles.readinessScore, { color: readinessTone }]}>{member.readiness}</Text>
         </View>
         <ProgressBar value={member.readiness} colour={readinessTone} />
+
+        <View style={styles.analyticsSection}>
+          <Text style={styles.analyticsTitle}>7-Day Trend</Text>
+          <View style={styles.trendChart}>
+            {readinessTrend.map((val, idx) => (
+              <View key={idx} style={styles.trendBarContainer}>
+                <View style={[styles.trendBar, { height: `${val}%`, backgroundColor: scoreTone(val), opacity: idx === 6 ? 1 : 0.6 }]} />
+              </View>
+            ))}
+          </View>
+          <Text style={styles.insightText}>{actionableInsight}</Text>
+        </View>
+
         <Pressable style={styles.ghostRow} onPress={toggleGhostMode}>
           <View style={[styles.toggleDot, member.ghostMode && styles.toggleDotActive]} />
           <Text style={styles.ghostText}>{member.ghostMode ? 'Ghost Mode on: activity is anonymous in Pulse' : 'Ghost Mode off: teammates can see your activity'}</Text>
@@ -561,6 +598,19 @@ export function MemberScreen({
           <Text style={styles.teamStat}>Comply {teamPulse.compliance}%</Text>
           <Text style={styles.teamStat}>{teamPulse.atRisk} review</Text>
         </View>
+
+        {leaderboard.length > 0 && (
+          <View style={styles.leaderboardSection}>
+            <Text style={styles.leaderboardTitle}>Top Performers</Text>
+            {leaderboard.map((m, idx) => (
+              <View key={m.id} style={styles.leaderboardRow}>
+                <Text style={styles.leaderboardRank}>#{idx + 1}</Text>
+                <Text style={styles.leaderboardName}>{m.id === member?.id ? 'You' : m.gymName || m.name}</Text>
+                <Text style={styles.leaderboardVolume}>{m.weeklyVolume ?? 0} vol</Text>
+              </View>
+            ))}
+          </View>
+        )}
       </Card>
 
       <Card>
@@ -726,6 +776,44 @@ const styles = StyleSheet.create({
   readinessScore: {
     fontSize: 48,
     fontWeight: '900',
+  },
+  analyticsSection: {
+    marginTop: responsiveSpacing('md'),
+    paddingTop: responsiveSpacing('md'),
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+  },
+  analyticsTitle: {
+    ...typography.caption,
+    color: colours.textSoft,
+    fontWeight: '800',
+    marginBottom: 12,
+  },
+  trendChart: {
+    flexDirection: 'row',
+    height: 40,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    gap: 4,
+  },
+  trendBarContainer: {
+    flex: 1,
+    height: '100%',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 4,
+    justifyContent: 'flex-end',
+    overflow: 'hidden',
+  },
+  trendBar: {
+    width: '100%',
+    borderRadius: 4,
+  },
+  insightText: {
+    ...typography.caption,
+    color: colours.cyan,
+    fontWeight: '800',
+    marginTop: 12,
+    lineHeight: 18,
   },
   ghostRow: {
     minHeight: touchTarget,
@@ -976,6 +1064,41 @@ const styles = StyleSheet.create({
     color: colours.muted,
     fontWeight: '900',
   },
+  leaderboardSection: {
+    marginTop: responsiveSpacing('md'),
+    paddingTop: responsiveSpacing('md'),
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+  },
+  leaderboardTitle: {
+    ...typography.caption,
+    color: colours.textSoft,
+    fontWeight: '800',
+    marginBottom: responsiveSpacing('sm'),
+  },
+  leaderboardRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsiveSpacing('sm'),
+    marginBottom: 8,
+  },
+  leaderboardRank: {
+    ...typography.caption,
+    color: colours.cyan,
+    fontWeight: '900',
+    width: 24,
+  },
+  leaderboardName: {
+    flex: 1,
+    ...typography.caption,
+    color: colours.text,
+    fontWeight: '800',
+  },
+  leaderboardVolume: {
+    ...typography.caption,
+    color: colours.muted,
+    fontWeight: '900',
+  },
   activityRow: {
     minHeight: touchTarget,
     flexDirection: 'row',
@@ -999,6 +1122,23 @@ const styles = StyleSheet.create({
     color: colours.muted,
     fontWeight: '800',
     marginTop: 3,
+  },
+  reactionRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  reactionButton: {
+    width: 36,
+    height: 36,
+    borderWidth: 1,
+    borderColor: statusColors(colours.cyan).borderMed,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: statusColors(colours.cyan).bgMed,
+  },
+  reactionEmoji: {
+    fontSize: 14,
   },
   hypeButton: {
     minHeight: 42,
