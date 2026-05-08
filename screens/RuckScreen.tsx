@@ -22,6 +22,10 @@ import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadAct
 import { calculateEnhancedPandolf } from '../lib/h2f';
 import { secureGetItem, secureSetItem } from '../lib/secureStorage';
 import { LOCATION_TASK_NAME } from '../lib/backgroundTasks';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
+import { parseGpx } from '../lib/gpxParser';
+import { useTeamPresence, type Teammate } from '../lib/teamPresence';
 
 function formatElapsed(seconds: number) {
   const hrs = Math.floor(seconds / 3600);
@@ -326,11 +330,32 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [reviewOpen, setReviewOpen] = useState(false);
   const [ruckReviewNote, setRuckReviewNote] = useState('');
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [callsign, setCallsign] = useState('LIBERTY');
+  const [editingCallsign, setEditingCallsign] = useState(false);
+  const [callsignDraft, setCallsignDraft] = useState('');
+  const [atakTab, setAtakTab] = useState<'map' | 'cp' | 'offline' | 'nav' | null>(null);
+  // GPX import
+  const [importedRoute, setImportedRoute] = useState<Array<{ lat: number; lon: number }>>([]);
+  const [importedRouteName, setImportedRouteName] = useState<string | null>(null);
+  // Map drawing
+  const [drawMode, setDrawMode] = useState(false);
+  const [drawColor, setDrawColor] = useState('#ff4444');
+  const [drawLines, setDrawLines] = useState<Array<{ color: string; points: Array<{ lat: number; lon: number }> }>>([]);
+  const [currentDrawLine, setCurrentDrawLine] = useState<Array<{ lat: number; lon: number }> | null>(null);
+  // Team PLI
+  const [teamEnabled, setTeamEnabled] = useState(false);
   const headingSubscription = useRef<Location.LocationSubscription | null>(null);
   const foregroundLocationSubscription = useRef<Location.LocationSubscription | null>(null);
   const announcedCheckpointArrivals = useRef<Set<string>>(new Set());
   const rotationAnim = useRef(new Animated.Value(0)).current;
   const prevHeading = useRef(0);
+  const drawColorRef = useRef(drawColor);
+  drawColorRef.current = drawColor;
+  const drawModeRef = useRef(drawMode);
+  drawModeRef.current = drawMode;
+
+  // Team PLI
+  const { teammates, broadcast: broadcastTeamPosition, connected: teamConnected } = useTeamPresence(callsign, teamEnabled);
   const { currentDistance, elapsedSeconds, routePoints, startTime, status, rejectedPointCount, lastRejectedReason } = trackingState;
   const isTracking = status === 'tracking';
   const isStarting = status === 'starting';
@@ -388,6 +413,19 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const displayBearing = routeBearing ?? activeHeading;
   const displayHeading = activeHeading ?? routeBearing;
   const altitudeFt = currentAltitude != null ? Math.round(currentAltitude * 3.28084) : null;
+  const atakBottomHeight = 52 + 56 + (atakTab ? 168 : 0); // actionRow + tabBar + panel
+
+  // Imported GPX route as SVG-ready point string
+  const importedRouteLinePoints = useMemo(() => {
+    if (!importedRoute.length || !effectiveMapCenter || renderViewport.width <= 0) return null;
+    const pts = getMercatorRoutePoints(
+      importedRoute.map((p) => ({ latitude: p.lat, longitude: p.lon, altitude: null, accuracy: null, timestamp: 0 })),
+      effectiveMapCenter,
+      renderViewport,
+      mapZoom,
+    );
+    return pts.map((p) => `${p.x},${p.y}`).join(' ');
+  }, [importedRoute, effectiveMapCenter, renderViewport, mapZoom]);
   const speedKmh = useMemo(() => (
     currentDistance > 0.02 && elapsedSeconds > 0
       ? (currentDistance / (elapsedSeconds / 3600)).toFixed(1)
@@ -625,6 +663,44 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     dispatchTracking({ type: 'point_recorded', point: nextPoint });
   }, []);
 
+  // Broadcast position to teammates when GPS tracking is active
+  useEffect(() => {
+    if (!teamEnabled || !currentPoint) return;
+    broadcastTeamPosition({
+      lat: currentPoint.latitude,
+      lon: currentPoint.longitude,
+      heading: activeHeading ?? undefined,
+      speed: currentDistance > 0.02 && elapsedSeconds > 0
+        ? parseFloat((currentDistance / (elapsedSeconds / 3600)).toFixed(1))
+        : undefined,
+      accuracy: currentPoint.accuracy ?? undefined,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPoint]);
+
+  async function handleGpxImport() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+      const content = await FileSystem.readAsStringAsync(result.assets[0].uri, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const parsed = parseGpx(content);
+      if (!parsed.trackPoints.length) {
+        showAlert('No Track Found', 'The file contained no track points. Make sure it is a valid .gpx file.');
+        return;
+      }
+      setImportedRoute(parsed.trackPoints.map((p) => ({ lat: p.lat, lon: p.lon })));
+      setImportedRouteName(parsed.name ?? result.assets[0].name ?? 'Imported Route');
+      if (parsed.trackPoints[0]) {
+        setMapCenter({ latitude: parsed.trackPoints[0].lat, longitude: parsed.trackPoints[0].lon, altitude: null, accuracy: null, timestamp: Date.now() });
+        setGpsFollowMode(false);
+      }
+    } catch {
+      showAlert('Import Failed', 'Could not read the file. Please select a valid .gpx file.');
+    }
+  }
+
   useEffect(() => {
     if (gpsFollowMode && mapCenter !== null) {
       setMapCenter(null);
@@ -650,7 +726,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const pinchStartZoom = useRef(mapZoom);
   const zoomAnimFrame = useRef<number | null>(null);
 
-  const mapGestures = useMemo(() => {
+  const mapNormalGestures = useMemo(() => {
     const panGesture = Gesture.Pan()
       .enabled(Boolean(effectiveMapCenterRef.current))
       .onStart(() => {
@@ -739,6 +815,35 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     return Gesture.Simultaneous(panGesture, pinchGesture, doubleTapGesture);
   }, [!!effectiveMapCenter]);
 
+  const mapDrawGesture = useMemo(() => Gesture.Pan()
+    .onStart(() => {
+      setCurrentDrawLine([]);
+    })
+    .onUpdate((event: { x: number; y: number }) => {
+      const center = effectiveMapCenterRef.current;
+      const viewport = mapViewportRef.current;
+      const zoom = mapZoomRef.current;
+      if (!center) return;
+      const tileZoom = Math.round(zoom);
+      const centerPixel = latLonToWorldPixel(center.latitude, center.longitude, tileZoom);
+      const worldX = event.x - viewport.width / 2 + centerPixel.x;
+      const worldY = event.y - viewport.height / 2 + centerPixel.y;
+      const { latitude, longitude } = worldPixelToLatLon(worldX, worldY, tileZoom);
+      setCurrentDrawLine((prev) => [...(prev ?? []), { lat: latitude, lon: longitude }]);
+    })
+    .onEnd(() => {
+      setCurrentDrawLine((prev) => {
+        if (prev && prev.length > 1) {
+          setDrawLines((lines) => [...lines, { color: drawColorRef.current, points: prev }]);
+        }
+        return null;
+      });
+    })
+    .runOnJS(true),
+  []);
+
+  const mapGestures = drawMode ? mapDrawGesture : mapNormalGestures;
+
   useEffect(() => {
     if (activeHeading == null) return;
 
@@ -770,6 +875,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
             console.error('Failed to parse custom ruck templates');
           }
         }
+        const savedCallsign = await secureGetItem('forge:callsign');
+        if (savedCallsign) setCallsign(savedCallsign);
 
         if (plan) {
           setTargetDistanceKm(plan.targetDistanceKm);
@@ -1751,8 +1858,8 @@ function updateSelectedCheckpointHere() {
             </View>
           </>
         )}
-        {showOverlays && (
-          <View style={[styles.bearingGuidanceStrip, fullscreen && styles.bearingGuidanceStripFullscreen, { borderColor: statusColors(bearingGuidance.tone).borderMed, backgroundColor: statusColors(bearingGuidance.tone).bgMed }, shadow.subtle]} pointerEvents="none">
+        {showOverlays && !fullscreen && (
+          <View style={[styles.bearingGuidanceStrip, { borderColor: statusColors(bearingGuidance.tone).borderMed, backgroundColor: statusColors(bearingGuidance.tone).bgMed }, shadow.subtle]} pointerEvents="none">
             <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
             <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
           </View>
@@ -1895,8 +2002,34 @@ function updateSelectedCheckpointHere() {
         </View>
 
         {/* ── Bottom-right MGRS / Telemetry HUD ───────────────────── */}
-        <View style={styles.atakHud} pointerEvents="none">
-          <Text style={styles.atakHudCallsign}>Callsign: LIBERTY</Text>
+        <View style={[styles.atakHud, { bottom: atakBottomHeight + 10 }]} pointerEvents="box-none">
+          {editingCallsign ? (
+            <TextInput
+              style={styles.atakHudCallsignInput}
+              value={callsignDraft}
+              onChangeText={setCallsignDraft}
+              autoFocus
+              autoCapitalize="characters"
+              maxLength={12}
+              returnKeyType="done"
+              onSubmitEditing={async () => {
+                const trimmed = callsignDraft.trim().toUpperCase() || callsign;
+                setCallsign(trimmed);
+                await secureSetItem('forge:callsign', trimmed);
+                setEditingCallsign(false);
+              }}
+              onBlur={async () => {
+                const trimmed = callsignDraft.trim().toUpperCase() || callsign;
+                setCallsign(trimmed);
+                await secureSetItem('forge:callsign', trimmed);
+                setEditingCallsign(false);
+              }}
+            />
+          ) : (
+            <Pressable onPress={() => { setCallsignDraft(callsign); setEditingCallsign(true); }}>
+              <Text style={styles.atakHudCallsign}>{callsign} ✎</Text>
+            </Pressable>
+          )}
           <Text style={styles.atakHudCoord} numberOfLines={2}>
             {(gpsFollowMode ? currentCoordinate : mapCenterCoordinate) ?? 'Acquiring GPS...'}
           </Text>
@@ -1914,51 +2047,186 @@ function updateSelectedCheckpointHere() {
 
         {/* ── Scale bar bottom-left ─────────────────────────────────── */}
         {scaleBar && (
-          <View style={styles.atakScaleBar} pointerEvents="none">
+          <View style={[styles.atakScaleBar, { bottom: atakBottomHeight + 10 }]} pointerEvents="none">
             <View style={[styles.atakScaleBarLine, { width: scaleBar.width }]} />
             <Text style={styles.atakScaleBarText}>{scaleBar.label}</Text>
           </View>
         )}
 
-        {/* ── Bottom Action Strip ───────────────────────────────────── */}
-        <View style={styles.atakBottomStrip}>
-          {startTime && (
-            <View style={styles.atakTimerBox}>
-              <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.atakTimerText} />
-              <Text style={styles.atakTimerLabel}>{currentDistance.toFixed(2)} km</Text>
+        {/* ── FORGE Tabbed Bottom Panel ─────────────────────────────── */}
+        <View style={styles.forgeBottomArea}>
+          {/* Expandable Tab Content */}
+          {atakTab && (
+            <View style={styles.forgePanel}>
+              {atakTab === 'map' && (
+                <View style={styles.forgePanelContent}>
+                  <View style={styles.forgePanelRow}>
+                    {mapLayerOptions.map((opt) => (
+                      <Pressable
+                        key={opt.key}
+                        style={[styles.forgePanelBtn, mapLayer === opt.key && styles.forgePanelBtnActive]}
+                        onPress={() => setMapLayer(opt.key)}
+                      >
+                        <Text style={[styles.forgePanelBtnText, mapLayer === opt.key && styles.forgePanelBtnTextActive]}>{opt.label}</Text>
+                      </Pressable>
+                    ))}
+                  </View>
+                  <View style={styles.forgePanelRow}>
+                    <Pressable style={[styles.forgePanelBtn, mapNorthUp && styles.forgePanelBtnActive]} onPress={() => setMapNorthUp((v) => !v)}>
+                      <Ionicons name="compass-outline" size={13} color={mapNorthUp ? colours.background : colours.text} />
+                      <Text style={[styles.forgePanelBtnText, mapNorthUp && styles.forgePanelBtnTextActive]}>{mapNorthUp ? 'North Up' : 'Heading Up'}</Text>
+                    </Pressable>
+                    <Pressable style={[styles.forgePanelBtn, gpsFollowMode && styles.forgePanelBtnActive]} onPress={() => {
+                      if (gpsFollowMode) { setGpsFollowMode(false); }
+                      else { setGpsFollowMode(true); setMapCenter(null); }
+                    }}>
+                      <Ionicons name={gpsFollowMode ? 'locate' : 'locate-outline'} size={13} color={gpsFollowMode ? colours.background : colours.text} />
+                      <Text style={[styles.forgePanelBtnText, gpsFollowMode && styles.forgePanelBtnTextActive]}>{gpsFollowMode ? 'GPS Follow' : 'Pan Free'}</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+              {atakTab === 'cp' && (
+                <View style={styles.forgePanelContent}>
+                  <View style={styles.forgePanelRow}>
+                    <Pressable style={styles.forgePanelBtn} onPress={addCheckpointHere}>
+                      <Ionicons name="flag-outline" size={13} color={colours.cyan} />
+                      <Text style={[styles.forgePanelBtnText, { color: colours.cyan }]}>Add CP</Text>
+                    </Pressable>
+                    {selectedCheckpoint && (
+                      <Pressable style={styles.forgePanelBtn} onPress={updateSelectedCheckpointHere}>
+                        <Ionicons name="pin-outline" size={13} color={colours.amber} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.amber }]}>Move CP</Text>
+                      </Pressable>
+                    )}
+                    {plannedCheckpoints.length > 0 && (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={clearAllCheckpoints}>
+                        <Ionicons name="trash-outline" size={13} color={colours.red} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Clear All</Text>
+                      </Pressable>
+                    )}
+                  </View>
+                  {plannedCheckpoints.length > 0 ? (
+                    <View style={styles.forgeCpRow}>
+                      {plannedCheckpoints.map((cp) => (
+                        <Pressable
+                          key={cp.id}
+                          style={[styles.forgeCpPill, selectedCheckpointId === cp.id && styles.forgeCpPillActive]}
+                          onPress={() => setSelectedCheckpointId(cp.id)}
+                        >
+                          <Text style={[styles.forgeCpPillText, selectedCheckpointId === cp.id && styles.forgeCpPillTextActive]}>{cp.label}</Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={styles.forgePanelHint}>Pan map then tap Add CP to drop a checkpoint</Text>
+                  )}
+                </View>
+              )}
+              {atakTab === 'offline' && (
+                <View style={styles.forgePanelContent}>
+                  <View style={styles.forgePanelRow}>
+                    {isDownloadingMap ? (
+                      <View style={[styles.forgePanelBtn, { flex: 1 }]}>
+                        <Text style={[styles.forgePanelBtnText, { color: colours.cyan }]}>{downloadProgress}% Downloading...</Text>
+                      </View>
+                    ) : (
+                      <Pressable style={[styles.forgePanelBtn, { flex: 1 }]} onPress={downloadOfflineMap}>
+                        <Ionicons name="cloud-download-outline" size={13} color={colours.cyan} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.cyan }]}>Download Area</Text>
+                      </Pressable>
+                    )}
+                    <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={confirmClearOfflineMap}>
+                      <Ionicons name="trash-outline" size={13} color={colours.red} />
+                      <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Clear Cache</Text>
+                    </Pressable>
+                  </View>
+                  <Text style={styles.forgePanelHint}>Downloads map tiles visible on screen for offline use</Text>
+                </View>
+              )}
+              {atakTab === 'nav' && (
+                <View style={styles.forgePanelContent}>
+                  <View style={styles.forgeNavRow}>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={[styles.forgeNavValue, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
+                      <Text style={styles.forgeNavLabel}>{bearingGuidance.detail}</Text>
+                    </View>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={styles.forgeNavValue}>{targetPaceLabel}</Text>
+                      <Text style={styles.forgeNavLabel}>Target pace</Text>
+                    </View>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={[styles.forgeNavValue, { color: finishOnTarget ? colours.green : colours.amber }]}>{finishOnTarget ? 'ON TIME' : 'AT RISK'}</Text>
+                      <Text style={styles.forgeNavLabel}>{finishDistanceRemainingKm.toFixed(1)}km left</Text>
+                    </View>
+                    <View style={styles.forgeNavItem}>
+                      <Text style={styles.forgeNavValue}>{formatDuration(finishEtaMinutes)}</Text>
+                      <Text style={styles.forgeNavLabel}>ETA</Text>
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
           )}
 
-          {isStarting ? (
-            <View style={[styles.atakActionBtn, { flex: 1, opacity: 0.6 }]}>
-              <Ionicons name="sync" size={18} color={colours.background} />
-              <Text style={styles.atakActionBtnText}>Acquiring GPS...</Text>
-            </View>
-          ) : isTracking ? (
-            <Pressable style={[styles.atakActionBtn, styles.atakStopBtn, { flex: 1 }]} onPress={stopTracking}>
-              <Ionicons name="stop-circle" size={18} color="#fff" />
-              <Text style={styles.atakActionBtnText}>Stop</Text>
-            </Pressable>
-          ) : startTime ? (
-            <>
-              <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={resumeTracking}>
-                <Ionicons name="play" size={18} color={colours.background} />
-                <Text style={styles.atakActionBtnText}>Resume</Text>
+          {/* Action Row: Timer + Tracking Buttons */}
+          <View style={styles.forgeActionRow}>
+            {startTime && (
+              <View style={styles.atakTimerBox}>
+                <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.atakTimerText} />
+                <Text style={styles.atakTimerLabel}>{currentDistance.toFixed(2)} km</Text>
+              </View>
+            )}
+            {isStarting ? (
+              <View style={[styles.atakActionBtn, { flex: 1, opacity: 0.6 }]}>
+                <Ionicons name="sync" size={18} color={colours.background} />
+                <Text style={styles.atakActionBtnText}>Acquiring GPS...</Text>
+              </View>
+            ) : isTracking ? (
+              <Pressable style={[styles.atakActionBtn, styles.atakStopBtn, { flex: 1 }]} onPress={stopTracking}>
+                <Ionicons name="stop-circle" size={18} color="#fff" />
+                <Text style={styles.atakActionBtnText}>Stop</Text>
               </Pressable>
-              <Pressable style={[styles.atakActionBtn, styles.atakSaveBtn, { flex: 1 }]} onPress={openRuckReview}>
-                <Ionicons name="checkmark-circle" size={18} color={colours.background} />
-                <Text style={styles.atakActionBtnText}>Review</Text>
+            ) : startTime ? (
+              <>
+                <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={resumeTracking}>
+                  <Ionicons name="play" size={18} color={colours.background} />
+                  <Text style={styles.atakActionBtnText}>Resume</Text>
+                </Pressable>
+                <Pressable style={[styles.atakActionBtn, styles.atakSaveBtn, { flex: 1 }]} onPress={openRuckReview}>
+                  <Ionicons name="checkmark-circle" size={18} color={colours.background} />
+                  <Text style={styles.atakActionBtnText}>Review</Text>
+                </Pressable>
+                <Pressable style={[styles.atakActionBtn, styles.atakDiscardBtn]} onPress={discardTrackedRuck}>
+                  <Ionicons name="close" size={20} color={colours.text} />
+                </Pressable>
+              </>
+            ) : (
+              <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={() => startTracking()}>
+                <Ionicons name="play-circle" size={18} color={colours.background} />
+                <Text style={styles.atakActionBtnText}>Start GPS Tracking</Text>
               </Pressable>
-              <Pressable style={[styles.atakActionBtn, styles.atakDiscardBtn]} onPress={discardTrackedRuck}>
-                <Ionicons name="close" size={20} color={colours.text} />
+            )}
+          </View>
+
+          {/* FORGE Tab Bar */}
+          <View style={styles.forgeTabBar}>
+            {([
+              ['map', 'map-outline', 'MAP'],
+              ['cp', 'flag-outline', 'CP'],
+              ['offline', 'cloud-download-outline', 'OFFLINE'],
+              ['nav', 'navigate-outline', 'NAV'],
+            ] as const).map(([tab, icon, label]) => (
+              <Pressable
+                key={tab}
+                style={[styles.forgeTab, atakTab === tab && styles.forgeTabActive]}
+                onPress={() => setAtakTab(atakTab === tab ? null : tab)}
+              >
+                <Ionicons name={icon} size={15} color={atakTab === tab ? colours.cyan : colours.muted} />
+                <Text style={[styles.forgeTabText, atakTab === tab && styles.forgeTabTextActive]}>{label}</Text>
               </Pressable>
-            </>
-          ) : (
-            <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={() => startTracking()}>
-              <Ionicons name="play-circle" size={18} color={colours.background} />
-              <Text style={styles.atakActionBtnText}>Start GPS Tracking</Text>
-            </Pressable>
-          )}
+            ))}
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -3724,4 +3992,72 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   atakEntryBtnText: { color: colours.cyan, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  atakHudCallsignInput: {
+    color: colours.cyan, fontSize: 11, fontWeight: '900', letterSpacing: 0.8,
+    borderBottomWidth: 1, borderBottomColor: colours.cyan,
+    paddingVertical: 1, minWidth: 80, marginBottom: 4,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  // ── FORGE Tabbed Panel ──────────────────────────────────────────────────
+  forgeBottomArea: {
+    position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 10,
+    backgroundColor: 'rgba(4,8,15,0.96)',
+    borderTopWidth: 1, borderTopColor: 'rgba(103,232,249,0.18)',
+  },
+  forgePanel: {
+    borderBottomWidth: 1, borderBottomColor: 'rgba(103,232,249,0.10)',
+  },
+  forgePanelContent: {
+    paddingHorizontal: 12, paddingVertical: 10, gap: 8,
+  },
+  forgePanelRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 8,
+  },
+  forgePanelBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    paddingHorizontal: 12, paddingVertical: 7,
+    borderRadius: 8, borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.25)',
+    backgroundColor: 'rgba(103,232,249,0.06)',
+  },
+  forgePanelBtnActive: {
+    backgroundColor: colours.cyan, borderColor: colours.cyan,
+  },
+  forgePanelBtnText: { color: colours.text, fontSize: 12, fontWeight: '800' },
+  forgePanelBtnTextActive: { color: colours.background },
+  forgeCpRow: {
+    flexDirection: 'row', flexWrap: 'wrap', gap: 6,
+  },
+  forgeCpPill: {
+    paddingHorizontal: 10, paddingVertical: 5, borderRadius: 20,
+    borderWidth: 1, borderColor: 'rgba(103,232,249,0.25)',
+    backgroundColor: 'rgba(103,232,249,0.06)',
+  },
+  forgeCpPillActive: { backgroundColor: colours.cyan, borderColor: colours.cyan },
+  forgeCpPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  forgeCpPillTextActive: { color: colours.background },
+  forgePanelHint: { color: colours.muted, fontSize: 11, fontStyle: 'italic' },
+  forgeNavRow: {
+    flexDirection: 'row', justifyContent: 'space-between', gap: 4,
+  },
+  forgeNavItem: { flex: 1, alignItems: 'center' },
+  forgeNavValue: { color: colours.text, fontSize: 13, fontWeight: '900', letterSpacing: 0.3 },
+  forgeNavLabel: { color: colours.muted, fontSize: 9, fontWeight: '700', marginTop: 2, textAlign: 'center' },
+  forgeActionRow: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6,
+  },
+  forgeTabBar: {
+    flexDirection: 'row', paddingBottom: 16, paddingTop: 2,
+    borderTopWidth: 1, borderTopColor: 'rgba(103,232,249,0.12)',
+  },
+  forgeTab: {
+    flex: 1, alignItems: 'center', justifyContent: 'center',
+    paddingVertical: 7, gap: 3,
+  },
+  forgeTabActive: {
+    borderTopWidth: 2, borderTopColor: colours.cyan,
+  },
+  forgeTabText: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  forgeTabTextActive: { color: colours.cyan },
 });
