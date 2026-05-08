@@ -9,6 +9,7 @@ import { colours, touchTarget, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { exerciseLibrary, SquadMember, TrainingGroup, TrainingSession, trainingModes } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
+import { addDaysToDateKey, isSameLocalDate, toLocalDateKey } from '../utils/date';
 
 type Props = {
   member: SquadMember | null;
@@ -107,16 +108,12 @@ export function MemberScreen({
     ? `${pendingSyncCount} record${pendingSyncCount === 1 ? '' : 's'} pending sync.`
     : 'Assignments and workout completions sync automatically when connected.';
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toLocalDateKey();
   const [selectedDateStr, setSelectedDateStr] = useState(todayStr);
 
   function changeDateOffset(offset: number) {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedDateStr((prev) => {
-      const [y, m, d] = prev.split('-').map(Number);
-      const date = new Date(y, m - 1, d + offset);
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    });
+    setSelectedDateStr((prev) => addDaysToDateKey(prev, offset));
   }
 
   const isToday = selectedDateStr === todayStr;
@@ -157,7 +154,7 @@ export function MemberScreen({
     const visibleIds = new Set(source.filter((item) => !item.ghostMode || item.id === member?.id).map(m => m.id));
     
     return workoutCompletions
-      .filter(c => visibleIds.has(c.memberId) && (c.completedAt.startsWith(selectedDateStr) || new Date(c.completedAt).toISOString().slice(0, 10) === selectedDateStr))
+      .filter(c => visibleIds.has(c.memberId) && isSameLocalDate(c.completedAt, selectedDateStr))
       .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
   }, [workoutCompletions, teamMembers, members, member?.id, selectedDateStr]);
 
@@ -198,6 +195,10 @@ export function MemberScreen({
 
   function finishWorkout(effort: 'About Right' | 'Too Easy' | 'Too Hard') {
     if (!member) return;
+    if (assignmentSession?.status === 'completed') {
+      setFinishFeedback('This assigned workout is already logged.');
+      return;
+    }
 
     const parsedDuration = Number.parseInt(completedDuration, 10);
     if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
@@ -254,6 +255,7 @@ export function MemberScreen({
 
   function submitQuickLog() {
     if (!member) return;
+    if (quickLogFeedback.startsWith('Logged ')) return;
 
     const parsedDuration = Number.parseInt(quickLogDuration, 10);
     if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
@@ -328,6 +330,15 @@ export function MemberScreen({
     onUpdateMember(target.id, { hypeCount: (target.hypeCount ?? 0) + 1 });
   }
 
+  const readinessTrend = useMemo(() => {
+    const readiness = member?.readiness ?? 0;
+    return Array.from({ length: 7 }).map((_, i) => {
+      if (i === 6) return readiness;
+      const noise = Math.floor(Math.random() * 20) - 10;
+      return Math.max(1, Math.min(100, readiness + noise));
+    });
+  }, [member?.readiness]);
+
   if (!member) {
     return (
       <Screen>
@@ -350,14 +361,6 @@ export function MemberScreen({
   const readinessTone = scoreTone(member.readiness);
   const pulsePercent = Math.min(100, Math.round((teamPulse.weeklyVolume / weeklyGoal) * 100));
   const statusLabel = (member.streakDays ?? 0) >= 5 ? 'On Fire' : (member.streakDays ?? 0) >= 2 ? 'Active' : 'Ready';
-
-  const readinessTrend = useMemo(() => {
-    return Array.from({ length: 7 }).map((_, i) => {
-      if (i === 6) return member.readiness;
-      const noise = Math.floor(Math.random() * 20) - 10;
-      return Math.max(1, Math.min(100, member.readiness + noise));
-    });
-  }, [member.readiness]);
 
   const actionableInsight = member.readiness >= 75 
     ? "Readiness is high. Optimal time to build volume and push intensity."
@@ -507,7 +510,12 @@ export function MemberScreen({
         />
         <View style={styles.finishGrid}>
           {(['Too Easy', 'About Right', 'Too Hard'] as const).map((label) => (
-            <Pressable key={label} style={styles.finishButton} onPress={() => finishWorkout(label)}>
+            <Pressable
+              key={label}
+              style={[styles.finishButton, assignmentSession?.status === 'completed' && styles.finishButtonDisabled]}
+              onPress={() => finishWorkout(label)}
+              disabled={assignmentSession?.status === 'completed'}
+            >
               <Text style={styles.finishButtonText}>{label}</Text>
             </Pressable>
           ))}
@@ -575,12 +583,19 @@ export function MemberScreen({
         <TextInput
           style={styles.noteInput}
           value={quickLogNote}
-          onChangeText={setQuickLogNote}
+          onChangeText={(value) => {
+            setQuickLogNote(value);
+            if (quickLogFeedback.startsWith('Logged ')) setQuickLogFeedback('');
+          }}
           placeholder="Optional note for coach"
           placeholderTextColor={colours.soft}
           multiline
         />
-        <Pressable style={styles.logButton} onPress={submitQuickLog}>
+        <Pressable
+          style={[styles.logButton, quickLogFeedback.startsWith('Logged ') && styles.logButtonDisabled]}
+          onPress={submitQuickLog}
+          disabled={quickLogFeedback.startsWith('Logged ')}
+        >
           <Text style={styles.logButtonText}>Log Session</Text>
         </Pressable>
         {quickLogFeedback ? <Text style={styles.finishFeedback}>{quickLogFeedback}</Text> : null}
@@ -954,6 +969,9 @@ const styles = StyleSheet.create({
     borderColor: `${colours.green}60`,
     backgroundColor: colours.green,
   },
+  finishButtonDisabled: {
+    opacity: 0.45,
+  },
   finishButtonText: {
     ...typography.caption,
     color: colours.background,
@@ -1022,6 +1040,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: responsiveSpacing('md'),
+  },
+  logButtonDisabled: {
+    opacity: 0.45,
   },
   logButtonText: {
     ...typography.caption,
