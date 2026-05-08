@@ -26,6 +26,7 @@ import { LOCATION_TASK_NAME } from '../lib/backgroundTasks';
 import { getRuckMissionBrief, type RuckMissionBrief } from '../lib/aiGuidance';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
+import { strFromU8, unzipSync } from 'fflate';
 import { parseGpx } from '../lib/gpxParser';
 import { useTeamPresence, type Teammate } from '../lib/teamPresence';
 
@@ -105,10 +106,12 @@ type FieldMarkType = NonNullable<RuckCheckpoint['markType']>;
 type OverlayPoint = { id: string; label: string; latitude: number; longitude: number };
 type OverlayLine = { id: string; label: string; points: Array<{ lat: number; lon: number }> };
 type OverlayPolygon = { id: string; label: string; rings: Array<Array<{ lat: number; lon: number }>> };
+type MeasurementMode = 'range' | 'route' | 'area';
+type MeasurementPoint = { latitude: number; longitude: number };
 type MapOverlay = {
   id: string;
   name: string;
-  format: 'geojson' | 'kml';
+  format: 'geojson' | 'kml' | 'kmz';
   visible: boolean;
   color: string;
   points: OverlayPoint[];
@@ -309,11 +312,11 @@ function parseKmlCoordinateList(coordinatesText: string) {
     .filter((point): point is { lat: number; lon: number } => point != null);
 }
 
-function parseKmlOverlay(content: string, fileName: string, color: string): MapOverlay {
+function parseKmlOverlay(content: string, fileName: string, color: string, format: MapOverlay['format'] = 'kml'): MapOverlay {
   const overlay: MapOverlay = {
     id: `overlay-${Date.now()}`,
-    name: firstXmlText(content, 'name') ?? fileName.replace(/\.kml$/i, '') ?? 'KML Overlay',
-    format: 'kml',
+    name: firstXmlText(content, 'name') ?? fileName.replace(/\.(kml|kmz)$/i, '') ?? (format === 'kmz' ? 'KMZ Overlay' : 'KML Overlay'),
+    format,
     visible: true,
     color,
     points: [],
@@ -369,6 +372,82 @@ function parseKmlOverlay(content: string, fileName: string, color: string): MapO
   }
 
   return overlay;
+}
+
+function base64ToUint8Array(base64: string) {
+  const clean = base64.replace(/\s/g, '');
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const bytes: number[] = [];
+  let buffer = 0;
+  let bits = 0;
+
+  for (const char of clean) {
+    if (char === '=') break;
+    const value = chars.indexOf(char);
+    if (value < 0) continue;
+    buffer = (buffer << 6) | value;
+    bits += 6;
+    if (bits >= 8) {
+      bits -= 8;
+      bytes.push((buffer >> bits) & 0xff);
+    }
+  }
+
+  return new Uint8Array(bytes);
+}
+
+function extractKmlFromKmz(base64Content: string) {
+  const files = unzipSync(base64ToUint8Array(base64Content));
+  const fileNames = Object.keys(files);
+  const kmlName = fileNames.find((name) => /(^|\/)doc\.kml$/i.test(name))
+    ?? fileNames.find((name) => /\.kml$/i.test(name) && !name.includes('__MACOSX'));
+
+  if (!kmlName) throw new Error('KMZ has no KML document.');
+  return strFromU8(files[kmlName]);
+}
+
+function measurementPointToTrackPoint(point: MeasurementPoint): TrackPoint {
+  return {
+    latitude: point.latitude,
+    longitude: point.longitude,
+    altitude: null,
+    accuracy: null,
+    timestamp: 0,
+  };
+}
+
+function formatMeasureDistance(km: number) {
+  return km >= 1 ? `${km.toFixed(2)} km` : `${Math.round(km * 1000)} m`;
+}
+
+function calculateMeasurementDistance(points: MeasurementPoint[], closeLoop = false) {
+  if (points.length < 2) return 0;
+  const routePoints = closeLoop ? [...points, points[0]] : points;
+  return routePoints.slice(1).reduce((total, point, index) => (
+    total + distanceBetween(measurementPointToTrackPoint(routePoints[index]), measurementPointToTrackPoint(point))
+  ), 0);
+}
+
+function calculateMeasurementArea(points: MeasurementPoint[]) {
+  if (points.length < 3) return 0;
+  const earthRadiusMeters = 6371008.8;
+  const avgLat = points.reduce((total, point) => total + point.latitude, 0) / points.length;
+  const cosLat = Math.cos((avgLat * Math.PI) / 180);
+  const projected = points.map((point) => ({
+    x: earthRadiusMeters * (point.longitude * Math.PI / 180) * cosLat,
+    y: earthRadiusMeters * (point.latitude * Math.PI / 180),
+  }));
+  const twiceArea = projected.reduce((total, point, index) => {
+    const next = projected[(index + 1) % projected.length];
+    return total + point.x * next.y - next.x * point.y;
+  }, 0);
+  return Math.abs(twiceArea) / 2;
+}
+
+function formatMeasureArea(areaSquareMeters: number) {
+  if (areaSquareMeters >= 1000000) return `${(areaSquareMeters / 1000000).toFixed(2)} sq km`;
+  if (areaSquareMeters >= 10000) return `${(areaSquareMeters / 10000).toFixed(2)} ha`;
+  return `${Math.round(areaSquareMeters)} sq m`;
 }
 
 type RuckTemplate = {
@@ -616,6 +695,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [drawColor, setDrawColor] = useState('#ff4444');
   const [drawLines, setDrawLines] = useState<Array<{ color: string; points: Array<{ lat: number; lon: number }> }>>([]);
   const [currentDrawLine, setCurrentDrawLine] = useState<Array<{ lat: number; lon: number }> | null>(null);
+  const [measurementMode, setMeasurementMode] = useState<MeasurementMode | null>(null);
+  const [measurementPoints, setMeasurementPoints] = useState<MeasurementPoint[]>([]);
   // Team PLI
   const [teamEnabled, setTeamEnabled] = useState(false);
   // AI Mission Brief
@@ -634,6 +715,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   tapMarkModeRef.current = tapMarkMode;
   const activeMarkTypeRef = useRef(activeMarkType);
   activeMarkTypeRef.current = activeMarkType;
+  const measurementModeRef = useRef(measurementMode);
+  measurementModeRef.current = measurementMode;
 
   // Team PLI
   const { teammates, broadcast: broadcastTeamPosition, connected: teamConnected } = useTeamPresence(callsign, teamEnabled);
@@ -848,6 +931,40 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       return { overlay, pointFeatures, lineFeatures, polygonFeatures };
     });
   }, [effectiveMapCenter, renderViewport, visibleMapOverlays, mapZoom]);
+  const measurementMapPoints = useMemo(() => getMercatorRoutePoints(
+    measurementPoints.map((point) => ({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      altitude: null,
+      accuracy: null,
+      timestamp: 0,
+    })),
+    effectiveMapCenter,
+    renderViewport,
+    mapZoom
+  ), [measurementPoints, effectiveMapCenter, renderViewport, mapZoom]);
+  const measurementLinePoints = useMemo(() => {
+    if (measurementMapPoints.length < 2) return null;
+    const points = measurementMode === 'area' && measurementMapPoints.length >= 3
+      ? [...measurementMapPoints, measurementMapPoints[0]]
+      : measurementMapPoints;
+    return points.map((point) => `${point.x},${point.y}`).join(' ');
+  }, [measurementMapPoints, measurementMode]);
+  const measurementDistanceKm = useMemo(
+    () => calculateMeasurementDistance(measurementPoints, measurementMode === 'area'),
+    [measurementPoints, measurementMode]
+  );
+  const measurementAreaMeters = useMemo(
+    () => measurementMode === 'area' ? calculateMeasurementArea(measurementPoints) : 0,
+    [measurementPoints, measurementMode]
+  );
+  const measurementBearing = useMemo(() => {
+    if (measurementPoints.length < 2) return null;
+    return Math.round(bearingBetween(
+      measurementPointToTrackPoint(measurementPoints[0]),
+      measurementPointToTrackPoint(measurementPoints[measurementPoints.length - 1])
+    ));
+  }, [measurementPoints]);
   const bearingGuidance = useMemo(() => {
     if (!selectedCheckpoint || selectedCheckpointBearing == null) {
       return { label: 'NO CP', detail: 'select checkpoint', tone: colours.muted };
@@ -1088,6 +1205,23 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     }
   }
 
+  async function handleKmzImport() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const content = await FileSystem.readAsStringAsync(asset.uri, { encoding: 'base64' });
+      const kml = extractKmlFromKmz(content);
+      const overlay = parseKmlOverlay(kml, asset.name ?? 'KMZ Overlay', nextOverlayColor(), 'kmz');
+
+      addImportedOverlay(overlay);
+    } catch (error) {
+      console.error('KMZ import failed', error);
+      showAlert('Import Failed', 'Could not read KMZ overlay. Use a valid .kmz file containing a KML document.');
+    }
+  }
+
   function nextOverlayColor() {
     const colors = ['#facc15', '#60a5fa', '#34d399', '#f97316', '#a78bfa', colours.red];
     return colors[mapOverlays.length % colors.length];
@@ -1197,6 +1331,23 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     addCheckpoint(point, 'manual', activeMarkTypeRef.current);
   }
 
+  function addMeasurementPointAtMapEvent(x: number, y: number) {
+    const point = mapEventToPoint(x, y);
+    const mode = measurementModeRef.current;
+    if (!point || !mode) return;
+    const nextPoint = { latitude: point.latitude, longitude: point.longitude };
+    setMeasurementPoints((current) => (
+      mode === 'range' && current.length >= 2 ? [current[1], nextPoint] : [...current, nextPoint]
+    ));
+  }
+
+  function setActiveMeasurementMode(mode: MeasurementMode) {
+    setTapMarkMode(false);
+    setDrawMode(false);
+    setMeasurementMode((current) => current === mode ? null : mode);
+    setMeasurementPoints([]);
+  }
+
   const mapNormalGestures = useMemo(() => {
     const panGesture = Gesture.Pan()
       .enabled(Boolean(effectiveMapCenterRef.current))
@@ -1287,7 +1438,12 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       .numberOfTaps(1)
       .enabled(Boolean(effectiveMapCenterRef.current))
       .onEnd((event: { x: number; y: number }, success: boolean) => {
-        if (!success || !tapMarkModeRef.current) return;
+        if (!success) return;
+        if (measurementModeRef.current) {
+          addMeasurementPointAtMapEvent(event.x, event.y);
+          return;
+        }
+        if (!tapMarkModeRef.current) return;
         addCheckpointAtMapEvent(event.x, event.y);
       })
       .runOnJS(true);
@@ -2313,6 +2469,36 @@ function updateSelectedCheckpointHere() {
                     opacity={0.86}
                   />
                 )}
+                {measurementMode === 'area' && measurementLinePoints && measurementMapPoints.length >= 3 && (
+                  <Polygon
+                    points={measurementLinePoints}
+                    fill="rgba(250,204,21,0.16)"
+                    stroke="#facc15"
+                    strokeWidth={2.5}
+                    strokeLinejoin="round"
+                    opacity={0.9}
+                  />
+                )}
+                {measurementMode !== 'area' && measurementLinePoints && (
+                  <Polyline
+                    points={measurementLinePoints}
+                    fill="none"
+                    stroke="#facc15"
+                    strokeWidth={3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeDasharray={measurementMode === 'range' ? '6,5' : undefined}
+                    opacity={0.92}
+                  />
+                )}
+                {measurementMapPoints.map((point, index) => (
+                  <G key={`measure-${index}`} transform={`translate(${point.x}, ${point.y})`}>
+                    <Circle r={7} fill="#facc15" stroke="rgba(7,17,30,0.92)" strokeWidth={2} />
+                    <SvgText x={0} y={4} textAnchor="middle" fontSize="8" fontWeight="900" fill={colours.background}>
+                      {index + 1}
+                    </SvgText>
+                  </G>
+                ))}
                 {checkpointMapPoints.map((checkpoint) => (
                   <React.Fragment key={checkpoint.id}>
                     <Circle
@@ -2501,7 +2687,10 @@ function updateSelectedCheckpointHere() {
             </Pressable>
             <Pressable
               style={[styles.mapSelectButton, tapMarkMode && styles.mapSelectButtonActive, shadow.subtle]}
-              onPress={() => setTapMarkMode((value) => !value)}
+              onPress={() => {
+                setMeasurementMode(null);
+                setTapMarkMode((value) => !value);
+              }}
             >
               <Ionicons name="finger-print-outline" size={14} color={tapMarkMode ? colours.background : colours.cyan} />
               <Text style={[styles.mapSelectButtonText, tapMarkMode && styles.mapSelectButtonTextActive]}>Tap Mark</Text>
@@ -2689,10 +2878,38 @@ function updateSelectedCheckpointHere() {
                   </View>
                   {/* Draw mode row */}
                   <View style={styles.forgePanelRow}>
-                    <Pressable style={[styles.forgePanelBtn, drawMode && { backgroundColor: drawColor, borderColor: drawColor }]} onPress={() => setDrawMode((v) => !v)}>
+                    <Pressable style={[styles.forgePanelBtn, drawMode && { backgroundColor: drawColor, borderColor: drawColor }]} onPress={() => {
+                      setMeasurementMode(null);
+                      setDrawMode((v) => !v);
+                    }}>
                       <Ionicons name="pencil-outline" size={13} color={drawMode ? colours.background : colours.text} />
                       <Text style={[styles.forgePanelBtnText, drawMode && { color: colours.background }]}>{drawMode ? 'Drawing ON' : 'Draw Mode'}</Text>
                     </Pressable>
+                    {(['range', 'route', 'area'] as const).map((mode) => {
+                      const selected = measurementMode === mode;
+                      return (
+                        <Pressable
+                          key={mode}
+                          style={[styles.forgePanelBtn, selected && { backgroundColor: '#facc15', borderColor: '#facc15' }]}
+                          onPress={() => setActiveMeasurementMode(mode)}
+                        >
+                          <Ionicons
+                            name={mode === 'range' ? 'resize-outline' : mode === 'route' ? 'analytics-outline' : 'triangle-outline'}
+                            size={13}
+                            color={selected ? colours.background : '#facc15'}
+                          />
+                          <Text style={[styles.forgePanelBtnText, selected && { color: colours.background }]}>
+                            {mode === 'range' ? 'Range' : mode === 'route' ? 'Route' : 'Area'}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                    {measurementPoints.length > 0 && (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => setMeasurementPoints([])}>
+                        <Ionicons name="close" size={13} color={colours.red} />
+                        <Text style={[styles.forgePanelBtnText, { color: colours.red }]}>Clear Measure</Text>
+                      </Pressable>
+                    )}
                     {drawLines.length > 0 && (
                       <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => { setDrawLines([]); setCurrentDrawLine(null); }}>
                         <Ionicons name="trash-outline" size={13} color={colours.red} />
@@ -2707,6 +2924,28 @@ function updateSelectedCheckpointHere() {
                       />
                     ))}
                   </View>
+                  {measurementMode && (
+                    <View style={styles.measurePanel}>
+                      <View style={styles.measurePanelItem}>
+                        <Text style={styles.measurePanelValue}>{measurementPoints.length}</Text>
+                        <Text style={styles.measurePanelLabel}>PTS</Text>
+                      </View>
+                      <View style={styles.measurePanelItem}>
+                        <Text style={styles.measurePanelValue}>{formatMeasureDistance(measurementDistanceKm)}</Text>
+                        <Text style={styles.measurePanelLabel}>{measurementMode === 'area' ? 'PERIMETER' : 'DISTANCE'}</Text>
+                      </View>
+                      <View style={styles.measurePanelItem}>
+                        <Text style={styles.measurePanelValue}>{measurementBearing == null ? '--' : formatHeading(measurementBearing)}</Text>
+                        <Text style={styles.measurePanelLabel}>BRG</Text>
+                      </View>
+                      {measurementMode === 'area' && (
+                        <View style={styles.measurePanelItem}>
+                          <Text style={styles.measurePanelValue}>{formatMeasureArea(measurementAreaMeters)}</Text>
+                          <Text style={styles.measurePanelLabel}>AREA</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
                 </View>
               )}
               {atakTab === 'cp' && (
@@ -2733,7 +2972,10 @@ function updateSelectedCheckpointHere() {
                     </Pressable>
                     <Pressable
                       style={[styles.forgePanelBtn, tapMarkMode && styles.forgePanelBtnActive]}
-                      onPress={() => setTapMarkMode((value) => !value)}
+                      onPress={() => {
+                        setMeasurementMode(null);
+                        setTapMarkMode((value) => !value);
+                      }}
                     >
                       <Ionicons name="finger-print-outline" size={13} color={tapMarkMode ? colours.background : colours.text} />
                       <Text style={[styles.forgePanelBtnText, tapMarkMode && styles.forgePanelBtnTextActive]}>{tapMarkMode ? 'Tap Drop ON' : 'Tap Drop'}</Text>
@@ -2823,6 +3065,10 @@ function updateSelectedCheckpointHere() {
                       <Ionicons name="map-outline" size={13} color="#34d399" />
                       <Text style={[styles.forgePanelBtnText, { color: '#34d399' }]}>Import KML</Text>
                     </Pressable>
+                    <Pressable style={[styles.forgePanelBtn, { flex: 1 }]} onPress={handleKmzImport}>
+                      <Ionicons name="archive-outline" size={13} color="#a78bfa" />
+                      <Text style={[styles.forgePanelBtnText, { color: '#a78bfa' }]}>Import KMZ</Text>
+                    </Pressable>
                     {importedRoute.length > 0 && (
                       <Pressable style={[styles.forgePanelBtn, { borderColor: colours.red }]} onPress={() => { setImportedRoute([]); setImportedRouteName(null); }}>
                         <Ionicons name="close" size={13} color={colours.red} />
@@ -2838,7 +3084,7 @@ function updateSelectedCheckpointHere() {
                     </Text>
                   )}
                   {!importedRouteName && mapOverlays.length === 0 && (
-                    <Text style={styles.forgePanelHint}>Overlay manager supports GPX routes plus GeoJSON/KML points, lines, and areas.</Text>
+                    <Text style={styles.forgePanelHint}>Overlay manager supports GPX routes plus GeoJSON, KML, and KMZ points, lines, and areas.</Text>
                   )}
                   {mapOverlays.length > 0 && (
                     <View style={styles.overlayList}>
@@ -4885,6 +5131,21 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(4,8,15,0.46)',
   },
+  measurePanel: {
+    minHeight: 52,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(250,204,21,0.28)',
+    backgroundColor: 'rgba(250,204,21,0.08)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  measurePanelItem: { flex: 1, alignItems: 'center' },
+  measurePanelValue: { color: '#facc15', fontSize: 12, fontWeight: '900', textAlign: 'center' },
+  measurePanelLabel: { color: colours.muted, fontSize: 8, fontWeight: '900', marginTop: 2, textAlign: 'center' },
   forgeNavRow: {
     flexDirection: 'row', justifyContent: 'space-between', gap: 4,
   },
