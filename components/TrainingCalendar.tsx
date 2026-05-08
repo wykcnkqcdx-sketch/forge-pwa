@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colours, typography } from '../theme';
 import type { TrainingSession } from '../data/domain';
+import { statusColors } from '../utils/styling';
 
 type Props = {
   sessions: TrainingSession[];
@@ -34,15 +35,15 @@ export function TrainingCalendar({ sessions }: Props) {
     const calStart = new Date(today);
     calStart.setDate(today.getDate() - dayOfWeek - 21); // 4 full weeks back
 
-    const sessionMap: Record<string, TrainingSession['type'][]> = {};
+    const sessionMap: Record<string, TrainingSession[]> = {};
     for (const s of sessions) {
       if (!s.completedAt) continue;
       const key = s.completedAt.slice(0, 10);
       if (!sessionMap[key]) sessionMap[key] = [];
-      sessionMap[key].push(s.type);
+      sessionMap[key].push(s);
     }
 
-    const weeksArr: Array<Array<{ date: string; types: TrainingSession['type'][]; isToday: boolean; isFuture: boolean }>> = [];
+    const weeksArr: Array<Array<{ date: string; types: TrainingSession['type'][]; isToday: boolean; isFuture: boolean; maxRpe: number }>> = [];
     const todayStr = isoDateStr(today);
     const monthLabelSet: Array<{ label: string; col: number }> = [];
     let lastMonth = -1;
@@ -57,11 +58,14 @@ export function TrainingCalendar({ sessions }: Props) {
           lastMonth = cell.getMonth();
           monthLabelSet.push({ label: cell.toLocaleString('default', { month: 'short' }).toUpperCase(), col: d });
         }
+        const daySessions = sessionMap[dateStr] ?? [];
+        const maxRpe = daySessions.reduce((max, s) => Math.max(max, s.rpe || 0), 0);
         week.push({
           date: dateStr,
-          types: sessionMap[dateStr] ?? [],
+          types: daySessions.map(s => s.type),
           isToday: dateStr === todayStr,
           isFuture: cell > today,
+          maxRpe,
         });
       }
       weeksArr.push(week);
@@ -84,6 +88,9 @@ export function TrainingCalendar({ sessions }: Props) {
               key={cell.date}
               style={[
                 styles.cell,
+                cell.maxRpe >= 8 && { backgroundColor: statusColors(colours.red).bgMed, borderColor: statusColors(colours.red).borderMed, borderWidth: 1 },
+                cell.maxRpe >= 5 && cell.maxRpe < 8 && { backgroundColor: statusColors(colours.amber).bgMed, borderColor: statusColors(colours.amber).borderMed, borderWidth: 1 },
+                cell.maxRpe > 0 && cell.maxRpe < 5 && { backgroundColor: statusColors(colours.green).bgMed, borderColor: statusColors(colours.green).borderMed, borderWidth: 1 },
                 cell.isToday && styles.cellToday,
                 cell.isFuture && styles.cellFuture,
               ]}
@@ -110,6 +117,14 @@ export function TrainingCalendar({ sessions }: Props) {
             <Text style={styles.legendLabel}>{type}</Text>
           </View>
         ))}
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: statusColors(colours.red).bgMed, borderColor: statusColors(colours.red).borderMed, borderWidth: 1 }]} />
+          <Text style={styles.legendLabel}>High RPE (8-10)</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, { backgroundColor: statusColors(colours.amber).bgMed, borderColor: statusColors(colours.amber).borderMed, borderWidth: 1 }]} />
+          <Text style={styles.legendLabel}>Med RPE (5-7)</Text>
+        </View>
       </View>
     </View>
   );
