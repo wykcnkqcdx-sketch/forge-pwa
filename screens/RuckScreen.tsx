@@ -489,7 +489,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const displayHeading = activeHeading ?? routeBearing;
   const altitudeFt = currentAltitude != null ? Math.round(currentAltitude * 3.28084) : null;
   const atakPanelHeight = atakTab === 'ops' ? 286 : 168;
-  const atakBottomHeight = 52 + 56 + (atakTab ? atakPanelHeight : 0); // actionRow + tabBar + panel
+  const atakBottomHeight = 46 + (atakTab ? atakPanelHeight : 0); // unified bottom bar + panel
 
   // Imported GPX route as SVG-ready point string
   const importedRouteLinePoints = useMemo(() => {
@@ -2780,6 +2780,14 @@ function updateSelectedCheckpointHere() {
           </Pressable>
         </View>
 
+        {/* ── Floating timer pill (bottom-left, above bottom bar) ─── */}
+        {startTime && (
+          <View style={[styles.forgeTimerPill, { bottom: atakBottomHeight + 10 }]} pointerEvents="none">
+            <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.atakTimerText} />
+            <Text style={styles.atakTimerLabel}>{currentDistance.toFixed(2)} km</Text>
+          </View>
+        )}
+
         {/* ── Bottom-right MGRS / Telemetry HUD ───────────────────── */}
         <View style={[styles.atakHud, { bottom: atakBottomHeight + 10 }]} pointerEvents="box-none">
           {editingCallsign ? (
@@ -3239,64 +3247,58 @@ function updateSelectedCheckpointHere() {
             </View>
           )}
 
-          {/* Action Row: Timer + Tracking Buttons */}
-          <View style={styles.forgeActionRow}>
-            {startTime && (
-              <View style={styles.atakTimerBox}>
-                <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.atakTimerText} />
-                <Text style={styles.atakTimerLabel}>{currentDistance.toFixed(2)} km</Text>
-              </View>
-            )}
-            {isStarting ? (
-              <View style={[styles.atakActionBtn, { flex: 1, opacity: 0.6 }]}>
-                <Ionicons name="sync" size={18} color={colours.background} />
-                <Text style={styles.atakActionBtnText}>Acquiring GPS...</Text>
-              </View>
-            ) : isTracking ? (
-              <Pressable style={[styles.atakActionBtn, styles.atakStopBtn, { flex: 1 }]} onPress={stopTracking}>
-                <Ionicons name="stop-circle" size={18} color="#fff" />
-                <Text style={styles.atakActionBtnText}>Stop</Text>
-              </Pressable>
-            ) : startTime ? (
-              <>
-                <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={resumeTracking}>
-                  <Ionicons name="play" size={18} color={colours.background} />
-                  <Text style={styles.atakActionBtnText}>Resume</Text>
+          {/* Unified bottom bar: action control + icon tabs */}
+          <View style={styles.forgeBottomBar}>
+            <View style={styles.forgeBottomBarAction}>
+              {isStarting ? (
+                <View style={[styles.atakActionBtnSm, { opacity: 0.6, backgroundColor: colours.cyan }]}>
+                  <Ionicons name="sync" size={14} color={colours.background} />
+                  <Text style={styles.atakActionBtnTextSm}>GPS...</Text>
+                </View>
+              ) : isTracking ? (
+                <Pressable style={[styles.atakActionBtnSm, styles.atakStopBtn]} onPress={stopTracking}>
+                  <Ionicons name="stop-circle" size={15} color="#fff" />
+                  <Text style={styles.atakActionBtnTextSm}>Stop</Text>
                 </Pressable>
-                <Pressable style={[styles.atakActionBtn, styles.atakSaveBtn, { flex: 1 }]} onPress={openRuckReview}>
-                  <Ionicons name="checkmark-circle" size={18} color={colours.background} />
-                  <Text style={styles.atakActionBtnText}>Review</Text>
+              ) : startTime ? (
+                <View style={{ flexDirection: 'row', gap: 5 }}>
+                  <Pressable style={[styles.atakActionBtnSm, { backgroundColor: colours.cyan }]} onPress={resumeTracking}>
+                    <Ionicons name="play" size={14} color={colours.background} />
+                    <Text style={styles.atakActionBtnTextSm}>Resume</Text>
+                  </Pressable>
+                  <Pressable style={[styles.atakActionBtnSm, styles.atakSaveBtn]} onPress={openRuckReview}>
+                    <Ionicons name="checkmark-circle" size={14} color={colours.background} />
+                    <Text style={styles.atakActionBtnTextSm}>Review</Text>
+                  </Pressable>
+                  <Pressable style={[styles.atakActionBtnSm, styles.atakDiscardBtn]} onPress={discardTrackedRuck}>
+                    <Ionicons name="close" size={15} color={colours.text} />
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable style={[styles.atakActionBtnSm, { backgroundColor: colours.cyan }]} onPress={() => startTracking()}>
+                  <Ionicons name="play-circle" size={14} color={colours.background} />
+                  <Text style={styles.atakActionBtnTextSm}>Start Track</Text>
                 </Pressable>
-                <Pressable style={[styles.atakActionBtn, styles.atakDiscardBtn]} onPress={discardTrackedRuck}>
-                  <Ionicons name="close" size={20} color={colours.text} />
+              )}
+            </View>
+            <View style={styles.forgeTabGroup}>
+              {([
+                ['map', 'map-outline', 'MAP'],
+                ['cp', 'flag-outline', 'CP'],
+                ['offline', 'cloud-download-outline', 'OFFLINE'],
+                ['nav', 'navigate-outline', 'NAV'],
+                ['ops', 'radio-outline', 'OPS'],
+              ] as const).map(([tab, icon, label]) => (
+                <Pressable
+                  key={tab}
+                  style={[styles.forgeTab, atakTab === tab && styles.forgeTabActive]}
+                  onPress={() => setAtakTab(atakTab === tab ? null : tab)}
+                >
+                  <Ionicons name={icon} size={16} color={atakTab === tab ? colours.cyan : colours.muted} />
+                  {atakTab === tab && <Text style={styles.forgeTabTextActive}>{label}</Text>}
                 </Pressable>
-              </>
-            ) : (
-              <Pressable style={[styles.atakActionBtn, { flex: 1 }]} onPress={() => startTracking()}>
-                <Ionicons name="play-circle" size={18} color={colours.background} />
-                <Text style={styles.atakActionBtnText}>Start GPS Tracking</Text>
-              </Pressable>
-            )}
-          </View>
-
-          {/* FORGE Tab Bar */}
-          <View style={styles.forgeTabBar}>
-            {([
-              ['map', 'map-outline', 'MAP'],
-              ['cp', 'flag-outline', 'CP'],
-              ['offline', 'cloud-download-outline', 'OFFLINE'],
-              ['nav', 'navigate-outline', 'NAV'],
-              ['ops', 'radio-outline', 'OPS'],
-            ] as const).map(([tab, icon, label]) => (
-              <Pressable
-                key={tab}
-                style={[styles.forgeTab, atakTab === tab && styles.forgeTabActive]}
-                onPress={() => setAtakTab(atakTab === tab ? null : tab)}
-              >
-                <Ionicons name={icon} size={15} color={atakTab === tab ? colours.cyan : colours.muted} />
-                <Text style={[styles.forgeTabText, atakTab === tab && styles.forgeTabTextActive]}>{label}</Text>
-              </Pressable>
-            ))}
+              ))}
+            </View>
           </View>
         </View>
       </SafeAreaView>
@@ -5152,7 +5154,6 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: 'rgba(103,232,249,0.16)',
     zIndex: 10,
   },
-  atakTimerBox: { paddingHorizontal: 6, alignItems: 'center', minWidth: 72 },
   atakTimerText: { color: colours.text, fontSize: 18, fontWeight: '900' },
   atakTimerLabel: { color: colours.cyan, fontSize: 11, fontWeight: '900', marginTop: 1 },
   atakActionBtn: {
@@ -5340,23 +5341,34 @@ const styles = StyleSheet.create({
   forgeNavItem: { flex: 1, alignItems: 'center' },
   forgeNavValue: { color: colours.text, fontSize: 13, fontWeight: '900', letterSpacing: 0.3 },
   forgeNavLabel: { color: colours.muted, fontSize: 9, fontWeight: '700', marginTop: 2, textAlign: 'center' },
-  forgeActionRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 12, paddingTop: 10, paddingBottom: 6,
+  forgeTimerPill: {
+    position: 'absolute', left: 10,
+    backgroundColor: 'rgba(4,8,15,0.82)',
+    borderWidth: 1, borderColor: 'rgba(103,232,249,0.28)',
+    borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6,
+    alignItems: 'center', minWidth: 72,
   },
-  forgeTabBar: {
-    flexDirection: 'row', paddingBottom: 16, paddingTop: 2,
-    borderTopWidth: 1, borderTopColor: 'rgba(103,232,249,0.12)',
+  forgeBottomBar: {
+    flexDirection: 'row', alignItems: 'center',
+    paddingHorizontal: 8, paddingTop: 5, paddingBottom: 12, gap: 6,
+  },
+  forgeBottomBarAction: { alignItems: 'center', justifyContent: 'center' },
+  forgeTabGroup: {
+    flex: 1, flexDirection: 'row', justifyContent: 'space-around',
+    borderLeftWidth: 1, borderLeftColor: 'rgba(103,232,249,0.12)',
   },
   forgeTab: {
     flex: 1, alignItems: 'center', justifyContent: 'center',
-    paddingVertical: 7, gap: 3,
+    paddingVertical: 5, gap: 2,
   },
-  forgeTabActive: {
-    borderTopWidth: 2, borderTopColor: colours.cyan,
-  },
+  forgeTabActive: { borderTopWidth: 2, borderTopColor: colours.cyan },
   forgeTabText: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
-  forgeTabTextActive: { color: colours.cyan },
+  forgeTabTextActive: { color: colours.cyan, fontSize: 9, fontWeight: '900', letterSpacing: 0.8 },
+  atakActionBtnSm: {
+    minHeight: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 5, borderRadius: 8, paddingHorizontal: 10,
+  },
+  atakActionBtnTextSm: { color: colours.background, fontSize: 11, fontWeight: '900' },
   forgeColorDot: {
     width: 18, height: 18, borderRadius: 9,
     borderWidth: 1.5, borderColor: 'transparent',
