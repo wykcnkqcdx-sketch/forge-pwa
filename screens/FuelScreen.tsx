@@ -15,6 +15,7 @@ import { fuelProfile, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, MealEntry } from '../data/domain';
 import { buildPerformanceProfile } from '../lib/performance';
 import { readinessSleepScore } from '../lib/readiness';
+import { addDaysToDateKey, isSameLocalDate, toLocalDateKey } from '../utils/date';
 
 type WeightGoal = 'loss' | 'maintain' | 'gain';
 
@@ -42,6 +43,12 @@ const rpeScale = [
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(max, Math.max(min, value));
+}
+
+function parseNonNegativeNumber(value: string) {
+  if (!value.trim()) return 0;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function getBmiCategory(bmi: number) {
@@ -103,7 +110,7 @@ export function FuelScreen({
 }) {
   const { width: screenWidth } = useWindowDimensions();
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayStr = toLocalDateKey();
   const [selectedDateStr, setSelectedDateStr] = useState(todayStr);
 
   const [goal, setGoal] = useState<WeightGoal>('maintain');
@@ -132,11 +139,7 @@ export function FuelScreen({
 
   function changeDateOffset(offset: number) {
     if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setSelectedDateStr((prev) => {
-      const [y, m, d] = prev.split('-').map(Number);
-      const date = new Date(y, m - 1, d + offset);
-      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    });
+    setSelectedDateStr((prev) => addDaysToDateKey(prev, offset));
   }
 
   const isToday = selectedDateStr === todayStr;
@@ -155,11 +158,11 @@ export function FuelScreen({
   }, [loggedProtein, loggedCarbs, loggedFat]);
 
   async function saveMealEntry() {
-    const cals = Number.parseInt(mealCals, 10);
-    const protein = Number.parseInt(mealProtein, 10) || 0;
-    const carbs = Number.parseInt(mealCarbs, 10) || 0;
-    const fat = Number.parseInt(mealFat, 10) || 0;
-    if (!mealName.trim() || !cals) return;
+    const cals = parseNonNegativeNumber(mealCals);
+    const protein = parseNonNegativeNumber(mealProtein);
+    const carbs = parseNonNegativeNumber(mealCarbs);
+    const fat = parseNonNegativeNumber(mealFat);
+    if (!mealName.trim() || cals === null || cals <= 0 || protein === null || carbs === null || fat === null) return;
     
     setIsSavingMeal(true);
     
@@ -187,7 +190,7 @@ export function FuelScreen({
 
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
   const displayedReadiness = useMemo(() => {
-    const logsOnDate = readinessLogs.filter((log) => log.date.startsWith(selectedDateStr) || new Date(log.date).toISOString().slice(0, 10) === selectedDateStr);
+    const logsOnDate = readinessLogs.filter((log) => isSameLocalDate(log.date, selectedDateStr));
     return logsOnDate.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
   }, [readinessLogs, selectedDateStr]);
   const sleepScore = displayedReadiness ? readinessSleepScore(displayedReadiness) : undefined;
