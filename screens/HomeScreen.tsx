@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Pressable, Platform } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Platform, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { PieChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
@@ -66,6 +67,8 @@ export function HomeScreen({
   member?: SquadMember | null;
   secondaryActionLabel?: string;
 }) {
+  const screenWidth = Dimensions.get('window').width;
+  const hasSessions = sessions.length > 0;
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
   const displayName = member?.gymName || member?.name;
   const memberReadinessLogs = useMemo(
@@ -181,6 +184,34 @@ export function HomeScreen({
     ];
     return blockers;
   }, [latestReadiness, needsReadinessCheckIn]);
+
+  const typeDistributionData = useMemo(() => {
+    if (!hasSessions) return [];
+    const counts: Record<string, number> = {};
+    sessions.forEach(s => {
+      counts[s.type] = (counts[s.type] || 0) + 1;
+    });
+    
+    const chartColors: Record<string, string> = {
+      Ruck: colours.amber,
+      Strength: colours.green,
+      Run: colours.cyan,
+      Cardio: colours.violet,
+      Mobility: colours.textSoft,
+      Workout: colours.sand,
+      Resistance: '#f472b6'
+    };
+
+    return Object.entries(counts)
+      .map(([type, count]) => ({
+        name: type,
+        population: count,
+        color: chartColors[type] || colours.cyan,
+        legendFontColor: colours.muted,
+        legendFontSize: 11
+      }))
+      .sort((a, b) => b.population - a.population);
+  }, [sessions, hasSessions]);
 
   // Recommended session
   const recommendedSession = useMemo(() => {
@@ -311,6 +342,16 @@ export function HomeScreen({
           <Text style={styles.opsecText}>Offline · Private</Text>
         </View>
       </View>
+
+      {hasSessions && (
+        <View style={styles.insightPanel}>
+          <Ionicons name="bulb-outline" size={20} color={colours.cyan} />
+          <Text style={styles.insightText}>
+            {performance.readiness >= 75 ? "Readiness is optimal. Ready for high-intensity work." : "Readiness is compromised. Prioritize recovery today."}
+            {performance.loadRisk === 'High' ? " High load risk detected. Monitor strain." : ""}
+          </Text>
+        </View>
+      )}
 
       {/* 7-day activity strip */}
       <View style={styles.stripContainer}>
@@ -582,6 +623,27 @@ export function HomeScreen({
         </Pressable>
       </Card>
 
+      {/* Training Distribution */}
+      {hasSessions && typeDistributionData.length > 0 && (
+        <Card>
+          <Text style={styles.sectionTitle}>Training Distribution</Text>
+          <Text style={[styles.muted, { marginBottom: 10 }]}>By session type</Text>
+          <PieChart
+            data={typeDistributionData}
+            width={screenWidth - 48}
+            height={160}
+            chartConfig={{
+              color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+            }}
+            accessor="population"
+            backgroundColor="transparent"
+            paddingLeft="0"
+            center={[10, 0]}
+            absolute
+          />
+        </Card>
+      )}
+
       {/* Recent Load */}
       <View style={styles.recentHeader}>
         <Text style={styles.sectionTitle}>Recent Load</Text>
@@ -620,6 +682,7 @@ export function HomeScreen({
 }
 
 const styles = StyleSheet.create({
+  muted: { ...typography.caption, color: colours.muted },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1187,5 +1250,23 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 17,
     marginTop: 2,
+  },
+  insightPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.25)',
+    borderRadius: 12,
+    padding: responsiveSpacing('md'),
+    marginBottom: responsiveSpacing('md'),
+  },
+  insightText: {
+    ...typography.caption,
+    color: colours.cyan,
+    flex: 1,
+    lineHeight: 18,
+    fontWeight: '800',
   },
 });
