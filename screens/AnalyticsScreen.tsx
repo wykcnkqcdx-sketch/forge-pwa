@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Dimensions, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { Platform } from 'react-native';
 import { LineChart, PieChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -143,12 +145,34 @@ export function AnalyticsScreen({
   const [sortOrder, setSortOrder] = useState<'latest' | 'score'>('latest');
   const [displayLimit, setDisplayLimit] = useState(10);
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDateStr, setSelectedDateStr] = useState<string | null>(null);
+
+  function changeDateOffset(offset: number) {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedDateStr((prev) => {
+      const baseDate = prev || todayStr;
+      const [y, m, d] = baseDate.split('-').map(Number);
+      const date = new Date(y, m - 1, d + offset);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    });
+  }
+
+  const isToday = selectedDateStr === todayStr;
+  const dateLabel = !selectedDateStr ? "All Sessions" : isToday ? "Today's Log" : (() => {
+    const [y, m, d] = selectedDateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  })();
+
   useEffect(() => {
     setDisplayLimit(10);
-  }, [filterType, sortOrder]);
+  }, [filterType, sortOrder, selectedDateStr]);
 
   const filteredSessions = useMemo(() => {
     let result = orderedSessions;
+    if (selectedDateStr) {
+      result = result.filter((s) => s.completedAt && (s.completedAt.startsWith(selectedDateStr) || new Date(s.completedAt).toISOString().slice(0, 10) === selectedDateStr));
+    }
     if (filterType !== 'All') {
       result = result.filter((s) => s.type === filterType);
     }
@@ -156,7 +180,7 @@ export function AnalyticsScreen({
       result = [...result].sort((a, b) => b.score - a.score);
     }
     return result;
-  }, [orderedSessions, filterType, sortOrder]);
+  }, [orderedSessions, selectedDateStr, filterType, sortOrder]);
 
   const displayedSessions = filteredSessions.slice(0, displayLimit);
 
@@ -399,7 +423,17 @@ export function AnalyticsScreen({
       </Card>
 
       <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>SESSION LOG</Text>
+        <View style={styles.dateNav}>
+          <Pressable onPress={() => changeDateOffset(-1)} hitSlop={12}>
+            <Ionicons name="chevron-back" size={20} color={colours.cyan} />
+          </Pressable>
+          <Pressable onPress={() => setSelectedDateStr(selectedDateStr ? null : todayStr)}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>{dateLabel}</Text>
+          </Pressable>
+          <Pressable onPress={() => changeDateOffset(1)} hitSlop={12} disabled={!selectedDateStr || isToday} style={{ opacity: (!selectedDateStr || isToday) ? 0.3 : 1 }}>
+            <Ionicons name="chevron-forward" size={20} color={colours.cyan} />
+          </Pressable>
+        </View>
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Pressable style={styles.pdfBtn} onPress={() => exportSessionsToPdf(sessions, 'Training Log')}>
             <Ionicons name="download-outline" size={12} color={colours.cyan} />
@@ -465,7 +499,7 @@ export function AnalyticsScreen({
           <View style={[styles.logEmptyState, shadow.subtle]}>
             <Ionicons name="funnel-outline" size={22} color={colours.cyan} />
             <Text style={styles.emptyTitle}>No matches</Text>
-            <Text style={styles.logEmptyText}>No sessions found for the selected filter.</Text>
+            <Text style={styles.logEmptyText}>{selectedDateStr ? `No sessions found for ${isToday ? 'today' : 'this date'}.` : 'No sessions found for the selected filter.'}</Text>
           </View>
         )
       ) : (
@@ -722,6 +756,7 @@ const styles = StyleSheet.create({
     marginBottom: 2,
     marginTop: responsiveSpacing('md'),
   },
+  dateNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sectionTitle: { ...typography.h4, color: colours.text, letterSpacing: 0.2 },
   sortBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: statusColors(colours.cyan).bgMed, paddingHorizontal: responsiveSpacing('sm'), paddingVertical: 5, borderRadius: 6, borderWidth: 1, borderColor: statusColors(colours.cyan).borderMed },
   sortBtnText: { ...typography.label, color: colours.cyan, letterSpacing: 1, fontWeight: '900' },

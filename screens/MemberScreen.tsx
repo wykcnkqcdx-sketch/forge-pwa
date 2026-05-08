@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
 import { Screen } from '../components/Screen';
@@ -103,6 +105,24 @@ export function MemberScreen({
     ? `${pendingSyncCount} record${pendingSyncCount === 1 ? '' : 's'} pending sync.`
     : 'Assignments and workout completions sync automatically when connected.';
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDateStr, setSelectedDateStr] = useState(todayStr);
+
+  function changeDateOffset(offset: number) {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedDateStr((prev) => {
+      const [y, m, d] = prev.split('-').map(Number);
+      const date = new Date(y, m - 1, d + offset);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    });
+  }
+
+  const isToday = selectedDateStr === todayStr;
+  const dateLabel = isToday ? "Today's Activity" : (() => {
+    const [y, m, d] = selectedDateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  })();
+
   const teamPulse = useMemo(() => {
     const source = teamMembers.length ? teamMembers : members;
     const visible = source.filter((item) => !item.ghostMode || item.id === member?.id);
@@ -121,6 +141,15 @@ export function MemberScreen({
 
     return { weeklyVolume, readiness, compliance, atRisk, recent, count: source.length };
   }, [member?.id, members, teamMembers]);
+
+  const displayedCompletions = useMemo(() => {
+    const source = teamMembers.length ? teamMembers : members;
+    const visibleIds = new Set(source.filter((item) => !item.ghostMode || item.id === member?.id).map(m => m.id));
+    
+    return workoutCompletions
+      .filter(c => visibleIds.has(c.memberId) && (c.completedAt.startsWith(selectedDateStr) || new Date(c.completedAt).toISOString().slice(0, 10) === selectedDateStr))
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+  }, [workoutCompletions, teamMembers, members, member?.id, selectedDateStr]);
 
   useEffect(() => {
     if (!member?.assignmentSession) return;
@@ -535,18 +564,28 @@ export function MemberScreen({
       </Card>
 
       <Card>
-        <Text style={styles.cardTitle}>Recent Activity</Text>
-        {teamPulse.recent.length ? teamPulse.recent.map((item) => {
-          const isSelf = item.id === member.id;
-          const name = item.ghostMode && !isSelf ? 'A teammate' : item.gymName || item.name;
+        <View style={styles.dateNav}>
+          <Pressable onPress={() => changeDateOffset(-1)} hitSlop={12}>
+            <Ionicons name="chevron-back" size={20} color={colours.cyan} />
+          </Pressable>
+          <Text style={[styles.cardTitle, { marginBottom: 0 }]}>{dateLabel}</Text>
+          <Pressable onPress={() => changeDateOffset(1)} hitSlop={12} disabled={isToday} style={{ opacity: isToday ? 0.3 : 1 }}>
+            <Ionicons name="chevron-forward" size={20} color={colours.cyan} />
+          </Pressable>
+        </View>
+        {displayedCompletions.length ? displayedCompletions.map((completion) => {
+          const completionMember = members.find(m => m.id === completion.memberId);
+          if (!completionMember) return null;
+          const isSelf = completionMember.id === member.id;
+          const name = completionMember.ghostMode && !isSelf ? 'A teammate' : completionMember.gymName || completionMember.name;
           return (
-            <View key={item.id} style={styles.activityRow}>
+            <View key={completion.id} style={styles.activityRow}>
               <View style={styles.activityCopy}>
-                <Text style={styles.activityTitle}>{name} finished {item.lastWorkoutTitle ?? 'training'}</Text>
-                <Text style={styles.activityMeta}>{formatActivityTime(item.lastWorkoutAt)} - {item.hypeCount ?? 0} bumps</Text>
+                <Text style={styles.activityTitle}>{name} finished {completion.assignment ?? 'training'}</Text>
+                <Text style={styles.activityMeta}>{formatActivityTime(completion.completedAt)} - {completionMember.hypeCount ?? 0} bumps</Text>
               </View>
               {!isSelf ? (
-                <Pressable style={styles.hypeButton} onPress={() => sendHype(item)}>
+                <Pressable style={styles.hypeButton} onPress={() => sendHype(completionMember)}>
                   <Text style={styles.hypeButtonText}>Bump</Text>
                 </Pressable>
               ) : (
@@ -555,7 +594,7 @@ export function MemberScreen({
             </View>
           );
         }) : (
-          <Text style={styles.body}>No squad activity logged yet this week.</Text>
+          <Text style={styles.body}>No squad activity logged {isToday ? 'today' : 'for this date'}.</Text>
         )}
       </Card>
     </Screen>
@@ -663,6 +702,7 @@ const styles = StyleSheet.create({
     color: colours.text,
     marginBottom: responsiveSpacing('md'),
   },
+  dateNav: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: responsiveSpacing('md') },
   body: {
     color: colours.textSoft,
     fontSize: 16,
