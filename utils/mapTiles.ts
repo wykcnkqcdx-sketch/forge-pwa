@@ -81,7 +81,8 @@ export function getTileUrl(layer: MapLayerKey, zoom: number, x: number, y: numbe
 export function buildVisibleTiles(center: TrackPoint | undefined, viewport: MapViewport, layer: MapLayerKey, zoom = 15): MapTile[] {
   if (!center || viewport.width <= 0 || viewport.height <= 0) return [];
 
-  const centerPixel = latLonToWorldPixel(center.latitude, center.longitude, zoom);
+  const tileZoom = Math.round(zoom);
+  const centerPixel = latLonToWorldPixel(center.latitude, center.longitude, tileZoom);
   const minPixelX = centerPixel.x - viewport.width / 2;
   const minPixelY = centerPixel.y - viewport.height / 2;
   const maxPixelX = centerPixel.x + viewport.width / 2;
@@ -90,7 +91,7 @@ export function buildVisibleTiles(center: TrackPoint | undefined, viewport: MapV
   const maxTileX = Math.floor(maxPixelX / tileSize);
   const minTileY = Math.floor(minPixelY / tileSize);
   const maxTileY = Math.floor(maxPixelY / tileSize);
-  const maxTileIndex = 2 ** zoom - 1;
+  const maxTileIndex = 2 ** tileZoom - 1;
   const tiles: MapTile[] = [];
 
   for (let tileX = minTileX; tileX <= maxTileX; tileX += 1) {
@@ -98,8 +99,8 @@ export function buildVisibleTiles(center: TrackPoint | undefined, viewport: MapV
       if (tileY < 0 || tileY > maxTileIndex) continue;
 
       tiles.push({
-        id: `${layer}-${zoom}-${tileX}-${tileY}`,
-        url: getTileUrl(layer, zoom, tileX, tileY),
+        id: `${layer}-${tileZoom}-${tileX}-${tileY}`,
+        url: getTileUrl(layer, tileZoom, tileX, tileY),
         style: {
           position: 'absolute',
           left: tileX * tileSize - minPixelX,
@@ -117,12 +118,13 @@ export function buildVisibleTiles(center: TrackPoint | undefined, viewport: MapV
 export function getMercatorRoutePoints<T extends TrackPoint>(points: T[], center: TrackPoint | undefined, viewport: MapViewport, zoom = 15) {
   if (!center || viewport.width <= 0 || viewport.height <= 0) return [];
 
-  const centerPixel = latLonToWorldPixel(center.latitude, center.longitude, zoom);
+  const tileZoom = Math.round(zoom);
+  const centerPixel = latLonToWorldPixel(center.latitude, center.longitude, tileZoom);
   const minPixelX = centerPixel.x - viewport.width / 2;
   const minPixelY = centerPixel.y - viewport.height / 2;
 
   return points.map((point) => {
-    const worldPixel = latLonToWorldPixel(point.latitude, point.longitude, zoom);
+    const worldPixel = latLonToWorldPixel(point.latitude, point.longitude, tileZoom);
     return {
       ...point,
       x: worldPixel.x - minPixelX,

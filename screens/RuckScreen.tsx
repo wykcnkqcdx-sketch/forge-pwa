@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, PanResponder, StyleProp, TextStyle } from 'react-native';
+import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, StyleProp, TextStyle } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -717,7 +717,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       .runOnJS(true);
 
     return Gesture.Simultaneous(panGesture, pinchGesture, doubleTapGesture);
-  }, []);
+  }, [!!effectiveMapCenter]);
 
   useEffect(() => {
     if (activeHeading == null) return;
