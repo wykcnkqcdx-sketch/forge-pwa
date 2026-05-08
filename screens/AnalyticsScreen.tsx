@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { View, Text, StyleSheet, Pressable, TextInput, Dimensions, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { LineChart } from 'react-native-chart-kit';
+import { LineChart, PieChart } from 'react-native-chart-kit';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
@@ -57,6 +57,34 @@ export function AnalyticsScreen({
   }, [readinessLogs]);
   const latestReadinessIsStale = useMemo(() => isReadinessStale(getLatestReadinessLog(readinessLogs)), [readinessLogs]);
   const [loggingReadiness, setLoggingReadiness] = useState(false);
+
+  const typeDistributionData = useMemo(() => {
+    if (!hasSessions) return [];
+    const counts: Record<string, number> = {};
+    sessions.forEach(s => {
+      counts[s.type] = (counts[s.type] || 0) + 1;
+    });
+    
+    const colors: Record<string, string> = {
+      Ruck: colours.amber,
+      Strength: colours.green,
+      Run: colours.cyan,
+      Cardio: colours.violet,
+      Mobility: colours.textSoft,
+      Workout: colours.sand,
+      Resistance: '#f472b6'
+    };
+
+    return Object.entries(counts)
+      .map(([type, count]) => ({
+        name: type,
+        population: count,
+        color: colors[type] || colours.cyan,
+        legendFontColor: colours.muted,
+        legendFontSize: 11
+      }))
+      .sort((a, b) => b.population - a.population);
+  }, [sessions, hasSessions]);
 
   const trendChartData = useMemo(() => {
     const now = new Date();
@@ -181,6 +209,16 @@ export function AnalyticsScreen({
       <Text style={styles.muted}>Performance intelligence</Text>
       <Text style={styles.title}>Analytics</Text>
 
+      {hasSessions && (
+        <View style={styles.insightPanel}>
+          <Ionicons name="bulb-outline" size={20} color={colours.cyan} />
+          <Text style={styles.insightText}>
+            {compliance >= 80 ? "Compliance is solid. Maintain current volume." : "Compliance dropping. Aim for consistency this week."}
+            {performance.acuteChronicRatio > 1.3 ? " Load is ramping up fast. Monitor recovery." : ""}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.grid}>
         <MetricCard icon="speedometer" label="Readiness" value={`${performance.readiness}`} sub={performance.readinessLabel} tone={performance.readinessTone} />
         <MetricCard icon="checkmark-circle" label="Compliance" value={`${compliance}%`} sub="weekly" tone={colours.violet} />
@@ -235,6 +273,26 @@ export function AnalyticsScreen({
         <Text style={[styles.muted, { marginBottom: 10 }]}>Last 4 weeks — today highlighted</Text>
         <TrainingCalendar sessions={sessions} />
       </Card>
+
+      {hasSessions && typeDistributionData.length > 0 && (
+        <Card>
+          <Text style={styles.cardTitle}>Training Distribution</Text>
+          <Text style={[styles.muted, { marginBottom: 10 }]}>By session type</Text>
+          <PieChart
+            data={typeDistributionData}
+            width={screenWidth - 48}
+            height={160}
+            chartConfig={{
+              color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+            }}
+            accessor="population"
+            backgroundColor="transparent"
+            paddingLeft="0"
+            center={[10, 0]}
+            absolute
+          />
+        </Card>
+      )}
 
       {workoutCompletions.length > 0 && (() => {
         const exerciseMap: Record<string, { sets: number; lastLoad: number | null; dates: string[] }> = {};
@@ -602,4 +660,22 @@ const styles = StyleSheet.create({
   exerciseBarFill: { height: 6, borderRadius: 3, backgroundColor: colours.cyan },
   pdfBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft },
   pdfBtnText: { ...typography.label, color: colours.cyan, fontWeight: '800' },
+  insightPanel: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: 'rgba(0, 229, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(0, 229, 255, 0.25)',
+    borderRadius: 12,
+    padding: responsiveSpacing('md'),
+    marginBottom: responsiveSpacing('md'),
+  },
+  insightText: {
+    ...typography.caption,
+    color: colours.cyan,
+    flex: 1,
+    lineHeight: 18,
+    fontWeight: '800',
+  },
 });
