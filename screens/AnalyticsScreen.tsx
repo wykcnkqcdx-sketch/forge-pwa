@@ -19,6 +19,7 @@ import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/Body
 import type { WorkoutCompletion, LoggedExercise } from '../data/domain';
 import { calculateWHtR } from '../lib/h2f';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
+import { getProtocol } from '../lib/injuryProtocols';
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { SessionCard } from '../components/SessionCard';
 import { SessionEditModal } from '../components/SessionEditModal';
@@ -546,6 +547,97 @@ export function AnalyticsScreen({
             </Text>
           )}
         </View>
+
+        {selectedSegment && (painMap[selectedSegment] ?? 0) > 0 && (() => {
+          const proto = getProtocol(selectedSegment);
+          const pain = painMap[selectedSegment] ?? 0;
+          const severity = pain >= 7 ? 'severe' : pain >= 4 ? 'moderate' : 'mild';
+          const rttDays = proto.returnToTrainDays[severity];
+          const modalityColor = proto.modality === 'ice' ? colours.cyan : proto.modality === 'heat' ? colours.amber : colours.violet;
+          return (
+            <View style={styles.protoPanel}>
+              <View style={styles.protoHeader}>
+                <Ionicons name="medkit-outline" size={16} color={colours.red} />
+                <Text style={styles.protoTitle}>Recovery Protocol</Text>
+                <View style={[styles.protoSeverityBadge, { borderColor: pain >= 7 ? colours.red : pain >= 4 ? colours.amber : colours.cyan }]}>
+                  <Text style={[styles.protoSeverityText, { color: pain >= 7 ? colours.red : pain >= 4 ? colours.amber : colours.cyan }]}>{severity.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.protoRegion}>{proto.region}</Text>
+              <Text style={styles.protoMuscles}>{proto.muscles.join(' · ')}</Text>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>ACUTE MANAGEMENT</Text>
+                <Text style={styles.protoBody}>{proto.acuteManagement}</Text>
+                <View style={[styles.protoModalityPill, { borderColor: modalityColor }]}>
+                  <Text style={[styles.protoModalityText, { color: modalityColor }]}>{proto.modality.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>RETURN TO TRAIN</Text>
+                <View style={styles.rttRow}>
+                  {(['mild', 'moderate', 'severe'] as const).map((s) => (
+                    <View key={s} style={[styles.rttCard, s === severity && styles.rttCardActive]}>
+                      <Text style={[styles.rttCardLabel, s === severity && { color: colours.text }]}>{s.charAt(0).toUpperCase() + s.slice(1)}</Text>
+                      <Text style={[styles.rttCardDays, s === severity && { color: colours.cyan }]}>{proto.returnToTrainDays[s]}d</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.muted, { marginTop: 4 }]}>Estimated days at {severity} severity (pain {pain}/10)</Text>
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>STRETCHING</Text>
+                {proto.stretches.map((s, i) => (
+                  <View key={i} style={styles.protoItem}>
+                    <View style={styles.protoItemHeader}>
+                      <Text style={styles.protoItemName}>{s.name}</Text>
+                      <Text style={styles.protoItemMeta}>{s.duration}</Text>
+                    </View>
+                    <Text style={styles.protoBody}>{s.instruction}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>RECOVERY EXERCISES</Text>
+                {proto.recoveryExercises.map((ex, i) => (
+                  <View key={i} style={styles.protoItem}>
+                    <View style={styles.protoItemHeader}>
+                      <Text style={styles.protoItemName}>{ex.name}</Text>
+                      <Text style={styles.protoItemMeta}>{ex.sets} × {ex.reps}</Text>
+                    </View>
+                    <Text style={styles.protoBody}>{ex.notes}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>MAINTENANCE</Text>
+                {proto.maintenanceExercises.map((ex, i) => (
+                  <View key={i} style={styles.protoMaintenanceRow}>
+                    <Ionicons name="checkmark-circle-outline" size={13} color={colours.green} />
+                    <Text style={styles.protoBody}>{ex}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>INJURY PREVENTION</Text>
+                {proto.preventionTips.map((tip, i) => (
+                  <View key={i} style={styles.protoMaintenanceRow}>
+                    <Ionicons name="shield-checkmark-outline" size={13} color={colours.violet} />
+                    <Text style={styles.protoBody}>{tip}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.medicalDisclaimer}>* Protocol is guidance only. Consult a physiotherapist or medical officer for injuries that are severe, persistent, or involve neurological symptoms.</Text>
+            </View>
+          );
+        })()}
       </Card>
 
       <SessionEditModal
@@ -660,6 +752,28 @@ const styles = StyleSheet.create({
   exerciseBarFill: { height: 6, borderRadius: 3, backgroundColor: colours.cyan },
   pdfBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft },
   pdfBtnText: { ...typography.label, color: colours.cyan, fontWeight: '800' },
+  protoPanel: { marginTop: responsiveSpacing('md'), borderWidth: 1, borderColor: 'rgba(255,60,60,0.25)', borderRadius: 12, padding: responsiveSpacing('md'), backgroundColor: 'rgba(20,8,8,0.55)', gap: 2 },
+  protoHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  protoTitle: { color: colours.text, fontWeight: '900', fontSize: 15, flex: 1 },
+  protoSeverityBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+  protoSeverityText: { ...typography.label, fontWeight: '900', letterSpacing: 1 },
+  protoRegion: { color: colours.text, fontWeight: '900', fontSize: 16, marginBottom: 2 },
+  protoMuscles: { ...typography.caption, color: colours.textSoft, lineHeight: 17, marginBottom: 6 },
+  protoSection: { marginTop: responsiveSpacing('md'), gap: 6 },
+  protoSectionLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.5, marginBottom: 2 },
+  protoBody: { ...typography.caption, color: colours.textSoft, lineHeight: 17, flex: 1 },
+  protoModalityPill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginTop: 4 },
+  protoModalityText: { ...typography.label, fontWeight: '900', letterSpacing: 1 },
+  rttRow: { flexDirection: 'row', gap: responsiveSpacing('sm') },
+  rttCard: { flex: 1, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.03)' },
+  rttCardActive: { borderColor: colours.cyan, backgroundColor: 'rgba(0,229,255,0.08)' },
+  rttCardLabel: { ...typography.label, color: colours.muted, marginBottom: 2 },
+  rttCardDays: { color: colours.muted, fontWeight: '900', fontSize: 18 },
+  protoItem: { borderTopWidth: 1, borderTopColor: colours.borderSoft, paddingTop: 6, gap: 3 },
+  protoItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  protoItemName: { color: colours.text, fontWeight: '800', fontSize: 13, flex: 1 },
+  protoItemMeta: { ...typography.label, color: colours.cyan, fontWeight: '900' },
+  protoMaintenanceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingVertical: 3 },
   insightPanel: {
     flexDirection: 'row',
     alignItems: 'center',
