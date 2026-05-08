@@ -103,12 +103,16 @@ export function FuelScreen({
 }) {
   const { width: screenWidth } = useWindowDimensions();
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const [selectedDateStr, setSelectedDateStr] = useState(todayStr);
+
   const [goal, setGoal] = useState<WeightGoal>('maintain');
   const [bodyWeightKg, setBodyWeightKg] = useState(fuelProfile.bodyWeightKg);
   const [heightCm, setHeightCm] = useState(fuelProfile.heightCm);
   const [age, setAge] = useState(fuelProfile.age);
   const [skinfoldMm, setSkinfoldMm] = useState(fuelProfile.skinfoldMm);
-  const [hydrationLoggedMl, setHydrationLoggedMl] = useState(fuelProfile.hydrationLoggedMl);
+  const [hydrationByDate, setHydrationByDate] = useState<Record<string, number>>({ [todayStr]: fuelProfile.hydrationLoggedMl });
+  const hydrationLoggedMl = hydrationByDate[selectedDateStr] || 0;
 
   const [mealName, setMealName] = useState('');
   const [mealType, setMealType] = useState<MealEntry['mealType']>('Breakfast');
@@ -120,12 +124,26 @@ export function FuelScreen({
   const [mealToast, setMealToast] = useState<string | null>(null);
   const [isSavingMeal, setIsSavingMeal] = useState(false);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const todayMeals = useMemo(() => mealEntries.filter((e) => e.date === todayStr), [mealEntries, todayStr]);
-  const loggedCals = useMemo(() => todayMeals.reduce((s, e) => s + e.caloriesKcal, 0), [todayMeals]);
-  const loggedProtein = useMemo(() => todayMeals.reduce((s, e) => s + e.proteinG, 0), [todayMeals]);
-  const loggedCarbs = useMemo(() => todayMeals.reduce((s, e) => s + e.carbsG, 0), [todayMeals]);
-  const loggedFat = useMemo(() => todayMeals.reduce((s, e) => s + e.fatG, 0), [todayMeals]);
+  const displayedMeals = useMemo(() => mealEntries.filter((e) => e.date === selectedDateStr), [mealEntries, selectedDateStr]);
+  const loggedCals = useMemo(() => displayedMeals.reduce((s, e) => s + e.caloriesKcal, 0), [displayedMeals]);
+  const loggedProtein = useMemo(() => displayedMeals.reduce((s, e) => s + e.proteinG, 0), [displayedMeals]);
+  const loggedCarbs = useMemo(() => displayedMeals.reduce((s, e) => s + e.carbsG, 0), [displayedMeals]);
+  const loggedFat = useMemo(() => displayedMeals.reduce((s, e) => s + e.fatG, 0), [displayedMeals]);
+
+  function changeDateOffset(offset: number) {
+    if (Platform.OS !== 'web') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setSelectedDateStr((prev) => {
+      const [y, m, d] = prev.split('-').map(Number);
+      const date = new Date(y, m - 1, d + offset);
+      return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    });
+  }
+
+  const isToday = selectedDateStr === todayStr;
+  const dateLabel = isToday ? "Today's Log" : (() => {
+    const [y, m, d] = selectedDateStr.split('-').map(Number);
+    return new Date(y, m - 1, d).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+  })();
 
   const macroPieData = useMemo(() => {
     if (loggedProtein === 0 && loggedCarbs === 0 && loggedFat === 0) return [];
@@ -150,7 +168,7 @@ export function FuelScreen({
 
     onAddMealEntry?.({
       id: `meal-${Date.now()}`,
-      date: todayStr,
+      date: selectedDateStr,
       name: mealName.trim(),
       mealType,
       caloriesKcal: cals,
@@ -224,7 +242,15 @@ export function FuelScreen({
 
       <Card>
         <View style={styles.rowBetween}>
-          <Text style={styles.cardTitle}>Today's Log</Text>
+          <View style={styles.dateNav}>
+            <Pressable onPress={() => changeDateOffset(-1)} hitSlop={12}>
+              <Ionicons name="chevron-back" size={20} color={colours.cyan} />
+            </Pressable>
+            <Text style={[styles.cardTitle, { marginBottom: 0 }]}>{dateLabel}</Text>
+            <Pressable onPress={() => changeDateOffset(1)} hitSlop={12} disabled={isToday} style={{ opacity: isToday ? 0.3 : 1 }}>
+              <Ionicons name="chevron-forward" size={20} color={colours.cyan} />
+            </Pressable>
+          </View>
           <Pressable onPress={() => setShowMealForm((v) => !v)} style={styles.addMealBtn}>
             <Ionicons name={showMealForm ? 'close' : 'add'} size={16} color={colours.background} />
             <Text style={styles.addMealBtnText}>{showMealForm ? 'Cancel' : 'Add Meal'}</Text>
@@ -325,7 +351,7 @@ export function FuelScreen({
           </View>
         )}
 
-        {todayMeals.map((meal) => {
+        {displayedMeals.map((meal) => {
           const renderRightActions = (progress: any, dragX: any) => {
             const opacity = dragX.interpolate({ inputRange: [-20, 0], outputRange: [1, 0], extrapolate: 'clamp' });
             const scale = dragX.interpolate({ inputRange: [-70, 0], outputRange: [1, 0], extrapolate: 'clamp' });
@@ -358,8 +384,8 @@ export function FuelScreen({
             </View>
           );
         })}
-        {todayMeals.length === 0 && !showMealForm && (
-          <Text style={styles.mealEmpty}>No meals logged today. Tap Add Meal to start tracking.</Text>
+        {displayedMeals.length === 0 && !showMealForm && (
+          <Text style={styles.mealEmpty}>No meals logged {isToday ? 'today' : 'for this date'}. Tap Add Meal to start tracking.</Text>
         )}
       </Card>
 
@@ -531,7 +557,10 @@ export function FuelScreen({
         <ProgressBar value={hydrationPct} colour={colours.cyan} />
         <View style={styles.hydrationActions}>
           {[250, 500, 750].map((amount) => (
-            <Pressable key={amount} style={styles.hydrationButton} onPress={() => setHydrationLoggedMl((value) => clamp(value + amount, 0, hydrationTargetMl))}>
+            <Pressable key={amount} style={styles.hydrationButton} onPress={() => setHydrationByDate((prev) => ({
+              ...prev,
+              [selectedDateStr]: clamp((prev[selectedDateStr] || 0) + amount, 0, hydrationTargetMl)
+            }))}>
               <Text style={styles.hydrationButtonText}>+{amount}ml</Text>
             </Pressable>
           ))}
@@ -556,6 +585,7 @@ const styles = StyleSheet.create({
   goalText: { ...typography.caption, fontWeight: '900' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('md') },
   cardTitle: { color: colours.text, fontSize: 18, fontWeight: '900' },
+  dateNav: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   rowBetween: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: responsiveSpacing('md') },
   metricGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   metricControl: {
