@@ -108,6 +108,7 @@ type OverlayLine = { id: string; label: string; points: Array<{ lat: number; lon
 type OverlayPolygon = { id: string; label: string; rings: Array<Array<{ lat: number; lon: number }>> };
 type MeasurementMode = 'range' | 'route' | 'area';
 type MeasurementPoint = { latitude: number; longitude: number };
+type NavTarget = { type: 'mark' | 'teammate'; id: string };
 type MapOverlay = {
   id: string;
   name: string;
@@ -697,6 +698,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [currentDrawLine, setCurrentDrawLine] = useState<Array<{ lat: number; lon: number }> | null>(null);
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode | null>(null);
   const [measurementPoints, setMeasurementPoints] = useState<MeasurementPoint[]>([]);
+  const [navTarget, setNavTarget] = useState<NavTarget | null>(null);
   // Team PLI
   const [teamEnabled, setTeamEnabled] = useState(false);
   // AI Mission Brief
@@ -876,11 +878,36 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     ? null
     : selectedCheckpointDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
   const selectedCheckpointMeta = getFieldMarkType(selectedCheckpoint?.markType);
-  const selectedNavLinePoints = useMemo(() => {
-    if (!currentPoint || !selectedCheckpointPoint) return null;
-    const points = getMercatorRoutePoints([currentPoint, selectedCheckpointPoint], effectiveMapCenter, renderViewport, mapZoom);
+  const navTeammateTarget = navTarget?.type === 'teammate'
+    ? teammates.find((teammate) => teammate.callsign === navTarget.id) ?? null
+    : null;
+  const navMarkTarget = navTarget?.type === 'mark'
+    ? plannedCheckpoints.find((checkpoint) => checkpoint.id === navTarget.id) ?? selectedCheckpoint
+    : selectedCheckpoint;
+  const navTargetPoint: TrackPoint | null = navTeammateTarget
+    ? {
+        latitude: navTeammateTarget.lat,
+        longitude: navTeammateTarget.lon,
+        altitude: null,
+        accuracy: navTeammateTarget.accuracy ?? null,
+        timestamp: navTeammateTarget.updatedAt,
+      }
+    : navMarkTarget && navMarkTarget.latitude != null && navMarkTarget.longitude != null
+      ? navMarkTarget as RuckCheckpoint & TrackPoint
+      : null;
+  const navTargetLabel = navTeammateTarget?.callsign ?? (navMarkTarget ? formatFieldMarkLabel(navMarkTarget) : 'No target');
+  const navTargetKind = navTeammateTarget ? 'TEAM' : getFieldMarkType(navMarkTarget?.markType).shortLabel;
+  const navTargetTone = navTeammateTarget?.color ?? getFieldMarkType(navMarkTarget?.markType).tone;
+  const navTargetDistanceKm = currentPoint && navTargetPoint ? distanceBetween(currentPoint, navTargetPoint) : null;
+  const navTargetBearing = currentPoint && navTargetPoint ? Math.round(bearingBetween(currentPoint, navTargetPoint)) : null;
+  const navTargetEtaMinutes = navTargetDistanceKm == null
+    ? null
+    : navTargetDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
+  const activeNavLinePoints = useMemo(() => {
+    if (!currentPoint || !navTargetPoint) return null;
+    const points = getMercatorRoutePoints([currentPoint, navTargetPoint], effectiveMapCenter, renderViewport, mapZoom);
     return points.length === 2 ? points.map((point) => `${point.x},${point.y}`).join(' ') : null;
-  }, [currentPoint, selectedCheckpointPoint, effectiveMapCenter, renderViewport, mapZoom]);
+  }, [currentPoint, navTargetPoint, effectiveMapCenter, renderViewport, mapZoom]);
   const visibleMapOverlays = useMemo(() => mapOverlays.filter((overlay) => overlay.visible), [mapOverlays]);
   const renderedOverlayFeatures = useMemo(() => {
     if (!effectiveMapCenter || renderViewport.width <= 0) return [];
@@ -966,34 +993,34 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     ));
   }, [measurementPoints]);
   const bearingGuidance = useMemo(() => {
-    if (!selectedCheckpoint || selectedCheckpointBearing == null) {
-      return { label: 'NO CP', detail: 'select checkpoint', tone: colours.muted };
+    if (!navTargetPoint || navTargetBearing == null) {
+      return { label: 'NO TARGET', detail: 'select mark or teammate', tone: colours.muted };
     }
-    if (selectedCheckpointDistanceKm != null && selectedCheckpointDistanceKm * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS) {
-      return { label: 'ARRIVED', detail: selectedCheckpoint.label, tone: colours.green };
+    if (navTargetDistanceKm != null && navTargetDistanceKm * 1000 <= CHECKPOINT_ARRIVAL_RADIUS_METERS) {
+      return { label: navTeammateTarget ? 'CLOSED' : 'ARRIVED', detail: navTargetLabel, tone: colours.green };
     }
     if (activeHeading == null) {
       return { label: 'NO HDG', detail: 'compass standby', tone: colours.muted };
     }
 
-    const delta = headingDifferenceDegrees(activeHeading, selectedCheckpointBearing);
+    const delta = headingDifferenceDegrees(activeHeading, navTargetBearing);
     const absoluteDelta = Math.abs(delta);
     if (absoluteDelta <= BEARING_CAUTION_DEGREES) {
-      return { label: 'ON BEARING', detail: `${formatHeading(selectedCheckpointBearing)} to ${selectedCheckpoint.label}`, tone: colours.green };
+      return { label: 'ON BEARING', detail: `${formatHeading(navTargetBearing)} to ${navTargetLabel}`, tone: colours.green };
     }
     if (absoluteDelta <= BEARING_OFF_DEGREES) {
       return {
         label: delta > 0 ? 'CHECK RIGHT' : 'CHECK LEFT',
-        detail: `${Math.round(absoluteDelta)}deg off ${formatHeading(selectedCheckpointBearing)}`,
+        detail: `${Math.round(absoluteDelta)}deg off ${formatHeading(navTargetBearing)}`,
         tone: colours.amber,
       };
     }
     return {
       label: 'OFF BEARING',
-      detail: `${Math.round(absoluteDelta)}deg off ${formatHeading(selectedCheckpointBearing)}`,
+      detail: `${Math.round(absoluteDelta)}deg off ${formatHeading(navTargetBearing)}`,
       tone: colours.red,
     };
-  }, [activeHeading, selectedCheckpoint, selectedCheckpointBearing, selectedCheckpointDistanceKm]);
+  }, [activeHeading, navTargetBearing, navTargetDistanceKm, navTargetLabel, navTargetPoint, navTeammateTarget]);
   const nearestCheckpoint = useMemo(() => {
     if (!currentPoint || plannedCheckpoints.length === 0) return null;
 
@@ -1348,6 +1375,35 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     setMeasurementPoints([]);
   }
 
+  function focusNavMark(checkpointId: string) {
+    setSelectedCheckpointId(checkpointId);
+    setNavTarget({ type: 'mark', id: checkpointId });
+  }
+
+  function focusTeammate(teammate: Teammate) {
+    setNavTarget({ type: 'teammate', id: teammate.callsign });
+    setMapCenter({
+      latitude: teammate.lat,
+      longitude: teammate.lon,
+      altitude: null,
+      accuracy: teammate.accuracy ?? null,
+      timestamp: teammate.updatedAt,
+    });
+    setGpsFollowMode(false);
+  }
+
+  function centerMapOnNavTarget() {
+    if (!navTargetPoint) return;
+    setMapCenter({
+      latitude: navTargetPoint.latitude,
+      longitude: navTargetPoint.longitude,
+      altitude: navTargetPoint.altitude,
+      accuracy: navTargetPoint.accuracy,
+      timestamp: Date.now(),
+    });
+    setGpsFollowMode(false);
+  }
+
   const mapNormalGestures = useMemo(() => {
     const panGesture = Gesture.Pan()
       .enabled(Boolean(effectiveMapCenterRef.current))
@@ -1660,6 +1716,12 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       setSelectedCheckpointId(firstNewArrival.id);
     }
   }, [currentPoint, placedCheckpoints]);
+
+  useEffect(() => {
+    if (navTarget?.type === 'teammate' && !teammates.some((teammate) => teammate.callsign === navTarget.id)) {
+      setNavTarget(null);
+    }
+  }, [navTarget, teammates]);
 
   const stopTracking = async () => {
     dispatchTracking({ type: 'stopped' });
@@ -2013,6 +2075,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       return [...current, checkpoint];
     });
     setSelectedCheckpointId(id);
+    setNavTarget({ type: 'mark', id });
   }
 
   function updateSelectedCheckpoint(updates: Partial<RuckCheckpoint>) {
@@ -2457,11 +2520,11 @@ function updateSelectedCheckpointHere() {
                     ))}
                   </React.Fragment>
                 ))}
-                {selectedNavLinePoints && (
+                {activeNavLinePoints && (
                   <Polyline
-                    points={selectedNavLinePoints}
+                    points={activeNavLinePoints}
                     fill="none"
-                    stroke={selectedCheckpointMeta.tone}
+                    stroke={navTargetTone}
                     strokeWidth={2.5}
                     strokeLinecap="round"
                     strokeLinejoin="round"
@@ -2999,7 +3062,7 @@ function updateSelectedCheckpointHere() {
                         <Pressable
                           key={cp.id}
                           style={[styles.forgeCpPill, selectedCheckpointId === cp.id && styles.forgeCpPillActive]}
-                          onPress={() => setSelectedCheckpointId(cp.id)}
+                          onPress={() => focusNavMark(cp.id)}
                         >
                           <Text style={[styles.forgeCpPillText, selectedCheckpointId === cp.id && styles.forgeCpPillTextActive]}>
                             {formatFieldMarkLabel(cp)}
@@ -3025,9 +3088,9 @@ function updateSelectedCheckpointHere() {
                   {teammates.length > 0 && (
                     <View style={styles.forgeCpRow}>
                       {teammates.map((tm) => (
-                        <View key={tm.callsign} style={[styles.forgeCpPill, { borderColor: tm.color }]}>
+                        <Pressable key={tm.callsign} style={[styles.forgeCpPill, { borderColor: tm.color }]} onPress={() => focusTeammate(tm)}>
                           <Text style={[styles.forgeCpPillText, { color: tm.color }]}>{tm.callsign}</Text>
-                        </View>
+                        </Pressable>
                       ))}
                     </View>
                   )}
@@ -3120,17 +3183,35 @@ function updateSelectedCheckpointHere() {
                       <Text style={styles.forgeNavLabel}>{bearingGuidance.detail}</Text>
                     </View>
                     <View style={styles.forgeNavItem}>
-                      <Text style={[styles.forgeNavValue, { color: selectedCheckpointMeta.tone }]}>{selectedCheckpointMeta.shortLabel}</Text>
-                      <Text style={styles.forgeNavLabel}>{selectedCheckpoint ? formatFieldMarkLabel(selectedCheckpoint) : 'No mark'}</Text>
+                      <Text style={[styles.forgeNavValue, { color: navTargetTone }]}>{navTargetKind}</Text>
+                      <Text style={styles.forgeNavLabel}>{navTargetLabel}</Text>
                     </View>
                     <View style={styles.forgeNavItem}>
-                      <Text style={styles.forgeNavValue}>{selectedCheckpointDistanceKm == null ? '--' : `${selectedCheckpointDistanceKm.toFixed(1)}km`}</Text>
+                      <Text style={styles.forgeNavValue}>{navTargetDistanceKm == null ? '--' : `${navTargetDistanceKm.toFixed(1)}km`}</Text>
                       <Text style={styles.forgeNavLabel}>To object</Text>
                     </View>
                     <View style={styles.forgeNavItem}>
-                      <Text style={styles.forgeNavValue}>{selectedCheckpointEtaMinutes == null ? '--' : formatDuration(selectedCheckpointEtaMinutes)}</Text>
+                      <Text style={styles.forgeNavValue}>{navTargetEtaMinutes == null ? '--' : formatDuration(navTargetEtaMinutes)}</Text>
                       <Text style={styles.forgeNavLabel}>Object ETA</Text>
                     </View>
+                  </View>
+                  <View style={styles.forgePanelRow}>
+                    <Pressable style={styles.forgePanelBtn} onPress={centerMapOnNavTarget} disabled={!navTargetPoint}>
+                      <Ionicons name="scan-outline" size={13} color={navTargetPoint ? colours.cyan : colours.muted} />
+                      <Text style={[styles.forgePanelBtnText, !navTargetPoint && { color: colours.muted }]}>Center Target</Text>
+                    </Pressable>
+                    {navTeammateTarget && (
+                      <Pressable style={[styles.forgePanelBtn, { borderColor: navTeammateTarget.color }]} onPress={() => focusTeammate(navTeammateTarget)}>
+                        <Ionicons name="radio-outline" size={13} color={navTeammateTarget.color} />
+                        <Text style={[styles.forgePanelBtnText, { color: navTeammateTarget.color }]}>Bloodhound</Text>
+                      </Pressable>
+                    )}
+                    {teammates.map((tm) => (
+                      <Pressable key={tm.callsign} style={[styles.forgePanelBtn, navTarget?.type === 'teammate' && navTarget.id === tm.callsign && { borderColor: tm.color, backgroundColor: `${tm.color}22` }]} onPress={() => focusTeammate(tm)}>
+                        <Ionicons name="person-outline" size={13} color={tm.color} />
+                        <Text style={[styles.forgePanelBtnText, { color: tm.color }]}>{tm.callsign}</Text>
+                      </Pressable>
+                    ))}
                   </View>
                 </View>
               )}
@@ -3874,7 +3955,7 @@ function updateSelectedCheckpointHere() {
                   <Pressable
                     key={checkpoint.id}
                     style={[styles.checkpointPill, selected && styles.checkpointPillActive]}
-                    onPress={() => setSelectedCheckpointId(checkpoint.id)}
+                    onPress={() => focusNavMark(checkpoint.id)}
                   >
                     <Text style={[styles.checkpointPillText, selected && styles.checkpointPillTextActive]}>{formatFieldMarkLabel(checkpoint)}</Text>
                   </Pressable>
