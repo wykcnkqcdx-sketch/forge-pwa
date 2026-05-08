@@ -14,7 +14,7 @@ import { responsiveSpacing, statusColors } from '../utils/styling';
 import { fuelProfile, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, MealEntry } from '../data/domain';
 import { buildPerformanceProfile } from '../lib/performance';
-import { getLatestReadinessLog, isReadinessStale, readinessSleepScore } from '../lib/readiness';
+import { readinessSleepScore } from '../lib/readiness';
 
 type WeightGoal = 'loss' | 'maintain' | 'gain';
 
@@ -186,9 +186,11 @@ export function FuelScreen({
   }
 
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
-  const latestReadiness = useMemo(() => getLatestReadinessLog(readinessLogs), [readinessLogs]);
-  const latestReadinessIsStale = isReadinessStale(latestReadiness);
-  const sleepScore = latestReadinessIsStale ? undefined : readinessSleepScore(latestReadiness);
+  const displayedReadiness = useMemo(() => {
+    const logsOnDate = readinessLogs.filter((log) => log.date.startsWith(selectedDateStr) || new Date(log.date).toISOString().slice(0, 10) === selectedDateStr);
+    return logsOnDate.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+  }, [readinessLogs, selectedDateStr]);
+  const sleepScore = displayedReadiness ? readinessSleepScore(displayedReadiness) : undefined;
   const activeGoal = useMemo(() => goals.find((item) => item.id === goal) ?? goals[1], [goal]);
   const bmi = useMemo(() => Math.round((bodyWeightKg / Math.pow(heightCm / 100, 2)) * 10) / 10, [bodyWeightKg, heightCm]);
   const bmiInfo = useMemo(() => getBmiCategory(bmi), [bmi]);
@@ -524,7 +526,7 @@ export function FuelScreen({
           icon="moon"
           label="Sleep Score"
           value={sleepScore === undefined ? '--' : `${sleepScore}`}
-          sub={latestReadiness?.sleepHours ? `${latestReadiness.sleepHours}h logged` : 'from readiness'}
+          sub={displayedReadiness?.sleepHours ? `${displayedReadiness.sleepHours}h logged` : 'from readiness'}
           tone={sleepTone}
         />
         <MetricCard icon="water" label="Hydration" value={`${Math.round(hydrationTargetMl / 100) / 10}L`} sub={`${Math.min(100, hydrationPct)}% logged`} tone={colours.cyan} />
@@ -538,9 +540,9 @@ export function FuelScreen({
         <ProgressBar value={sleepScore ?? 0} colour={sleepTone} />
         <Text style={styles.guidance}>
           {sleepScore === undefined
-            ? latestReadinessIsStale
-              ? 'Readiness sleep data is stale. Check in today before setting fuel and recovery priority.'
-              : 'Log readiness to calculate sleep guidance from real check-in data.'
+            ? isToday
+              ? 'Log readiness today to calculate sleep guidance from real check-in data.'
+              : 'No readiness data logged for this date.'
             : sleepScore >= 80
               ? 'Good to train as planned.'
               : sleepScore >= 65
