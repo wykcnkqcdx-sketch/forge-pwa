@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TextStyle } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colours, shadows, typography } from '../theme';
-import { statusColors, responsiveSpacing } from '../utils/styling';
+import { colours, shadows } from '../theme';
+import { statusColors } from '../utils/styling';
+import { useResponsive } from '../utils/responsive';
 
 type Props = {
   icon: keyof typeof Ionicons.glyphMap;
@@ -13,19 +14,25 @@ type Props = {
 };
 
 export function MetricCard({ icon, label, value, sub, tone = colours.cyan }: Props) {
-  const iconStyles = statusColors(tone || colours.cyan);
+  const { fs, sp, isTablet } = useResponsive();
+  const iconStyles = statusColors(tone);
 
   return (
     <View style={[styles.card, shadows.subtle]}>
       <View style={styles.topRow}>
-        <Text style={typography.label}>{label.toUpperCase()}</Text>
-        <View style={[styles.iconWrap, { backgroundColor: iconStyles.bgMed, borderColor: iconStyles.borderMed }]}>
-          <Ionicons name={icon} size={16} color={tone} />
+        <Text style={[styles.labelText, { fontSize: fs(9, { min: 8, max: 11 }), letterSpacing: isTablet ? 1.8 : 1.4 }]}>
+          {label.toUpperCase()}
+        </Text>
+        <View style={[styles.iconWrap, { backgroundColor: iconStyles.bgMed, borderColor: iconStyles.borderMed, width: isTablet ? 36 : 30, height: isTablet ? 36 : 30 }]}>
+          <Ionicons name={icon} size={isTablet ? 18 : 15} color={tone} />
         </View>
       </View>
-      <Text style={[typography.h4, styles.value, { color: tone }]}>{value}</Text>
-      <Text style={[typography.caption, styles.sub]}>{sub}</Text>
-      {/* Bottom accent line */}
+      <Text style={[styles.valueText, { color: tone, fontSize: fs(22, { min: 18, max: 32 }) }]}>
+        {value}
+      </Text>
+      <Text style={[styles.subText, { fontSize: fs(10, { min: 9, max: 13 }) }]}>
+        {sub}
+      </Text>
       <View style={[styles.bottomLine, { backgroundColor: tone }]} />
     </View>
   );
@@ -34,35 +41,42 @@ export function MetricCard({ icon, label, value, sub, tone = colours.cyan }: Pro
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    minWidth: 148,
+    minWidth: 140,
     backgroundColor: 'rgba(10, 20, 35, 0.80)',
     borderWidth: 1,
     borderColor: colours.borderSoft,
-    borderRadius: 12,
-    padding: responsiveSpacing('md'),
+    borderRadius: 14,
+    padding: 14,
     overflow: 'hidden',
-    gap: responsiveSpacing('xs'),
+    gap: 3,
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: responsiveSpacing('md'),
+    marginBottom: 8,
+  },
+  labelText: {
+    color: colours.muted,
+    fontWeight: '900',
+    letterSpacing: 1.4,
   },
   iconWrap: {
-    width: 30,
-    height: 30,
     borderRadius: 10,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  value: {
+  valueText: {
+    fontWeight: '900',
     lineHeight: 28,
-  } as TextStyle,
-  sub: {
-    marginTop: responsiveSpacing('xs'),
-  } as TextStyle,
+  },
+  subText: {
+    color: colours.muted,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    marginTop: 2,
+  },
   bottomLine: {
     position: 'absolute',
     bottom: 0,
@@ -72,4 +86,3 @@ const styles = StyleSheet.create({
     opacity: 0.45,
   },
 });
-

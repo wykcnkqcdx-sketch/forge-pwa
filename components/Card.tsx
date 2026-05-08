@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
-import { colours, shadows, typography } from '../theme';
-import { makeCardStyle, responsiveSpacing } from '../utils/styling';
+import { colours, shadows } from '../theme';
+import { useResponsive } from '../utils/responsive';
 
 type Props = {
   children: React.ReactNode;
@@ -11,18 +11,43 @@ type Props = {
 };
 
 export function Card({ children, style, accent, hot }: Props) {
+  const { cardPad, isTablet } = useResponsive();
+
   return (
-    <View style={[makeCardStyle(accent, hot), style, shadows.card]}>
-      {/* Top glass highlight stripe */}
+    <View style={[
+      styles.card,
+      hot && styles.cardHot,
+      shadows.card,
+      style,
+    ]}>
+      {/* Top glass highlight */}
       <View style={styles.highlight} />
-      {/* Left accent bar when accent colour provided */}
+      {/* Left accent bar */}
       {accent && <View style={[styles.accentBar, { backgroundColor: accent }]} />}
-      <View style={styles.inner}>{children}</View>
+      <View style={[styles.inner, { padding: cardPad, borderRadius: isTablet ? 22 : 18 }]}>
+        {children}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  card: {
+    backgroundColor: 'rgba(10, 20, 35, 0.80)',
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.40,
+    shadowRadius: 20,
+    elevation: 12,
+  },
+  cardHot: {
+    borderColor: colours.border,
+    backgroundColor: 'rgba(143,166,59,0.06)',
+  },
   highlight: {
     position: 'absolute',
     top: 0,
@@ -37,12 +62,11 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3,
-    borderTopLeftRadius: 22,
-    borderBottomLeftRadius: 22,
+    borderTopLeftRadius: 20,
+    borderBottomLeftRadius: 20,
     opacity: 0.85,
   },
   inner: {
-    padding: responsiveSpacing('lg'),
+    padding: 16,
   },
 });
-
