@@ -4,7 +4,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const assetsDir = join(__dirname, 'forge-pwa', 'assets');
+const assetsDir = join(__dirname, 'assets');
 if (!existsSync(assetsDir)) mkdirSync(assetsDir, { recursive: true });
 
 // ── FORGE icon SVG (512x512 logical, rendered at target px) ────────────────
