@@ -19,6 +19,7 @@ import { RuckSplitsCard } from '../components/RuckSplitsCard';
 import { RuckReadinessCard } from '../components/RuckReadinessCard';
 import { RuckPandolfCard } from '../components/RuckPandolfCard';
 import { RuckScoreCard } from '../components/RuckScoreCard';
+import { RuckNavigationGuideCard } from '../components/RuckNavigationGuideCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3658,55 +3659,14 @@ function updateSelectedCheckpointHere() {
 
       <RuckPandolfCard pandolf={pandolf} distanceKm={distance} loadKg={weight} />
 
-      <Card>
-        <View style={styles.navHeader}>
-          <View>
-            <Text style={styles.cardTitle}>Navigation Guide</Text>
-            <Text style={styles.muted}>Metric mountain planning</Text>
-          </View>
-          <View style={styles.compassDial}>
-            <Animated.View
-              style={{
-                transform: [
-                  {
-                    rotate: rotationAnim.interpolate({
-                      inputRange: [0, 360],
-                      outputRange: ['0deg', '360deg'],
-                    }),
-                  },
-                ],
-              }}
-            >
-              <Ionicons name="navigate" size={24} color={colours.background} />
-            </Animated.View>
-            <Text style={styles.compassText}>{activeHeading == null ? '---' : formatHeading(activeHeading)}</Text>
-          </View>
-        </View>
-        <View style={styles.navGrid}>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{formatDuration(naismithMinutes)}</Text>
-            <Text style={styles.navLabel}>Naismith time</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{plannedAscentM}m</Text>
-            <Text style={styles.navLabel}>Total ascent</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{routeBearing == null ? '--' : formatHeading(routeBearing)}</Text>
-            <Text style={styles.navLabel}>Route bearing</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{currentAltitude == null ? '--' : `${currentAltitude}m`}</Text>
-            <Text style={styles.navLabel}>Altitude</Text>
-          </View>
-        </View>
-        <Text style={styles.navGuide}>
-          Naismith's Rule remains a navigation cross-check; Enhanced Pandolf drives metabolic load because it accounts for body mass, external load, grade, speed, and terrain.
-        </Text>
-        <Text style={styles.navGuide}>
-          Compass basics: set the map, take a bearing, follow the direction of travel arrow, tick off distance in metres, and re-check at every handrail, attack point, and junction.
-        </Text>
-      </Card>
+      <RuckNavigationGuideCard
+        rotationAnim={rotationAnim}
+        activeHeading={activeHeading}
+        naismithMinutes={naismithMinutes}
+        plannedAscentM={plannedAscentM}
+        routeBearing={routeBearing}
+        currentAltitude={currentAltitude}
+      />
 
       <RuckScoreCard score={score} />
 
@@ -4215,15 +4175,6 @@ const styles = StyleSheet.create({
   smallButtonText: { color: '#07111E', fontSize: 20, fontWeight: '900' },
   controlValue: { color: colours.text, fontWeight: '900', width: 55, textAlign: 'center' },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: responsiveSpacing('md') },
-  compassDial: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colours.cyan,
-  },
-  compassText: { ...typography.label, color: colours.background, marginTop: 1 },
   navGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   navItem: {
     width: '47%',
