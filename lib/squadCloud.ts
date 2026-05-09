@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { AssignedExerciseBlock, SquadMember } from '../data/mockData';
+import type { AssignedExerciseBlock, MemberAssignment, SquadMember } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
 import { supabase } from './supabase';
 
@@ -279,7 +279,24 @@ export async function ensureDefaultCloudSquad(userId: string, email?: string | n
 export async function syncSquadAssignment(squadId: string, assignedBy: string, member: SquadMember) {
   if (!member.assignmentSession || !uuidPattern.test(member.assignmentSession.id)) return;
   const client = ensureSupabase();
-  const assignment = toRemoteAssignment(squadId, assignedBy, member.assignmentSession);
+  const membershipQuery = client
+    .from('squad_memberships')
+    .select('*')
+    .eq('squad_id', squadId)
+    .eq('status', 'active');
+  const memberships = await membershipQuery;
+  if (memberships.error) throw memberships.error;
+  const parsedMemberships = z.array(RemoteSquadMembershipSchema).parse(memberships.data);
+  const assignee = parsedMemberships.find((item) => (
+    (member.email && item.email?.toLowerCase() === member.email.toLowerCase())
+    || item.id === member.id
+    || item.display_name.toLowerCase() === member.name.toLowerCase()
+    || item.gym_name?.toLowerCase() === member.gymName?.toLowerCase()
+  ));
+  const assignment = {
+    ...toRemoteAssignment(squadId, assignedBy, member.assignmentSession, assignee?.id ?? null),
+    group_id: member.groupId,
+  };
 
   const upserted = await client
     .from('assignments')
@@ -397,4 +414,89 @@ export async function fetchCloudTeamPulse(squadId: string, memberCount = 0): Pro
     completionRate,
     updatedAt: new Date().toISOString(),
   };
+}
+
+function fromRemoteMemberAssignment(assignment: RemoteAssignmentRow, exercises: RemoteAssignmentExerciseRow[]): MemberAssignment {
+  return {
+    id: assignment.id,
+    title: assignment.title,
+    type: assignment.session_kind,
+    status: assignment.status === 'completed' ? 'completed' : 'assigned',
+    assignedAt: assignment.created_at,
+    coachNote: assignment.coach_note ?? undefined,
+    exercises: exercises
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((exercise) => ({
+        exerciseId: exercise.exercise_id ?? exercise.name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        name: exercise.name,
+        dose: exercise.dose,
+        coachPinned: exercise.coach_pinned,
+        prescribed: exercise.prescribed ?? undefined,
+        status: 'assigned',
+      })),
+  };
+}
+
+export async function fetchCloudMemberAssignments(userId: string): Promise<SquadMember[]> {
+  const client = ensureSupabase();
+  const membershipResponse = await client
+    .from('squad_memberships')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active');
+
+  if (membershipResponse.error) throw membershipResponse.error;
+  const memberships = z.array(RemoteSquadMembershipSchema).parse(membershipResponse.data)
+    .filter((membership) => membership.role === 'member');
+  if (memberships.length === 0) return [];
+
+  const membershipIds = memberships.map((membership) => membership.id);
+  const assignmentResponse = await client
+    .from('assignments')
+    .select('*')
+    .in('assignee_membership_id', membershipIds)
+    .neq('status', 'archived')
+    .order('created_at', { ascending: false });
+
+  if (assignmentResponse.error) throw assignmentResponse.error;
+  const assignments = z.array(RemoteAssignmentSchema).parse(assignmentResponse.data);
+  const assignmentIds = assignments.map((assignment) => assignment.id);
+
+  let exercises: RemoteAssignmentExerciseRow[] = [];
+  if (assignmentIds.length > 0) {
+    const exerciseResponse = await client
+      .from('assignment_exercises')
+      .select('*')
+      .in('assignment_id', assignmentIds)
+      .order('order_index', { ascending: true });
+    if (exerciseResponse.error) throw exerciseResponse.error;
+    exercises = z.array(RemoteAssignmentExerciseSchema).parse(exerciseResponse.data);
+  }
+
+  return memberships.map((membership) => {
+    const assignment = assignments.find((item) => item.assignee_membership_id === membership.id);
+    const assignmentExercises = assignment ? exercises.filter((exercise) => exercise.assignment_id === assignment.id) : [];
+    const assignmentSession = assignment ? fromRemoteMemberAssignment(assignment, assignmentExercises) : undefined;
+
+    return {
+      id: membership.id,
+      groupId: assignment?.group_id ?? membership.squad_id,
+      name: membership.display_name,
+      gymName: membership.gym_name ?? membership.display_name,
+      email: membership.email ?? undefined,
+      readiness: 72,
+      compliance: assignment ? 80 : 0,
+      risk: 'Low',
+      load: 65,
+      inviteStatus: 'Joined',
+      assignment: assignment?.title,
+      pinnedExerciseIds: assignmentExercises.filter((exercise) => exercise.coach_pinned).map((exercise) => exercise.exercise_id ?? exercise.name),
+      ghostMode: false,
+      streakDays: 0,
+      weeklyVolume: 0,
+      hypeCount: 0,
+      assignmentSession,
+      updatedAt: assignment?.updated_at ?? membership.updated_at,
+    };
+  });
 }

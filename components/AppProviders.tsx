@@ -212,10 +212,28 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       claimedInviteTokenRef.current = inviteToken;
       void (async () => {
         try {
-          const { error } = await supabase.rpc('claim_member_invite', { p_token: inviteToken });
+          const { data, error } = await supabase.rpc('claim_member_invite', { p_token: inviteToken });
           if (error) throw error;
+          const membership = data as {
+            id?: string;
+            squad_id?: string;
+            display_name?: string;
+            gym_name?: string | null;
+            email?: string | null;
+          } | null;
+          if (membership?.id) {
+            setActiveMemberId(membership.id);
+            setPendingMemberInvite({
+              id: membership.id,
+              groupId: membership.squad_id ?? trainingGroups[0]?.id ?? 'alpha',
+              name: membership.display_name ?? 'Squad Member',
+              gymName: membership.gym_name ?? membership.display_name ?? 'Athlete',
+              email: membership.email ?? undefined,
+            });
+          }
           showToast('Invite accepted. Squad access is active.');
           setActiveTab('squad');
+          await cloud.syncCloudNow();
         } catch (error) {
           claimedInviteTokenRef.current = null;
           console.error('Failed to claim invite token', error);
