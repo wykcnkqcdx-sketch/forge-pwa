@@ -8,6 +8,8 @@ import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../d
 import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups } from '../data/mockData';
 import { clearActiveRoute } from '../lib/ruckRouteStore';
 import { secureDestroyLocalData } from '../lib/secureStorage';
+import { hashInviteToken } from '../lib/inviteTokens';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { colours } from '../theme';
 import { useToast } from '../hooks/useToast';
 import { useLocalStore } from '../hooks/useLocalStore';
@@ -145,6 +147,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [activeMemberTab, setActiveMemberTab] = useState<MemberTab>('portal');
   const [pendingMemberInvite, setPendingMemberInvite] = useState<PendingMemberInvite | null>(null);
+  const claimedInviteTokenRef = useRef<string | null>(null);
 
   // ── Splash animation ──────────────────────────────────────────────────────
   const [typedText, setTypedText] = useState('');
@@ -193,6 +196,35 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const url = new URL(window.location.href);
+    const inviteToken = url.searchParams.get('invite');
+    if (inviteToken) {
+      if (claimedInviteTokenRef.current === inviteToken) return;
+      if (!isSupabaseConfigured || !supabase) {
+        showToast('Secure invite detected. Configure Supabase to claim it.');
+        return;
+      }
+      if (!cloud.cloudSession?.user) {
+        showToast('Secure invite detected. Sign in to claim it.');
+        return;
+      }
+
+      claimedInviteTokenRef.current = inviteToken;
+      void (async () => {
+        try {
+          const { error } = await supabase.rpc('claim_member_invite', { p_token: inviteToken });
+          if (error) throw error;
+          showToast('Invite accepted. Squad access is active.');
+          setActiveTab('squad');
+        } catch (error) {
+          claimedInviteTokenRef.current = null;
+          console.error('Failed to claim invite token', error);
+          hashInviteToken(inviteToken)
+            .then((tokenHash) => showToast(`Invite claim failed (${tokenHash.slice(0, 8)}...).`))
+            .catch(() => showToast('Invite claim failed.'));
+        }
+      })();
+      return;
+    }
     const memberId = url.searchParams.get('member');
     if (memberId) {
       setActiveMemberId(memberId);
@@ -233,7 +265,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         console.warn('Service worker registration failed', error);
       });
     }
-  }, []);
+  }, [cloud.cloudSession?.user, showToast]);
 
   // Add invited member once store is ready
   useEffect(() => {

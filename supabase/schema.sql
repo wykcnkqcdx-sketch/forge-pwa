@@ -400,3 +400,152 @@ begin
     ));
   end if;
 end $$;
+
+create or replace function public.create_member_invite(
+  p_squad_id uuid,
+  p_token_hash text,
+  p_email text default null,
+  p_display_name text default null,
+  p_gym_name text default null,
+  p_role text default 'member',
+  p_expires_at timestamptz default now() + interval '14 days'
+)
+returns public.member_invites
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  created_invite public.member_invites;
+begin
+  if not public.is_squad_coach(p_squad_id) then
+    raise exception 'Only squad coaches can create invites';
+  end if;
+
+  if p_role not in ('coach', 'member') then
+    raise exception 'Invalid invite role';
+  end if;
+
+  insert into public.member_invites (
+    squad_id,
+    created_by,
+    token_hash,
+    email,
+    display_name,
+    gym_name,
+    role,
+    expires_at
+  )
+  values (
+    p_squad_id,
+    auth.uid(),
+    p_token_hash,
+    nullif(trim(p_email), ''),
+    nullif(trim(p_display_name), ''),
+    nullif(trim(p_gym_name), ''),
+    p_role,
+    p_expires_at
+  )
+  returning * into created_invite;
+
+  return created_invite;
+end;
+$$;
+
+create or replace function public.claim_member_invite(p_token text)
+returns public.squad_memberships
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  invite_hash text;
+  invite_row public.member_invites;
+  membership_row public.squad_memberships;
+begin
+  if auth.uid() is null then
+    raise exception 'Sign in before claiming an invite';
+  end if;
+
+  invite_hash := encode(digest(p_token, 'sha256'), 'hex');
+
+  select *
+  into invite_row
+  from public.member_invites
+  where token_hash = invite_hash
+  limit 1;
+
+  if invite_row.id is null then
+    raise exception 'Invite not found';
+  end if;
+
+  if invite_row.status <> 'pending' then
+    raise exception 'Invite is not pending';
+  end if;
+
+  if invite_row.expires_at <= now() then
+    update public.member_invites
+    set status = 'expired', updated_at = now()
+    where id = invite_row.id;
+    raise exception 'Invite has expired';
+  end if;
+
+  insert into public.squad_memberships (
+    squad_id,
+    user_id,
+    display_name,
+    gym_name,
+    email,
+    role,
+    status,
+    joined_at
+  )
+  values (
+    invite_row.squad_id,
+    auth.uid(),
+    coalesce(invite_row.display_name, invite_row.email, 'FORGE Member'),
+    invite_row.gym_name,
+    invite_row.email,
+    invite_row.role,
+    'active',
+    now()
+  )
+  on conflict (squad_id, user_id) do update
+  set status = 'active',
+      role = excluded.role,
+      display_name = excluded.display_name,
+      gym_name = excluded.gym_name,
+      email = excluded.email,
+      joined_at = coalesce(public.squad_memberships.joined_at, now()),
+      updated_at = now()
+  returning * into membership_row;
+
+  insert into public.member_privacy_settings (membership_id)
+  values (membership_row.id)
+  on conflict (membership_id) do nothing;
+
+  update public.member_invites
+  set status = 'accepted',
+      accepted_by = auth.uid(),
+      accepted_at = now(),
+      updated_at = now()
+  where id = invite_row.id;
+
+  insert into public.team_activity (
+    squad_id,
+    actor_membership_id,
+    activity_type,
+    title,
+    body
+  )
+  values (
+    invite_row.squad_id,
+    membership_row.id,
+    'privacy_changed',
+    'Member joined squad',
+    membership_row.display_name || ' accepted a FORGE invite.'
+  );
+
+  return membership_row;
+end;
+$$;

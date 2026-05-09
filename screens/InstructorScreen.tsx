@@ -9,6 +9,8 @@ import { colours } from '../theme';
 import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, ProgrammeTemplate, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 import { showAlert, showConfirm } from '../lib/dialogs';
+import { buildSecureInviteUrl, generateInviteToken, hashInviteToken, inviteExpiry } from '../lib/inviteTokens';
+import { supabase } from '../lib/supabase';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 
@@ -46,6 +48,7 @@ interface InstructorScreenProps {
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
 const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
 const assignmentCategories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function parseDose(dose: string) {
   const setsRepsMatch = dose.match(/(\d+)\s*x\s*(\d+)/i);
@@ -264,7 +267,7 @@ export function InstructorScreen({
     );
   }
 
-  function addMember() {
+  async function addMember() {
     const trimmedName = newMemberName.trim();
     const trimmedGymName = newMemberGymName.trim();
     const trimmedEmail = newMemberEmail.trim().toLowerCase();
@@ -281,15 +284,32 @@ export function InstructorScreen({
     const memberId = `member-${Date.now()}`;
     const inviteSubject = 'Join FORGE Tactical Fitness';
     const displayName = trimmedGymName || trimmedName;
-    const inviteParams = new URLSearchParams({
-      member: memberId,
-      name: trimmedName,
-      gym: displayName,
-      group: selectedGroupId,
-    });
-    if (trimmedEmail) inviteParams.set('email', trimmedEmail);
-    const inviteUrl = `${appInviteUrl}?${inviteParams.toString()}`;
-    const inviteBody = `You've been invited by your coach, ${displayName}.\n\nOpen your FORGE member portal here:\n${inviteUrl}\n\nYou will see your assigned training and team progress. Shared login and live team sync still need backend team storage.`;
+    const inviteToken = generateInviteToken();
+    const tokenHash = await hashInviteToken(inviteToken);
+    const inviteUrl = buildSecureInviteUrl(appInviteUrl, inviteToken);
+    const expiresAt = inviteExpiry();
+    let inviteStorageNote = `Token hash ${tokenHash.slice(0, 12)}... is ready for member_invites storage.`;
+
+    if (cloudEnabled && supabase && uuidPattern.test(selectedGroupId)) {
+      const { error } = await supabase.rpc('create_member_invite', {
+        p_squad_id: selectedGroupId,
+        p_token_hash: tokenHash,
+        p_email: trimmedEmail || null,
+        p_display_name: trimmedName,
+        p_gym_name: displayName,
+        p_role: 'member',
+        p_expires_at: expiresAt,
+      });
+
+      if (error) {
+        console.error('Failed to create secure invite row', error);
+        inviteStorageNote = `Invite email created, but Supabase invite storage failed: ${error.message}`;
+      } else {
+        inviteStorageNote = 'Secure invite token stored in Supabase.';
+      }
+    }
+
+    const inviteBody = `You've been invited to FORGE Tactical Fitness.\n\nOpen your secure FORGE member portal invite here:\n${inviteUrl}\n\nThis invite expires on ${new Date(expiresAt).toLocaleDateString()}.\n\nCoach note: ${inviteStorageNote}`;
 
     onAddMember({
       id: memberId,
