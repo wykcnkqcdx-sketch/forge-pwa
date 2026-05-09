@@ -13,6 +13,7 @@ import { MetricCard } from '../components/MetricCard';
 import { LiveTimerText } from '../components/LiveTimerText';
 import { RuckMissionBriefCard } from '../components/RuckMissionBriefCard';
 import { RuckHistoryCard } from '../components/RuckHistoryCard';
+import { RuckReviewCard } from '../components/RuckReviewCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3166,77 +3167,20 @@ function updateSelectedCheckpointHere() {
       </Card>
 
       {reviewOpen && startTime ? (
-        <Card style={styles.reviewCard}>
-          <View style={styles.navHeader}>
-            <View>
-              <Text style={styles.cardTitle}>Ruck Review</Text>
-              <Text style={styles.muted}>Confirm the session before it hits your log.</Text>
-            </View>
-            <View style={[styles.signalBadge, { borderColor: statusColors(routeReview.confidence === 'High' ? colours.green : routeReview.confidence === 'Medium' ? colours.amber : colours.red).borderMed, backgroundColor: statusColors(routeReview.confidence === 'High' ? colours.green : routeReview.confidence === 'Medium' ? colours.amber : colours.red).bgMed }]}>
-              <Text style={[styles.signalText, { color: routeReview.confidence === 'High' ? colours.green : routeReview.confidence === 'Medium' ? colours.amber : colours.red }]}>
-                {routeReview.confidence.toUpperCase()}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.reviewGrid}>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{currentDistance.toFixed(2)}km</Text>
-              <Text style={styles.reviewLabel}>Distance</Text>
-            </View>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{formatElapsed(elapsedSeconds)}</Text>
-              <Text style={styles.reviewLabel}>Time</Text>
-            </View>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{activePace}</Text>
-              <Text style={styles.reviewLabel}>Min/km</Text>
-            </View>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{weight}kg</Text>
-              <Text style={styles.reviewLabel}>Load</Text>
-            </View>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{routeReview.averageAccuracyMeters ? `+/-${routeReview.averageAccuracyMeters}m` : 'Unknown'}</Text>
-              <Text style={styles.reviewLabel}>Avg GPS</Text>
-            </View>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{rejectedPointCount}</Text>
-              <Text style={styles.reviewLabel}>Rejected</Text>
-            </View>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{routeReview.reachedCheckpoints}/{routeReview.totalCheckpoints}</Text>
-              <Text style={styles.reviewLabel}>Checkpoints</Text>
-            </View>
-            <View style={styles.reviewItem}>
-              <Text style={styles.reviewValue}>{splits.length}</Text>
-              <Text style={styles.reviewLabel}>Splits</Text>
-            </View>
-          </View>
-
-          <TextInput
-            value={ruckReviewNote}
-            onChangeText={setRuckReviewNote}
-            placeholder="Session note, kit issue, terrain, pain, weather..."
-            placeholderTextColor={colours.soft}
-            style={styles.reviewNoteInput}
-            multiline
-          />
-
-          <View style={styles.reviewActions}>
-            <Pressable style={styles.saveButton} onPress={saveTrackedRuck}>
-              <Text style={styles.saveButtonText}>Save Ruck</Text>
-            </Pressable>
-            <Pressable style={styles.trackButton} onPress={resumeTracking}>
-              <Ionicons name="play" size={18} color={colours.background} />
-              <Text style={styles.trackButtonText}>Resume</Text>
-            </Pressable>
-            <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
-              <Ionicons name="close" size={18} color={colours.text} />
-              <Text style={[styles.trackButtonText, { color: colours.text }]}>Discard</Text>
-            </Pressable>
-          </View>
-        </Card>
+        <RuckReviewCard
+          currentDistance={currentDistance}
+          elapsedSeconds={elapsedSeconds}
+          activePace={activePace}
+          weight={weight}
+          routeReview={routeReview}
+          rejectedPointCount={rejectedPointCount}
+          splitCount={splits.length}
+          note={ruckReviewNote}
+          onNoteChange={setRuckReviewNote}
+          onSave={saveTrackedRuck}
+          onResume={resumeTracking}
+          onDiscard={discardTrackedRuck}
+        />
       ) : null}
 
       {!reviewOpen ? (
@@ -4363,30 +4307,6 @@ const styles = StyleSheet.create({
   saveButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
   saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
   discardButton: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colours.border, borderWidth: 1 },
-  reviewCard: { borderColor: 'rgba(103,232,249,0.28)' },
-  reviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
-  reviewItem: {
-    width: '47%',
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 10,
-    padding: 11,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  reviewValue: { color: colours.text, fontSize: 17, fontWeight: '900' },
-  reviewLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
-  reviewNoteInput: {
-    minHeight: 86,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 10,
-    padding: 12,
-    marginTop: 12,
-    color: colours.text,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    textAlignVertical: 'top',
-  },
-  reviewActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 12 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('md') },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: responsiveSpacing('sm'), gap: responsiveSpacing('md') },
