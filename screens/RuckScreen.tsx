@@ -26,6 +26,7 @@ import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
 import { RuckTacticalOptionsDrawer } from '../components/RuckTacticalOptionsDrawer';
 import { RuckLiveStatsRibbon } from '../components/RuckLiveStatsRibbon';
 import { RuckMapHeader } from '../components/RuckMapHeader';
+import { RuckOpsPanel } from '../components/RuckOpsPanel';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -125,7 +126,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [mapNorthUp, setMapNorthUp] = useState(true);
   const [missionMode, setMissionMode] = useState<RuckMissionMode>('simple');
   const [tacticalOptionsOpen, setTacticalOptionsOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState<'mission' | 'field' | 'metrics' | 'setup'>('mission');
+  const [activeSection, setActiveSection] = useState<'mission' | 'field' | 'metrics' | 'setup' | 'ops'>('mission');
+  const [dismissedCallsigns, setDismissedCallsigns] = useState<string[]>([]);
   const [isDownloadingMap, setIsDownloadingMap] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [targetDistanceKm, setTargetDistanceKm] = useState(8);
@@ -3139,6 +3141,7 @@ function updateSelectedCheckpointHere() {
           ['mission', 'flag-outline', 'MISSION'],
           ['field', 'map-outline', 'FIELD'],
           ['metrics', 'bar-chart-outline', 'DATA'],
+          ['ops', 'radio-outline', 'OPS'],
           ['setup', 'settings-outline', 'SETUP'],
         ] as const).map(([section, icon, label]) => {
           const active = activeSection === section;
@@ -3270,6 +3273,22 @@ function updateSelectedCheckpointHere() {
           <RuckScoreCard score={score} />
           <RuckPandolfCard pandolf={pandolf} distanceKm={distance} loadKg={weight} />
         </>
+      )}
+
+      {activeSection === 'ops' && (
+        <RuckOpsPanel
+          teammates={teammates}
+          connected={teamConnected}
+          teamEnabled={teamEnabled}
+          dismissedCallsigns={dismissedCallsigns}
+          currentPoint={currentPoint ?? null}
+          onFocusTeammate={(teammate) => {
+            setMapCenter({ latitude: teammate.lat, longitude: teammate.lon, altitude: null, accuracy: null, timestamp: Date.now() });
+            setGpsFollowMode(false);
+          }}
+          onDismissTeammate={(callsign) => setDismissedCallsigns((prev) => [...prev, callsign])}
+          onToggleTeam={() => setTeamEnabled((v) => !v)}
+        />
       )}
 
       {activeSection === 'setup' && (
