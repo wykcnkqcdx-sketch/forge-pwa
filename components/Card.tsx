@@ -17,7 +17,7 @@ export function Card({ children, style, accent, hot }: Props) {
     <View style={[
       styles.card,
       hot && styles.cardHot,
-      shadows.card,
+      shadows.subtle,
       style,
     ]}>
       {/* Top glass highlight */}
@@ -33,16 +33,11 @@ export function Card({ children, style, accent, hot }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(10, 20, 35, 0.80)',
+    backgroundColor: 'rgba(10, 20, 35, 0.72)',
     borderWidth: 1,
-    borderColor: colours.borderSoft,
+    borderColor: 'rgba(255,255,255,0.05)',
     borderRadius: 20,
     overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.40,
-    shadowRadius: 20,
-    elevation: 12,
   },
   cardHot: {
     borderColor: colours.border,

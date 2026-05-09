@@ -1268,6 +1268,19 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     return () => subscription.remove();
   }, [isTracking, recordLocation]);
 
+  const prevIsTrackingRef = useRef(isTracking);
+  useEffect(() => {
+    const wasTracking = prevIsTrackingRef.current;
+    prevIsTrackingRef.current = isTracking;
+    if (wasTracking === isTracking) return;
+    if (isTracking) {
+      if (missionMode !== 'simple') setActiveSection('field');
+      else setActiveSection((s) => s === 'setup' ? 'mission' : s);
+    } else if (startTime) {
+      setActiveSection((s) => s === 'field' ? 'mission' : s);
+    }
+  }, [isTracking, missionMode, startTime]);
+
   useEffect(() => {
     const reachedIndex = Math.min(checkpointCount, Math.floor(currentDistance / checkpointIntervalKm));
     setCheckpointIndex((current) => Math.max(current, reachedIndex));
@@ -1293,6 +1306,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     arrived.forEach((checkpoint) => announcedCheckpointArrivals.current.add(checkpoint.id));
     if (firstNewArrival) {
       setSelectedCheckpointId(firstNewArrival.id);
+      setActiveSection('field');
     }
   }, [currentPoint, placedCheckpoints]);
 
