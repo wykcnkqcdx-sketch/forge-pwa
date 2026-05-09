@@ -17,6 +17,7 @@ import { RuckReviewCard } from '../components/RuckReviewCard';
 import { RuckTrackingControls } from '../components/RuckTrackingControls';
 import { RuckSplitsCard } from '../components/RuckSplitsCard';
 import { RuckReadinessCard } from '../components/RuckReadinessCard';
+import { RuckPandolfCard } from '../components/RuckPandolfCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3654,30 +3655,7 @@ function updateSelectedCheckpointHere() {
         </View>
       </Card>
 
-      <Card accent={colours.cyan}>
-        <Text style={styles.cardTitle}>Enhanced Pandolf Load Model</Text>
-        <View style={styles.navGrid}>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{pandolf.watts}W</Text>
-            <Text style={styles.navLabel}>raw cost</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{pandolf.wattsCorrected}W</Text>
-            <Text style={styles.navLabel}>+27% heavy-load correction</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{pandolf.loadRatio}</Text>
-            <Text style={styles.navLabel}>load/body ratio</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{Math.round(distance * weight)}</Text>
-            <Text style={styles.navLabel}>planned kg-km</Text>
-          </View>
-        </View>
-        <Text style={styles.navGuide}>
-          Model uses body mass, carried load, speed, grade, and terrain. The heavy-load correction applies when load reaches 27% of body mass.
-        </Text>
-      </Card>
+      <RuckPandolfCard pandolf={pandolf} distanceKm={distance} loadKg={weight} />
 
       <Card>
         <View style={styles.navHeader}>
