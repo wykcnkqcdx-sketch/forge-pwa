@@ -9,7 +9,6 @@ import Svg, { Circle, G, Polygon, Polyline, Text as SvgText } from 'react-native
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
-import { MetricCard } from '../components/MetricCard';
 import { LiveTimerText } from '../components/LiveTimerText';
 import { RuckMissionBriefCard } from '../components/RuckMissionBriefCard';
 import { RuckHistoryCard } from '../components/RuckHistoryCard';
@@ -21,6 +20,7 @@ import { RuckPandolfCard } from '../components/RuckPandolfCard';
 import { RuckScoreCard } from '../components/RuckScoreCard';
 import { RuckNavigationGuideCard } from '../components/RuckNavigationGuideCard';
 import { RuckSessionSetupCard } from '../components/RuckSessionSetupCard';
+import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3579,15 +3579,13 @@ function updateSelectedCheckpointHere() {
         </View>
       </Card>
 
-      <View style={styles.grid}>
-        <MetricCard icon="barbell" label="Pack" value={`${weight}kg`} sub="ruck load" />
-        <MetricCard icon="footsteps" label="Loaded" value={`${Math.round(distance * weight)}`} sub={`kg-km | ${pace}/km`} tone={colours.amber} />
-      </View>
-
-      <View style={styles.grid}>
-        <MetricCard icon="trail-sign" label="Pandolf" value={`${pandolf.wattsCorrected}W`} sub={`${pandolf.metabolicCostKcalHour} kcal/hr`} tone={colours.green} />
-        <MetricCard icon="compass" label="Heading" value={activeHeading == null ? '--' : formatHeading(activeHeading)} sub={activeHeading == null ? 'compass standby' : cardinalDirection(activeHeading)} tone={colours.cyan} />
-      </View>
+      <RuckMetricSummary
+        weightKg={weight}
+        distanceKm={distance}
+        pace={pace}
+        pandolf={pandolf}
+        activeHeading={activeHeading}
+      />
 
       <RuckSessionSetupCard
         bodyMassKg={bodyMassKg}
@@ -4111,7 +4109,6 @@ const styles = StyleSheet.create({
   liveValue: { color: colours.cyan, fontSize: 18, fontWeight: '900' },
   liveLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.3, marginTop: 2 },
   coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 10 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('md') },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: responsiveSpacing('sm'), gap: responsiveSpacing('md') },
   controlLabel: { color: colours.text, fontWeight: '800' },
