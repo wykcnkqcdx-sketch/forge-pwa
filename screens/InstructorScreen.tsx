@@ -202,6 +202,29 @@ export function InstructorScreen({
       : cloudStatus === 'error'
         ? colours.red
         : colours.amber;
+  const membersNeedingReview = useMemo(
+    () => members
+      .filter((member) => member.risk !== 'Low' || member.readiness < 60 || member.compliance < 70 || member.load > 85)
+      .sort((a, b) => {
+        const riskWeight = { High: 3, Medium: 2, Low: 1 };
+        return riskWeight[b.risk] - riskWeight[a.risk] || a.readiness - b.readiness;
+      })
+      .slice(0, 5),
+    [members]
+  );
+  const teamPulse = useMemo(() => {
+    const weeklyVolume = members.reduce((total, member) => total + (member.weeklyVolume ?? 0), 0);
+    const readiness = members.length ? Math.round(members.reduce((total, member) => total + member.readiness, 0) / members.length) : 0;
+    const compliance = members.length ? Math.round(members.reduce((total, member) => total + member.compliance, 0) / members.length) : 0;
+    const weeklyGoal = Math.max(1000, groups.length * 2500);
+    const goalPercent = Math.min(100, Math.round((weeklyVolume / weeklyGoal) * 100));
+    const completionsThisWeek = workoutCompletions.filter((completion) => {
+      const completedAt = new Date(completion.completedAt).getTime();
+      return Date.now() - completedAt <= 7 * 24 * 60 * 60 * 1000;
+    }).length;
+
+    return { weeklyVolume, readiness, compliance, weeklyGoal, goalPercent, completionsThisWeek };
+  }, [groups.length, members, workoutCompletions]);
 
   function createGroup() {
     const trimmedName = newGroupName.trim();
@@ -434,6 +457,86 @@ export function InstructorScreen({
           <Text style={styles.title}>Squad Dashboard</Text>
         </View>
       </View>
+
+      <Card hot>
+        <View style={styles.pulseHeader}>
+          <View>
+            <Text style={styles.muted}>Team Pulse</Text>
+            <Text style={styles.pulseValue}>{teamPulse.goalPercent}%</Text>
+          </View>
+          <View style={styles.pulseSummary}>
+            <Text style={styles.pulseMetric}>Readiness {teamPulse.readiness}/100</Text>
+            <Text style={styles.pulseMetric}>Completion {teamPulse.compliance}%</Text>
+            <Text style={[styles.pulseMetric, { color: atRiskCount ? colours.amber : colours.green }]}>{atRiskCount} need review</Text>
+          </View>
+        </View>
+        <ProgressBar value={teamPulse.goalPercent} colour={teamPulse.goalPercent >= 75 ? colours.green : teamPulse.goalPercent >= 45 ? colours.amber : colours.red} />
+        <View style={styles.pulseStatRow}>
+          <Text style={styles.pulseStat}>{teamPulse.weeklyVolume.toLocaleString()} / {teamPulse.weeklyGoal.toLocaleString()} weekly volume</Text>
+          <Text style={styles.pulseStat}>{teamPulse.completionsThisWeek} completions this week</Text>
+        </View>
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Members Needing Review</Text>
+          <Text style={styles.muted}>{membersNeedingReview.length || 'none'}</Text>
+        </View>
+        {membersNeedingReview.length ? membersNeedingReview.map((member) => (
+          <View key={`review-${member.id}`} style={styles.reviewRow}>
+            <View style={styles.memberCopy}>
+              <Text style={styles.memberName}>{member.gymName || member.name}</Text>
+              <Text style={styles.muted}>Ready {member.readiness} - Comply {member.compliance}% - Load {member.load}</Text>
+            </View>
+            <Text style={[styles.reviewRisk, { color: member.risk === 'High' ? colours.red : colours.amber }]}>{member.risk}</Text>
+          </View>
+        )) : (
+          <Text style={styles.inviteHelp}>No member is currently flagged for readiness, compliance, pain risk, or excessive load.</Text>
+        )}
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <View>
+            <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Assignment Centre</Text>
+            <Text style={styles.inviteHelp}>Assign today&apos;s work to a member or group, then scan completion feedback below.</Text>
+          </View>
+          <Pressable style={styles.assignButton} onPress={toggleAssignmentPanel}>
+            <Text style={styles.assignButtonText}>{assignmentOpen ? 'Close' : 'Assign'}</Text>
+          </Pressable>
+        </View>
+        {assignmentFeedback ? (
+          <View style={styles.assignmentFeedback}>
+            <Text style={styles.assignmentFeedbackText}>{assignmentFeedback}</Text>
+          </View>
+        ) : null}
+        <View style={styles.assignmentQuickStats}>
+          <Text style={styles.assignmentQuickText}>{members.length} members</Text>
+          <Text style={styles.assignmentQuickText}>{groups.length} groups</Text>
+          <Text style={styles.assignmentQuickText}>{programmeTemplates.length} templates</Text>
+        </View>
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Notes & Feedback</Text>
+          <Text style={styles.muted}>{notedCompletions.length ? `latest ${notedCompletions.length}` : 'quiet'}</Text>
+        </View>
+        {notedCompletions.length ? notedCompletions.slice(0, 3).map((completion) => (
+          <View key={`top-note-${completion.id}`} style={styles.noteRow}>
+            <View style={styles.memberCopy}>
+              <Text style={styles.memberName}>{completion.memberName}</Text>
+              <Text style={styles.muted}>{completion.assignment} - {completion.effort}</Text>
+              <Text style={styles.coachMessage}>{completion.note}</Text>
+            </View>
+            <Text style={styles.completionTime}>
+              {new Date(completion.completedAt).toLocaleDateString(undefined, { weekday: 'short', hour: '2-digit', minute: '2-digit' })}
+            </Text>
+          </View>
+        )) : (
+          <Text style={styles.inviteHelp}>Too Easy / About Right / Too Hard responses and member notes will appear here.</Text>
+        )}
+      </Card>
 
       <Card>
         <Text style={styles.cardTitle}>Product Focus</Text>
@@ -979,6 +1082,35 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
   cardTitleFlush: { marginBottom: 0 },
+  pulseHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 12 },
+  pulseValue: { color: colours.green, fontSize: 58, lineHeight: 62, fontWeight: '900' },
+  pulseSummary: { flex: 1, gap: 5, alignItems: 'flex-end', paddingTop: 8 },
+  pulseMetric: { color: colours.textSoft, fontSize: 13, fontWeight: '900', textAlign: 'right' },
+  pulseStatRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 10 },
+  pulseStat: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  reviewRow: {
+    minHeight: 56,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    paddingVertical: 10,
+  },
+  reviewRisk: { fontSize: 12, fontWeight: '900' },
+  assignmentQuickStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  assignmentQuickText: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    color: colours.textSoft,
+    fontSize: 11,
+    fontWeight: '900',
+    backgroundColor: colours.layer1,
+  },
   cloudActions: {
     flexDirection: 'row',
     alignItems: 'center',

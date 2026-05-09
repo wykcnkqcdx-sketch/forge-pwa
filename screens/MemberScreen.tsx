@@ -385,6 +385,46 @@ export function MemberScreen({
         </View>
       </View>
 
+      <Card hot>
+        <View style={styles.todayTop}>
+          <View style={styles.todayCopy}>
+            <Text style={styles.todayLabel}>Today</Text>
+            <Text style={styles.todayTitle}>{assignmentSession?.title ?? member.assignment ?? 'No active assignment'}</Text>
+            {assignmentSession?.coachNote ? <Text style={styles.todayNote}>Coach note: {assignmentSession.coachNote}</Text> : null}
+          </View>
+          <Text style={[styles.todayReadiness, { color: readinessTone }]}>{member.readiness}</Text>
+        </View>
+        <ProgressBar value={member.readiness} colour={readinessTone} />
+        <View style={styles.memberActionGrid}>
+          {(['Too Easy', 'About Right', 'Too Hard'] as const).map((label) => (
+            <Pressable
+              key={`hero-${label}`}
+              style={[styles.memberActionButton, (assignmentSession?.status === 'completed' || finishFeedback.includes('Logged ')) && styles.finishButtonDisabled]}
+              onPress={() => finishWorkout(label)}
+              disabled={assignmentSession?.status === 'completed' || finishFeedback.includes('Logged ')}
+            >
+              <Text style={styles.memberActionText}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <TextInput
+          style={styles.quickNoteInput}
+          value={workoutNote}
+          onChangeText={(value) => {
+            setWorkoutNote(value);
+            if (finishFeedback.includes('Logged ')) setFinishFeedback('');
+          }}
+          placeholder="Quick note for coach"
+          placeholderTextColor={colours.soft}
+          multiline
+        />
+        <Pressable style={styles.ghostRowCompact} onPress={toggleGhostMode}>
+          <View style={[styles.toggleDot, member.ghostMode && styles.toggleDotActive]} />
+          <Text style={styles.ghostText}>{member.ghostMode ? 'Ghost Mode on' : 'Ghost Mode off'}</Text>
+        </Pressable>
+        {finishFeedback ? <Text style={styles.finishFeedback}>{finishFeedback}</Text> : null}
+      </Card>
+
       <Card>
         <View style={styles.syncRow}>
           <View style={styles.syncCopy}>
@@ -712,6 +752,79 @@ const styles = StyleSheet.create({
   badgeRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('sm'),
+  },
+  todayTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: responsiveSpacing('md'),
+    marginBottom: responsiveSpacing('md'),
+  },
+  todayCopy: {
+    flex: 1,
+  },
+  todayLabel: {
+    ...typography.label,
+    color: colours.cyan,
+  },
+  todayTitle: {
+    color: colours.text,
+    fontSize: 26,
+    lineHeight: 30,
+    fontWeight: '900',
+    marginTop: 4,
+  },
+  todayNote: {
+    ...typography.caption,
+    color: colours.textSoft,
+    lineHeight: 18,
+    marginTop: 8,
+  },
+  todayReadiness: {
+    fontSize: 42,
+    lineHeight: 46,
+    fontWeight: '900',
+  },
+  memberActionGrid: {
+    flexDirection: 'row',
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
+  },
+  memberActionButton: {
+    minHeight: touchTarget,
+    flex: 1,
+    borderRadius: 8,
+    backgroundColor: colours.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+  },
+  memberActionText: {
+    ...typography.caption,
+    color: colours.background,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  quickNoteInput: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    color: colours.text,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontWeight: '800',
+    marginTop: responsiveSpacing('md'),
+    textAlignVertical: 'top',
+  },
+  ghostRowCompact: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: responsiveSpacing('sm'),
     marginTop: responsiveSpacing('sm'),
   },
