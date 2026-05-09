@@ -126,6 +126,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [mapNorthUp, setMapNorthUp] = useState(true);
   const [missionMode, setMissionMode] = useState<RuckMissionMode>('simple');
   const [tacticalOptionsOpen, setTacticalOptionsOpen] = useState(false);
+  const [activeSection, setActiveSection] = useState<'mission' | 'field' | 'metrics' | 'setup'>('mission');
   const [isDownloadingMap, setIsDownloadingMap] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [targetDistanceKm, setTargetDistanceKm] = useState(8);
@@ -3119,132 +3120,158 @@ function updateSelectedCheckpointHere() {
         />
       ) : null}
 
-      <RuckHistoryCard sessions={sessions} />
+      <View style={styles.sectionTabs}>
+        {([
+          ['mission', 'flag-outline', 'MISSION'],
+          ['field', 'map-outline', 'FIELD'],
+          ['metrics', 'bar-chart-outline', 'DATA'],
+          ['setup', 'settings-outline', 'SETUP'],
+        ] as const).map(([section, icon, label]) => {
+          const active = activeSection === section;
+          return (
+            <Pressable
+              key={section}
+              style={[styles.sectionTab, active && styles.sectionTabActive]}
+              onPress={() => setActiveSection(section)}
+            >
+              <Ionicons name={icon} size={13} color={active ? colours.background : colours.muted} />
+              <Text style={[styles.sectionTabText, active && styles.sectionTabTextActive]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
-      <RuckMissionBriefCard
-        targetDistanceKm={targetDistanceKm}
-        targetMinutes={targetMinutes}
-        weightKg={weight}
-        sessions={sessions}
-      />
+      {activeSection === 'mission' && (
+        <>
+          <RuckMissionBriefCard
+            targetDistanceKm={targetDistanceKm}
+            targetMinutes={targetMinutes}
+            weightKg={weight}
+            sessions={sessions}
+          />
+          <RuckMissionPaceCard
+            currentDistance={currentDistance}
+            targetDeltaMinutes={targetDeltaMinutes}
+            templates={allRuckTemplates}
+            activeTemplateId={activeTemplateId}
+            templateNameInput={templateNameInput}
+            targetDistanceKm={targetDistanceKm}
+            targetMinutes={targetMinutes}
+            targetPaceLabel={targetPaceLabel}
+            targetRemainingKm={targetRemainingKm}
+            targetEtaMinutes={targetEtaMinutes}
+            targetProjectedMinutes={targetProjectedMinutes}
+            finishMode={finishMode}
+            finishOnTarget={finishOnTarget}
+            finishLabel={finishLabel}
+            finishDistanceRemainingKm={finishDistanceRemainingKm}
+            finishEtaMinutes={finishEtaMinutes}
+            finishRequiredPace={finishRequiredPace}
+            onApplyTemplate={applyTemplate}
+            onDeleteTemplate={deleteCustomTemplate}
+            onTemplateNameChange={setTemplateNameInput}
+            onSaveTemplate={saveCustomTemplate}
+            onTargetDistanceChange={changeTargetDistance}
+            onTargetMinutesChange={changeTargetMinutes}
+            onFinishModeChange={setFinishMode}
+          />
+          <RuckHistoryCard sessions={sessions} />
+          <Pressable style={styles.primaryButton} onPress={saveRuck}>
+            <Text style={styles.primaryButtonText}>Save Ruck Session</Text>
+          </Pressable>
+        </>
+      )}
 
-      <RuckMissionPaceCard
-        currentDistance={currentDistance}
-        targetDeltaMinutes={targetDeltaMinutes}
-        templates={allRuckTemplates}
-        activeTemplateId={activeTemplateId}
-        templateNameInput={templateNameInput}
-        targetDistanceKm={targetDistanceKm}
-        targetMinutes={targetMinutes}
-        targetPaceLabel={targetPaceLabel}
-        targetRemainingKm={targetRemainingKm}
-        targetEtaMinutes={targetEtaMinutes}
-        targetProjectedMinutes={targetProjectedMinutes}
-        finishMode={finishMode}
-        finishOnTarget={finishOnTarget}
-        finishLabel={finishLabel}
-        finishDistanceRemainingKm={finishDistanceRemainingKm}
-        finishEtaMinutes={finishEtaMinutes}
-        finishRequiredPace={finishRequiredPace}
-        onApplyTemplate={applyTemplate}
-        onDeleteTemplate={deleteCustomTemplate}
-        onTemplateNameChange={setTemplateNameInput}
-        onSaveTemplate={saveCustomTemplate}
-        onTargetDistanceChange={changeTargetDistance}
-        onTargetMinutesChange={changeTargetMinutes}
-        onFinishModeChange={setFinishMode}
-      />
+      {activeSection === 'field' && (
+        <>
+          <RuckFieldMarksCard
+            arrivalCheckpoint={arrivalCheckpoint}
+            plannedCheckpoints={plannedCheckpoints}
+            nearestCheckpointDistanceMeters={nearestCheckpoint ? Math.round(nearestCheckpoint.distanceKm * 1000) : null}
+            activeMarkType={activeMarkType}
+            selectedCheckpoint={selectedCheckpoint}
+            selectedCheckpointPoint={selectedCheckpointPoint}
+            selectedCheckpointDistanceKm={selectedCheckpointDistanceKm}
+            selectedCheckpointBearing={selectedCheckpointBearing}
+            selectedCheckpointEtaMinutes={selectedCheckpointEtaMinutes}
+            checkpointCoordinateInput={checkpointCoordinateInput}
+            checkpointBulkInput={checkpointBulkInput}
+            checkpointLabelInput={checkpointLabelInput}
+            coordinateFormat={coordinateFormat}
+            bearingGuidance={bearingGuidance}
+            onAddCheckpointHere={addCheckpointHere}
+            onCoordinateInputChange={setCheckpointCoordinateInput}
+            onAddCheckpointFromInput={addCheckpointFromInput}
+            onMarkTypeSelect={(markType) => {
+              setActiveMarkType(markType);
+              if (selectedCheckpoint) updateSelectedCheckpoint({ markType });
+            }}
+            onMoveSelectedToGrid={updateSelectedCheckpointFromInput}
+            onMoveSelectedHere={updateSelectedCheckpointHere}
+            onCheckpointLabelChange={setCheckpointLabelInput}
+            onSaveCheckpointLabel={saveSelectedCheckpointLabel}
+            onStatusChange={setSelectedCheckpointStatus}
+            onFocusMark={focusNavMark}
+            onClearSelected={clearSelectedCheckpoint}
+            onUndoLast={undoLastCheckpoint}
+            onClearAll={clearAllCheckpoints}
+            onBulkInputChange={setCheckpointBulkInput}
+            onImportCheckpoints={importCheckpoints}
+          />
+          <RuckCheckpointModeCard
+            checkpointStatus={checkpointStatus}
+            checkpointIndex={checkpointIndex}
+            checkpointCount={checkpointCount}
+            checkpointIntervalKm={checkpointIntervalKm}
+            nextCheckpointKm={nextCheckpointKm}
+            checkpointRemainingKm={checkpointRemainingKm}
+            checkpointEtaMinutes={checkpointEtaMinutes}
+            displayBearing={displayBearing}
+            onMarkReached={markCheckpointReached}
+            onUndoMark={undoCheckpointMark}
+            onCheckpointIntervalChange={changeCheckpointInterval}
+          />
+          <RuckNavigationGuideCard
+            rotationAnim={rotationAnim}
+            activeHeading={activeHeading}
+            naismithMinutes={naismithMinutes}
+            plannedAscentM={plannedAscentM}
+            routeBearing={routeBearing}
+            currentAltitude={currentAltitude}
+          />
+        </>
+      )}
 
-      <RuckReadinessCard readiness={routeReadinessChecks} />
+      {activeSection === 'metrics' && (
+        <>
+          <RuckMetricSummary
+            weightKg={weight}
+            distanceKm={distance}
+            pace={pace}
+            pandolf={pandolf}
+            activeHeading={activeHeading}
+          />
+          <RuckSplitsCard splits={splits} />
+          <RuckReadinessCard readiness={routeReadinessChecks} />
+          <RuckScoreCard score={score} />
+          <RuckPandolfCard pandolf={pandolf} distanceKm={distance} loadKg={weight} />
+        </>
+      )}
 
-      <RuckSplitsCard splits={splits} />
-
-      <RuckFieldMarksCard
-        arrivalCheckpoint={arrivalCheckpoint}
-        plannedCheckpoints={plannedCheckpoints}
-        nearestCheckpointDistanceMeters={nearestCheckpoint ? Math.round(nearestCheckpoint.distanceKm * 1000) : null}
-        activeMarkType={activeMarkType}
-        selectedCheckpoint={selectedCheckpoint}
-        selectedCheckpointPoint={selectedCheckpointPoint}
-        selectedCheckpointDistanceKm={selectedCheckpointDistanceKm}
-        selectedCheckpointBearing={selectedCheckpointBearing}
-        selectedCheckpointEtaMinutes={selectedCheckpointEtaMinutes}
-        checkpointCoordinateInput={checkpointCoordinateInput}
-        checkpointBulkInput={checkpointBulkInput}
-        checkpointLabelInput={checkpointLabelInput}
-        coordinateFormat={coordinateFormat}
-        bearingGuidance={bearingGuidance}
-        onAddCheckpointHere={addCheckpointHere}
-        onCoordinateInputChange={setCheckpointCoordinateInput}
-        onAddCheckpointFromInput={addCheckpointFromInput}
-        onMarkTypeSelect={(markType) => {
-          setActiveMarkType(markType);
-          if (selectedCheckpoint) updateSelectedCheckpoint({ markType });
-        }}
-        onMoveSelectedToGrid={updateSelectedCheckpointFromInput}
-        onMoveSelectedHere={updateSelectedCheckpointHere}
-        onCheckpointLabelChange={setCheckpointLabelInput}
-        onSaveCheckpointLabel={saveSelectedCheckpointLabel}
-        onStatusChange={setSelectedCheckpointStatus}
-        onFocusMark={focusNavMark}
-        onClearSelected={clearSelectedCheckpoint}
-        onUndoLast={undoLastCheckpoint}
-        onClearAll={clearAllCheckpoints}
-        onBulkInputChange={setCheckpointBulkInput}
-        onImportCheckpoints={importCheckpoints}
-      />
-
-      <RuckCheckpointModeCard
-        checkpointStatus={checkpointStatus}
-        checkpointIndex={checkpointIndex}
-        checkpointCount={checkpointCount}
-        checkpointIntervalKm={checkpointIntervalKm}
-        nextCheckpointKm={nextCheckpointKm}
-        checkpointRemainingKm={checkpointRemainingKm}
-        checkpointEtaMinutes={checkpointEtaMinutes}
-        displayBearing={displayBearing}
-        onMarkReached={markCheckpointReached}
-        onUndoMark={undoCheckpointMark}
-        onCheckpointIntervalChange={changeCheckpointInterval}
-      />
-
-      <RuckMetricSummary
-        weightKg={weight}
-        distanceKm={distance}
-        pace={pace}
-        pandolf={pandolf}
-        activeHeading={activeHeading}
-      />
-
-      <RuckSessionSetupCard
-        bodyMassKg={bodyMassKg}
-        weightKg={weight}
-        distanceKm={distance}
-        plannedAscentM={plannedAscentM}
-        terrainFactor={terrainFactor}
-        onBodyMassChange={changeBodyMass}
-        onWeightChange={changeWeight}
-        onDistanceChange={changeDistance}
-        onAscentChange={changeAscent}
-        onTerrainChange={changeTerrain}
-      />
-
-      <RuckPandolfCard pandolf={pandolf} distanceKm={distance} loadKg={weight} />
-
-      <RuckNavigationGuideCard
-        rotationAnim={rotationAnim}
-        activeHeading={activeHeading}
-        naismithMinutes={naismithMinutes}
-        plannedAscentM={plannedAscentM}
-        routeBearing={routeBearing}
-        currentAltitude={currentAltitude}
-      />
-
-      <RuckScoreCard score={score} />
-
-      <Pressable style={styles.primaryButton} onPress={saveRuck}>
-        <Text style={styles.primaryButtonText}>Save Ruck Session</Text>
-      </Pressable>
+      {activeSection === 'setup' && (
+        <RuckSessionSetupCard
+          bodyMassKg={bodyMassKg}
+          weightKg={weight}
+          distanceKm={distance}
+          plannedAscentM={plannedAscentM}
+          terrainFactor={terrainFactor}
+          onBodyMassChange={changeBodyMass}
+          onWeightChange={changeWeight}
+          onDistanceChange={changeDistance}
+          onAscentChange={changeAscent}
+          onTerrainChange={changeTerrain}
+        />
+      )}
     </Screen>
   );
 }
@@ -3566,6 +3593,27 @@ const styles = StyleSheet.create({
   coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 4, paddingBottom: 6, paddingHorizontal: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: responsiveSpacing('md') },
+  sectionTabs: {
+    flexDirection: 'row',
+    gap: 4,
+    padding: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+  },
+  sectionTab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingVertical: 9,
+    borderRadius: 7,
+  },
+  sectionTabActive: { backgroundColor: colours.cyan },
+  sectionTabText: { ...typography.label, color: colours.muted, letterSpacing: 0.8 },
+  sectionTabTextActive: { color: colours.background },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
 
