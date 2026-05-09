@@ -18,6 +18,7 @@ import { RuckTrackingControls } from '../components/RuckTrackingControls';
 import { RuckSplitsCard } from '../components/RuckSplitsCard';
 import { RuckReadinessCard } from '../components/RuckReadinessCard';
 import { RuckPandolfCard } from '../components/RuckPandolfCard';
+import { RuckScoreCard } from '../components/RuckScoreCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3707,13 +3708,7 @@ function updateSelectedCheckpointHere() {
         </Text>
       </Card>
 
-      <Card style={{ backgroundColor: 'rgba(103,232,249,0.08)' }}>
-        <Text style={styles.muted}>Projected session score</Text>
-        <Text style={styles.score}>{score}</Text>
-        <Text style={styles.muted}>
-          Higher distance and heavier load increase training stress. This is a planning estimate, not medical advice.
-        </Text>
-      </Card>
+      <RuckScoreCard score={score} />
 
       <Pressable style={styles.primaryButton} onPress={saveRuck}>
         <Text style={styles.primaryButtonText}>Save Ruck Session</Text>
@@ -4454,7 +4449,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  score: { color: colours.cyan, fontSize: 52, fontWeight: '900', marginVertical: 4 },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
 
