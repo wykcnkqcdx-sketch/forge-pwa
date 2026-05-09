@@ -20,6 +20,7 @@ import { RuckReadinessCard } from '../components/RuckReadinessCard';
 import { RuckPandolfCard } from '../components/RuckPandolfCard';
 import { RuckScoreCard } from '../components/RuckScoreCard';
 import { RuckNavigationGuideCard } from '../components/RuckNavigationGuideCard';
+import { RuckSessionSetupCard } from '../components/RuckSessionSetupCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3588,74 +3589,18 @@ function updateSelectedCheckpointHere() {
         <MetricCard icon="compass" label="Heading" value={activeHeading == null ? '--' : formatHeading(activeHeading)} sub={activeHeading == null ? 'compass standby' : cardinalDirection(activeHeading)} tone={colours.cyan} />
       </View>
 
-      <Card>
-        <Text style={styles.cardTitle}>Session Setup</Text>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Body Mass</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeBodyMass(-1)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{bodyMassKg}kg</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeBodyMass(1)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Ruck Weight</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeWeight(-1)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{weight}kg</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeWeight(1)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Distance</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeDistance(-1)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{distance}km</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeDistance(1)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Ascent</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeAscent(-50)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{plannedAscentM}m</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeAscent(50)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Terrain Factor</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeTerrain(-0.1)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{terrainFactor.toFixed(1)}x</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeTerrain(0.1)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Card>
+      <RuckSessionSetupCard
+        bodyMassKg={bodyMassKg}
+        weightKg={weight}
+        distanceKm={distance}
+        plannedAscentM={plannedAscentM}
+        terrainFactor={terrainFactor}
+        onBodyMassChange={changeBodyMass}
+        onWeightChange={changeWeight}
+        onDistanceChange={changeDistance}
+        onAscentChange={changeAscent}
+        onTerrainChange={changeTerrain}
+      />
 
       <RuckPandolfCard pandolf={pandolf} distanceKm={distance} loadKg={weight} />
 
