@@ -1,36 +1,44 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colours, typography } from '../theme';
 import { distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { formatHeading, cardinalDirection } from '../utils/ruck';
 import { CATEGORIES, ALL_ABBREVS } from '../data/militaryAbbreviations';
-import type { Teammate } from '../lib/teamPresence';
+import type { Teammate, TeamMessage } from '../lib/teamPresence';
 import type { TrackPoint } from '../data/mockData';
 
 type Props = {
+  callsign: string;
   teammates: Teammate[];
   connected: boolean;
   teamEnabled: boolean;
   dismissedCallsigns: string[];
   currentPoint: TrackPoint | null;
+  messages: TeamMessage[];
   onFocusTeammate: (teammate: Teammate) => void;
   onDismissTeammate: (callsign: string) => void;
   onToggleTeam: () => void;
+  onSendMessage: (text: string) => void;
 };
 
 export function RuckOpsPanel({
+  callsign,
   teammates,
   connected,
   teamEnabled,
   dismissedCallsigns,
   currentPoint,
+  messages,
   onFocusTeammate,
   onDismissTeammate,
   onToggleTeam,
+  onSendMessage,
 }: Props) {
   const [query, setQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('essential');
+  const [draft, setDraft] = useState('');
+  const msgScrollRef = useRef<ScrollView>(null);
 
   const visibleTeammates = teammates.filter((t) => !dismissedCallsigns.includes(t.callsign));
 
@@ -58,6 +66,17 @@ export function RuckOpsPanel({
     if (s < 60) return `${s}s ago`;
     if (s < 3600) return `${Math.floor(s / 60)}m ago`;
     return `${Math.floor(s / 3600)}h ago`;
+  }
+
+  function msgTime(ms: number) {
+    const d = new Date(ms);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function handleSend() {
+    if (!draft.trim()) return;
+    onSendMessage(draft.trim());
+    setDraft('');
   }
 
   return (
@@ -147,6 +166,69 @@ export function RuckOpsPanel({
             })}
           </View>
         )}
+      </View>
+
+      {/* ── TEAM COMMS ────────────────────────────────── */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionHeaderLeft}>
+            <Ionicons name="chatbubbles-outline" size={12} color={colours.muted} />
+            <Text style={styles.sectionLabel}>TEAM COMMS</Text>
+          </View>
+          {!teamEnabled && (
+            <Text style={styles.disabledHint}>Enable team to send</Text>
+          )}
+        </View>
+
+        <ScrollView
+          ref={msgScrollRef}
+          style={styles.msgThread}
+          onContentSizeChange={() => msgScrollRef.current?.scrollToEnd({ animated: true })}
+          showsVerticalScrollIndicator={false}
+        >
+          {messages.length === 0 ? (
+            <View style={styles.msgEmpty}>
+              <Ionicons name="radio-outline" size={22} color={colours.muted} />
+              <Text style={styles.msgEmptyText}>No messages yet</Text>
+            </View>
+          ) : (
+            messages.map((msg) => {
+              const isMine = msg.from === callsign;
+              return (
+                <View key={msg.id} style={[styles.msgRow, isMine && styles.msgRowMine]}>
+                  <View style={[styles.msgBubble, isMine && styles.msgBubbleMine]}>
+                    {!isMine && (
+                      <Text style={styles.msgFrom}>{msg.from}</Text>
+                    )}
+                    <Text style={[styles.msgText, isMine && styles.msgTextMine]}>{msg.text}</Text>
+                    <Text style={styles.msgTime}>{msgTime(msg.sentAt)}</Text>
+                  </View>
+                </View>
+              );
+            })
+          )}
+        </ScrollView>
+
+        <View style={styles.msgInputRow}>
+          <TextInput
+            style={styles.msgInput}
+            value={draft}
+            onChangeText={setDraft}
+            placeholder={teamEnabled ? 'Send message to team…' : 'Team disabled'}
+            placeholderTextColor={colours.muted}
+            editable={teamEnabled}
+            returnKeyType="send"
+            onSubmitEditing={handleSend}
+            maxLength={160}
+          />
+          <Pressable
+            style={[styles.sendBtn, (!teamEnabled || !draft.trim()) && styles.sendBtnDisabled]}
+            onPress={handleSend}
+            disabled={!teamEnabled || !draft.trim()}
+          >
+            <Ionicons name="send" size={14} color={teamEnabled && draft.trim() ? colours.background : colours.muted} />
+          </Pressable>
+        </View>
       </View>
 
       {/* ── ORDERS REFERENCE ──────────────────────────── */}
@@ -355,4 +437,55 @@ const styles = StyleSheet.create({
   },
   termMeaning: { flex: 1, color: colours.textSoft, fontSize: 12, fontWeight: '600', lineHeight: 17 },
   noResultsText: { color: colours.muted, fontSize: 12, textAlign: 'center', paddingVertical: 16 },
+  disabledHint: { ...typography.label, color: colours.muted, fontSize: 9, letterSpacing: 0.6 },
+  msgThread: { maxHeight: 180, paddingHorizontal: 12, paddingTop: 8 },
+  msgEmpty: { alignItems: 'center', paddingVertical: 20, gap: 6 },
+  msgEmptyText: { ...typography.caption, color: colours.muted },
+  msgRow: { marginBottom: 8, alignItems: 'flex-start' },
+  msgRowMine: { alignItems: 'flex-end' },
+  msgBubble: {
+    maxWidth: '80%',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 2,
+  },
+  msgBubbleMine: {
+    backgroundColor: 'rgba(103,232,249,0.12)',
+    borderColor: 'rgba(103,232,249,0.25)',
+  },
+  msgFrom: { ...typography.label, color: colours.cyan, letterSpacing: 0.8, marginBottom: 2 },
+  msgText: { color: colours.text, fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  msgTextMine: { color: colours.cyan },
+  msgTime: { ...typography.caption, color: colours.muted, marginTop: 2, textAlign: 'right' },
+  msgInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    margin: 10,
+    gap: 8,
+  },
+  msgInput: {
+    flex: 1,
+    color: colours.text,
+    fontSize: 13,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+  sendBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colours.cyan,
+  },
+  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.08)' },
 });

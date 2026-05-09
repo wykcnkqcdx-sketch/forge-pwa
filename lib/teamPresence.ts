@@ -65,9 +65,17 @@ function colorForCallsign(cs: string): string {
   return TEAMMATE_COLORS[Math.abs(hash) % TEAMMATE_COLORS.length];
 }
 
+export type TeamMessage = {
+  id: string;
+  from: string;
+  text: string;
+  sentAt: number;
+};
+
 export function useTeamPresence(callsign: string, enabled: boolean) {
   const [teammates, setTeammates] = useState<Teammate[]>([]);
   const [connected, setConnected] = useState(false);
+  const [messages, setMessages] = useState<TeamMessage[]>([]);
   const channelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
@@ -79,6 +87,15 @@ export function useTeamPresence(callsign: string, enabled: boolean) {
 
     const ch = supabase.channel(TEAM_CHANNEL, {
       config: { presence: { key: callsign } },
+    });
+
+    ch.on('broadcast', { event: 'team_message' }, ({ payload }) => {
+      const msg = payload as { from: string; text: string; sentAt: number };
+      if (!msg?.from || !msg?.text) return;
+      setMessages((prev) => [
+        ...prev.slice(-49),
+        { id: `${msg.from}-${msg.sentAt}`, from: msg.from, text: msg.text, sentAt: msg.sentAt },
+      ]);
     });
 
     ch.on('presence', { event: 'sync' }, () => {
@@ -131,5 +148,20 @@ export function useTeamPresence(callsign: string, enabled: boolean) {
     [enabled, callsign],
   );
 
-  return { teammates, broadcast, connected };
+  const sendMessage = useCallback(
+    (text: string) => {
+      const ch = channelRef.current;
+      if (!ch || !enabled || !text.trim()) return;
+      const sentAt = Date.now();
+      const trimmed = text.trim();
+      ch.send({ type: 'broadcast', event: 'team_message', payload: { from: callsign, text: trimmed, sentAt } }).catch(() => {});
+      setMessages((prev) => [
+        ...prev.slice(-49),
+        { id: `${callsign}-${sentAt}`, from: callsign, text: trimmed, sentAt },
+      ]);
+    },
+    [enabled, callsign],
+  );
+
+  return { teammates, broadcast, connected, messages, sendMessage };
 }

@@ -26,6 +26,7 @@ import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
 import { RuckTacticalOptionsDrawer } from '../components/RuckTacticalOptionsDrawer';
 import { RuckLiveStatsRibbon } from '../components/RuckLiveStatsRibbon';
 import { RuckMapHeader } from '../components/RuckMapHeader';
+import { RuckMapGuidePanel } from '../components/RuckMapGuidePanel';
 import { RuckOpsPanel } from '../components/RuckOpsPanel';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
@@ -128,6 +129,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [tacticalOptionsOpen, setTacticalOptionsOpen] = useState(false);
   const [activeSection, setActiveSection] = useState<'mission' | 'field' | 'metrics' | 'setup' | 'ops'>('mission');
   const [dismissedCallsigns, setDismissedCallsigns] = useState<string[]>([]);
+  const [guideOpen, setGuideOpen] = useState(false);
   const [isDownloadingMap, setIsDownloadingMap] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [targetDistanceKm, setTargetDistanceKm] = useState(8);
@@ -189,7 +191,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const seenSharedObjectRef = useRef<Set<string>>(new Set());
 
   // Team PLI
-  const { teammates, broadcast: broadcastTeamPosition, connected: teamConnected } = useTeamPresence(callsign, teamEnabled);
+  const { teammates, broadcast: broadcastTeamPosition, connected: teamConnected, messages: teamMessages, sendMessage: sendTeamMessage } = useTeamPresence(callsign, teamEnabled);
   const { currentDistance, elapsedSeconds, routePoints, startTime, status, rejectedPointCount, lastRejectedReason } = trackingState;
   const isTracking = status === 'tracking';
   const isStarting = status === 'starting';
@@ -3104,6 +3106,15 @@ function updateSelectedCheckpointHere() {
         >
           <Ionicons name={showExpandedMap ? 'contract' : 'expand'} size={15} color={showExpandedMap ? colours.cyan : colours.textSoft} />
         </Pressable>
+
+        <Pressable
+          style={[styles.mapGuideFab, guideOpen && styles.mapGuideFabActive]}
+          onPress={() => setGuideOpen((v) => !v)}
+        >
+          <Ionicons name="book-outline" size={15} color={guideOpen ? colours.background : colours.cyan} />
+        </Pressable>
+
+        <RuckMapGuidePanel visible={guideOpen} onClose={() => setGuideOpen(false)} />
       </View>
 
       {reviewOpen && startTime ? (
@@ -3277,17 +3288,20 @@ function updateSelectedCheckpointHere() {
 
       {activeSection === 'ops' && (
         <RuckOpsPanel
+          callsign={callsign}
           teammates={teammates}
           connected={teamConnected}
           teamEnabled={teamEnabled}
           dismissedCallsigns={dismissedCallsigns}
           currentPoint={currentPoint ?? null}
+          messages={teamMessages}
           onFocusTeammate={(teammate) => {
             setMapCenter({ latitude: teammate.lat, longitude: teammate.lon, altitude: null, accuracy: null, timestamp: Date.now() });
             setGpsFollowMode(false);
           }}
-          onDismissTeammate={(callsign) => setDismissedCallsigns((prev) => [...prev, callsign])}
+          onDismissTeammate={(cs) => setDismissedCallsigns((prev) => [...prev, cs])}
           onToggleTeam={() => setTeamEnabled((v) => !v)}
+          onSendMessage={sendTeamMessage}
         />
       )}
 
@@ -3371,6 +3385,23 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(103,232,249,0.18)',
   },
   mapExpandFabLocked: { opacity: 0.4 },
+  mapGuideFab: {
+    position: 'absolute',
+    left: 10,
+    bottom: 100,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(4,8,15,0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.18)',
+  },
+  mapGuideFabActive: {
+    backgroundColor: colours.cyan,
+    borderColor: colours.cyan,
+  },
   fullscreenContainer: {
     flex: 1,
     backgroundColor: '#0F1F35',
