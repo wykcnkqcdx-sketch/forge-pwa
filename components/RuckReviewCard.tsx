@@ -5,6 +5,7 @@ import { Card } from './Card';
 import { colours, touchTarget, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { formatElapsed } from '../utils/ruck';
+import type { RuckScoreBreakdown } from '../utils/ruckScore';
 
 type RouteReview = {
   averageAccuracyMeters?: number;
@@ -21,6 +22,7 @@ export function RuckReviewCard({
   routeReview,
   rejectedPointCount,
   splitCount,
+  ruckScore,
   note,
   onNoteChange,
   onSave,
@@ -34,6 +36,7 @@ export function RuckReviewCard({
   routeReview: RouteReview;
   rejectedPointCount: number;
   splitCount: number;
+  ruckScore: RuckScoreBreakdown;
   note: string;
   onNoteChange: (note: string) => void;
   onSave: () => void;
@@ -61,6 +64,7 @@ export function RuckReviewCard({
       </View>
 
       <View style={styles.reviewGrid}>
+        <ReviewItem value={String(ruckScore.score)} label="Ruck Score" highlight />
         <ReviewItem value={`${currentDistance.toFixed(2)}km`} label="Distance" />
         <ReviewItem value={formatElapsed(elapsedSeconds)} label="Time" />
         <ReviewItem value={activePace} label="Min/km" />
@@ -69,6 +73,13 @@ export function RuckReviewCard({
         <ReviewItem value={String(rejectedPointCount)} label="Rejected" />
         <ReviewItem value={`${routeReview.reachedCheckpoints}/${routeReview.totalCheckpoints}`} label="Checkpoints" />
         <ReviewItem value={String(splitCount)} label="Splits" />
+      </View>
+
+      <View style={styles.aarPanel}>
+        <Text style={styles.aarKicker}>After Action Review</Text>
+        <Text style={styles.aarFinding}>Finding: {ruckScore.finding}</Text>
+        <Text style={styles.aarText}>Recommendation: {ruckScore.recommendation}</Text>
+        <Text style={styles.aarText}>Load-adjusted pace: {ruckScore.loadAdjustedPace} min/km</Text>
       </View>
 
       <TextInput
@@ -97,10 +108,10 @@ export function RuckReviewCard({
   );
 }
 
-function ReviewItem({ value, label }: { value: string; label: string }) {
+function ReviewItem({ value, label, highlight = false }: { value: string; label: string; highlight?: boolean }) {
   return (
-    <View style={styles.reviewItem}>
-      <Text style={styles.reviewValue}>{value}</Text>
+    <View style={[styles.reviewItem, highlight && styles.reviewItemHighlight]}>
+      <Text style={[styles.reviewValue, highlight && styles.reviewValueHighlight]}>{value}</Text>
       <Text style={styles.reviewLabel}>{label}</Text>
     </View>
   );
@@ -129,8 +140,25 @@ const styles = StyleSheet.create({
     padding: 11,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
+  reviewItemHighlight: {
+    borderColor: `${colours.cyan}55`,
+    backgroundColor: colours.cyanDim,
+  },
   reviewValue: { color: colours.text, fontSize: 17, fontWeight: '900' },
+  reviewValueHighlight: { color: colours.cyan },
   reviewLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
+  aarPanel: {
+    borderWidth: 1,
+    borderColor: `${colours.amber}40`,
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 12,
+    backgroundColor: colours.amberDim,
+    gap: 5,
+  },
+  aarKicker: { ...typography.label, color: colours.amber },
+  aarFinding: { color: colours.text, fontSize: 14, lineHeight: 20, fontWeight: '900' },
+  aarText: { color: colours.textSoft, fontSize: 12, lineHeight: 18, fontWeight: '800' },
   reviewNoteInput: {
     minHeight: 86,
     borderWidth: 1,

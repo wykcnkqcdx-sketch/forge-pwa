@@ -77,6 +77,7 @@ import {
   type RuckTemplate,
 } from '../utils/ruck';
 import { fieldMarkTypes, formatFieldMarkLabel, getFieldMarkType, type FieldMarkType } from '../utils/ruckFieldMarks';
+import { calculateRuckScore } from '../utils/ruckScore';
 
 function toTrackPoint(location: Location.LocationObject): TrackPoint {
   return {
@@ -1502,7 +1503,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       id: Date.now().toString(),
       type: 'Ruck',
       title: `${currentDistance.toFixed(1)}km GPS Ruck`,
-      score: Math.max(55, Math.round(95 - weight * 0.6 - currentDistance * 0.4)),
+      score: activeRuckScore.score,
       durationMinutes: Math.round(duration),
       rpe: weight > 22 ? 8 : 6,
       loadKg: weight,
@@ -1552,10 +1553,42 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     [distance, plannedAscentM]
   );
   const score = useMemo(
-    () => Math.max(55, Math.round(95 - weight * 0.6 - distance * 0.4 - plannedAscentM / 160)),
-    [weight, distance, plannedAscentM]
+    () => calculateRuckScore({
+      distanceKm: distance,
+      loadKg: weight,
+      bodyMassKg,
+      paceMinPerKm: Number(pace),
+      ascentM: plannedAscentM,
+      terrainFactor,
+    }).score,
+    [bodyMassKg, distance, pace, plannedAscentM, terrainFactor, weight]
   );
   const activePace = currentDistance > 0.02 ? (elapsedSeconds / 60 / currentDistance).toFixed(1) : '--';
+  const projectedRuckScore = useMemo(
+    () => calculateRuckScore({
+      distanceKm: distance,
+      loadKg: weight,
+      bodyMassKg,
+      paceMinPerKm: Number(pace),
+      ascentM: plannedAscentM,
+      terrainFactor,
+    }),
+    [bodyMassKg, distance, pace, plannedAscentM, terrainFactor, weight]
+  );
+  const activeRuckScore = useMemo(
+    () => calculateRuckScore({
+      distanceKm: currentDistance > 0.02 ? currentDistance : distance,
+      loadKg: weight,
+      bodyMassKg,
+      paceMinPerKm: activePace === '--' ? Number(pace) : Number(activePace),
+      ascentM: currentDistance > 0.02 ? Math.round((plannedAscentM / Math.max(distance, 0.1)) * currentDistance) : plannedAscentM,
+      terrainFactor,
+      splitCount: splits.length,
+      reachedCheckpoints: plannedCheckpoints.filter((checkpoint) => checkpoint.status === 'reached').length,
+      totalCheckpoints: plannedCheckpoints.length,
+    }),
+    [activePace, bodyMassKg, currentDistance, distance, pace, plannedAscentM, plannedCheckpoints, splits.length, terrainFactor, weight]
+  );
   const routeReview = useMemo(() => {
     const accuracyValues = routePoints
       .map((point) => point.accuracy)
@@ -3042,6 +3075,55 @@ function updateSelectedCheckpointHere() {
         <Text style={styles.platformNote}>Web tracking runs while this tab stays open. Use the native app for locked-screen GPS.</Text>
       )}
 
+      <View style={styles.heroCard}>
+        <View style={styles.heroTop}>
+          <View style={styles.heroTitleBlock}>
+            <Text style={styles.heroKicker}>RUCK COMMAND</Text>
+            <Text style={styles.heroTitle}>{isTracking ? 'Live Ruck Mode' : startTime ? 'Ruck paused for review' : 'Plan, track, review'}</Text>
+            <Text style={styles.heroSub}>
+              {isTracking
+                ? `${currentDistance.toFixed(2)} km moving - ${activePace} min/km`
+                : `${targetDistanceKm.toFixed(1)} km target - ${weight} kg - ${plannedCheckpoints.length} checkpoints`}
+            </Text>
+          </View>
+          <View style={styles.heroScoreBox}>
+            <Text style={styles.heroScore}>{(startTime ? activeRuckScore.score : projectedRuckScore.score)}</Text>
+            <Text style={styles.heroScoreLabel}>RUCK SCORE</Text>
+          </View>
+        </View>
+        <View style={styles.heroStats}>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{startTime ? activeRuckScore.loadAdjustedPace : projectedRuckScore.loadAdjustedPace}</Text>
+            <Text style={styles.heroStatLabel}>LOAD-ADJ PACE</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{plannedCheckpoints.length}</Text>
+            <Text style={styles.heroStatLabel}>FIELD MARKS</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Text style={[styles.heroStatValue, { color: teamEnabled ? colours.green : colours.muted }]}>{teamEnabled ? 'ON' : 'OFF'}</Text>
+            <Text style={styles.heroStatLabel}>BEACON</Text>
+          </View>
+        </View>
+        <View style={styles.heroActions}>
+          <Pressable style={styles.heroPrimaryButton} onPress={() => startTime ? openRuckReview() : startTracking()}>
+            <Ionicons name={startTime ? 'checkmark-circle-outline' : 'play-circle-outline'} size={18} color={colours.background} />
+            <Text style={styles.heroPrimaryText}>{startTime ? 'After Action Review' : 'Start Live Ruck'}</Text>
+          </Pressable>
+          <Pressable style={styles.heroSecondaryButton} onPress={() => setActiveSection('field')}>
+            <Ionicons name="flag-outline" size={17} color={colours.cyan} />
+            <Text style={styles.heroSecondaryText}>Route Card</Text>
+          </Pressable>
+          <Pressable style={styles.heroSecondaryButton} onPress={() => setActiveSection('metrics')}>
+            <Ionicons name="bar-chart-outline" size={17} color={colours.cyan} />
+            <Text style={styles.heroSecondaryText}>Score</Text>
+          </Pressable>
+        </View>
+        <Text style={styles.heroFinding}>
+          {(startTime ? activeRuckScore : projectedRuckScore).finding} {(startTime ? activeRuckScore : projectedRuckScore).recommendation}
+        </Text>
+      </View>
+
       <View style={[styles.mapBlock, showExpandedMap && styles.mapBlockExpanded]}>
         {renderMapStage(false)}
 
@@ -3125,6 +3207,7 @@ function updateSelectedCheckpointHere() {
           routeReview={routeReview}
           rejectedPointCount={rejectedPointCount}
           splitCount={splits.length}
+          ruckScore={activeRuckScore}
           note={ruckReviewNote}
           onNoteChange={setRuckReviewNote}
           onSave={saveTrackedRuck}
@@ -3278,7 +3361,7 @@ function updateSelectedCheckpointHere() {
             pandolf={pandolf}
             activeHeading={activeHeading}
           />
-          <RuckPerformancePanel score={score} pandolf={pandolf} distanceKm={distance} loadKg={weight} />
+          <RuckPerformancePanel score={score} pandolf={pandolf} distanceKm={distance} loadKg={weight} breakdown={projectedRuckScore} />
           <RuckSplitsCard splits={splits} />
           <RuckReadinessCard readiness={routeReadinessChecks} />
         </>
@@ -3339,6 +3422,71 @@ const styles = StyleSheet.create({
   missionStateDot: { width: 6, height: 6, borderRadius: 3 },
   missionStateText: { ...typography.label, letterSpacing: 1.2 },
   platformNote: { ...typography.caption, color: colours.amber, lineHeight: 18 },
+  heroCard: {
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: colours.surface,
+    gap: 12,
+    ...shadow.subtle,
+  },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 14 },
+  heroTitleBlock: { flex: 1 },
+  heroKicker: { ...typography.label, color: colours.cyan },
+  heroTitle: { color: colours.text, fontSize: 26, lineHeight: 30, fontWeight: '900', marginTop: 4 },
+  heroSub: { color: colours.textSoft, fontSize: 13, lineHeight: 18, fontWeight: '800', marginTop: 5 },
+  heroScoreBox: {
+    minWidth: 92,
+    borderWidth: 1,
+    borderColor: `${colours.cyan}45`,
+    borderRadius: 12,
+    backgroundColor: colours.cyanDim,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+  },
+  heroScore: { color: colours.cyan, fontSize: 38, lineHeight: 42, fontWeight: '900' },
+  heroScoreLabel: { ...typography.label, color: colours.muted, fontSize: 8, letterSpacing: 1.1 },
+  heroStats: { flexDirection: 'row', gap: 8 },
+  heroStat: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    backgroundColor: colours.layer1,
+    padding: 10,
+  },
+  heroStatValue: { color: colours.text, fontSize: 18, fontWeight: '900' },
+  heroStatLabel: { ...typography.label, color: colours.muted, fontSize: 8, marginTop: 4 },
+  heroActions: { flexDirection: 'row', gap: 8 },
+  heroPrimaryButton: {
+    minHeight: touchTarget,
+    flex: 1.25,
+    borderRadius: 10,
+    backgroundColor: colours.cyan,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 7,
+    paddingHorizontal: 10,
+  },
+  heroPrimaryText: { color: colours.background, fontSize: 13, fontWeight: '900', textAlign: 'center' },
+  heroSecondaryButton: {
+    minHeight: touchTarget,
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    borderRadius: 10,
+    backgroundColor: colours.cyanDim,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 8,
+  },
+  heroSecondaryText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
+  heroFinding: { color: colours.textSoft, fontSize: 12, lineHeight: 18, fontWeight: '800' },
   mapBlock: {
     height: 520,
     position: 'relative',

@@ -4,6 +4,7 @@ import Svg, { Path } from 'react-native-svg';
 import { Card } from './Card';
 import { colours, typography } from '../theme';
 import type { RuckEstimate } from '../lib/h2f';
+import type { RuckScoreBreakdown } from '../utils/ruckScore';
 
 const GAUGE_SIZE = 104;
 const STROKE = 9;
@@ -74,11 +75,13 @@ export function RuckPerformancePanel({
   pandolf,
   distanceKm,
   loadKg,
+  breakdown,
 }: {
   score: number;
   pandolf: RuckEstimate;
   distanceKm: number;
   loadKg: number;
+  breakdown?: RuckScoreBreakdown;
 }) {
   const zone = loadZone(pandolf.loadRatio);
 
@@ -109,6 +112,19 @@ export function RuckPerformancePanel({
       <Text style={styles.footnote}>
         Pandolf model with {pandolf.loadRatio >= 0.27 ? '+27% heavy-load correction applied' : 'standard load correction'}
       </Text>
+      {breakdown ? (
+        <View style={styles.breakdownPanel}>
+          <Text style={styles.breakdownTitle}>Why this score</Text>
+          {breakdown.factors.map((factor) => (
+            <View key={factor.label} style={styles.factorRow}>
+              <Text style={styles.factorLabel}>{factor.label}</Text>
+              <Text style={styles.factorValue}>{factor.value}</Text>
+              <Text style={styles.factorPoints}>{factor.points}</Text>
+            </View>
+          ))}
+          <Text style={styles.finding}>{breakdown.finding}</Text>
+        </View>
+      ) : null}
     </Card>
   );
 }
@@ -171,4 +187,17 @@ const styles = StyleSheet.create({
   metricValue: { fontSize: 17, fontWeight: '900', letterSpacing: -0.3 },
   metricSub: { fontSize: 8, color: colours.muted, fontWeight: '700', letterSpacing: 0.4 },
   footnote: { ...typography.caption, color: colours.muted, marginTop: 12, lineHeight: 16 },
+  breakdownPanel: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+    marginTop: 12,
+    paddingTop: 12,
+    gap: 7,
+  },
+  breakdownTitle: { ...typography.label, color: colours.cyan },
+  factorRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  factorLabel: { flex: 1, color: colours.textSoft, fontSize: 12, fontWeight: '900' },
+  factorValue: { color: colours.muted, fontSize: 11, fontWeight: '800' },
+  factorPoints: { width: 28, color: colours.cyan, fontSize: 12, fontWeight: '900', textAlign: 'right' },
+  finding: { color: colours.text, fontSize: 12, lineHeight: 18, fontWeight: '900', marginTop: 3 },
 });
