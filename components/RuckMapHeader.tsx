@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { colours, typography } from '../theme';
-import { responsiveSpacing, statusColors } from '../utils/styling';
+import type { RuckMissionMode } from '../utils/ruck';
 
 export function RuckMapHeader({
   isTracking,
@@ -10,7 +10,9 @@ export function RuckMapHeader({
   gpsQuality,
   rejectedPointCount,
   lastRejectedReason,
+  missionMode,
   tacticalOptionsOpen,
+  onModeChange,
   onToggleOptions,
   onOpenFullscreen,
 }: {
@@ -19,47 +21,115 @@ export function RuckMapHeader({
   gpsQuality: { label: string; detail: string; tone: string };
   rejectedPointCount: number;
   lastRejectedReason: string | null;
+  missionMode: RuckMissionMode;
   tacticalOptionsOpen: boolean;
+  onModeChange: (mode: RuckMissionMode) => void;
   onToggleOptions: () => void;
   onOpenFullscreen: () => void;
 }) {
+  const stateLabel = isTracking ? 'RECORDING' : hasStarted ? 'PAUSED' : 'STANDBY';
+
   return (
     <View style={styles.mapHeader}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.mapLabel}>LIVE GPS</Text>
-        <Text style={styles.mapText}>{isTracking ? 'Tracking active' : hasStarted ? 'Track paused' : 'Ready to acquire signal'}</Text>
-        <Text style={styles.mapSubText}>
-          {`${gpsQuality.detail.toUpperCase()} - ${isTracking ? 'RECORDING' : 'IDLE'}`}
-          {rejectedPointCount > 0 ? ` | ${rejectedPointCount} rejected${lastRejectedReason ? ` (${lastRejectedReason})` : ''}` : ''}
-        </Text>
+      <View style={styles.stateGroup}>
+        <View style={[styles.stateDot, { backgroundColor: gpsQuality.tone }]} />
+        <View>
+          <Text style={[styles.stateLabel, { color: gpsQuality.tone }]}>{stateLabel}</Text>
+          <Text style={styles.stateDetail} numberOfLines={1}>
+            {gpsQuality.detail.toUpperCase()}
+            {rejectedPointCount > 0 ? ` · ${rejectedPointCount}↓` : ''}
+          </Text>
+        </View>
       </View>
-      <View style={styles.mapHeaderActions}>
-        <Pressable style={[styles.mapHeaderIcon, tacticalOptionsOpen && styles.mapHeaderIconActive]} onPress={onToggleOptions}>
-          <Ionicons name="options-outline" size={18} color={tacticalOptionsOpen ? colours.background : colours.cyan} />
-        </Pressable>
-        <Pressable style={styles.mapHeaderIcon} onPress={onOpenFullscreen}>
-          <Ionicons name="expand" size={18} color={colours.cyan} />
-        </Pressable>
+
+      <View style={styles.modeChips}>
+        {([
+          ['simple', 'footsteps-outline', 'SMP'],
+          ['tactical', 'radio-outline', 'TAC'],
+          ['navigation', 'navigate-outline', 'NAV'],
+        ] as const).map(([mode, icon, label]) => (
+          <Pressable
+            key={mode}
+            style={[styles.modeChip, missionMode === mode && styles.modeChipActive]}
+            onPress={() => onModeChange(mode)}
+          >
+            <Ionicons name={icon} size={11} color={missionMode === mode ? colours.background : colours.muted} />
+            <Text style={[styles.modeChipText, missionMode === mode && styles.modeChipTextActive]}>{label}</Text>
+          </Pressable>
+        ))}
       </View>
-      <View style={[styles.signalBadge, { borderColor: statusColors(gpsQuality.tone).borderMed, backgroundColor: statusColors(gpsQuality.tone).bgMed }]}>
-        <View style={[styles.signalDot, { backgroundColor: gpsQuality.tone }]} />
-        <Text style={[styles.signalText, { color: gpsQuality.tone }]}>
-          {isTracking ? gpsQuality.label : 'IDLE'}
-        </Text>
+
+      <View style={styles.actions}>
+        <Pressable style={[styles.actionBtn, tacticalOptionsOpen && styles.actionBtnActive]} onPress={onToggleOptions}>
+          <Ionicons name="options-outline" size={17} color={tacticalOptionsOpen ? colours.background : colours.cyan} />
+        </Pressable>
+        <Pressable style={styles.actionBtn} onPress={onOpenFullscreen}>
+          <Ionicons name="expand" size={17} color={colours.cyan} />
+        </Pressable>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  mapHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('sm') },
-  mapLabel: { ...typography.label, color: colours.cyan, letterSpacing: 1.8 },
-  mapText: { color: colours.text, fontWeight: '900', marginTop: 2 },
-  mapSubText: { ...typography.caption, color: colours.muted, marginTop: 3 },
-  mapHeaderActions: { flexDirection: 'row', gap: 7 },
-  mapHeaderIcon: {
-    width: 38,
-    height: 38,
+  mapHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stateGroup: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+  },
+  stateDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  stateLabel: {
+    fontSize: 10,
+    fontWeight: '900' as const,
+    letterSpacing: 1.4,
+  },
+  stateDetail: {
+    fontSize: 9,
+    color: colours.muted,
+    fontWeight: '700' as const,
+    letterSpacing: 0.6,
+    marginTop: 1,
+  },
+  modeChips: {
+    flexDirection: 'row',
+    gap: 3,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 8,
+    padding: 3,
+  },
+  modeChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  modeChipActive: { backgroundColor: colours.cyan },
+  modeChipText: {
+    fontSize: 9,
+    fontWeight: '900' as const,
+    color: colours.muted,
+    letterSpacing: 0.8,
+  },
+  modeChipTextActive: { color: colours.background },
+  actions: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  actionBtn: {
+    width: 34,
+    height: 34,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -67,21 +137,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(103,232,249,0.18)',
   },
-  mapHeaderIconActive: {
+  actionBtnActive: {
     backgroundColor: colours.cyan,
     borderColor: colours.cyan,
   },
-  signalBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
-  signalText: { ...typography.label, color: colours.muted, letterSpacing: 1 },
 });

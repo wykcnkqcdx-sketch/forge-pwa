@@ -28,41 +28,47 @@ export function RuckLiveStatsRibbon({
     : displayBearing == null ? '--' : formatHeading(displayBearing);
 
   return (
-    <View style={styles.liveStats}>
-      <View style={styles.liveRibbonItem}>
-        <Text style={styles.liveRibbonValue}>{currentDistance.toFixed(2)}</Text>
-        <Text style={styles.liveRibbonLabel}>KM</Text>
+    <View style={styles.ribbon}>
+      <View style={[styles.item, styles.itemHero]}>
+        <Text style={styles.heroValue}>{currentDistance.toFixed(2)}</Text>
+        <Text style={styles.heroLabel}>KM</Text>
       </View>
-      <View style={styles.liveRibbonItem}>
-        <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.liveRibbonValue} />
-        <Text style={styles.liveRibbonLabel}>TIME</Text>
+      <View style={[styles.item, styles.itemPrimary]}>
+        <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.primaryValue} />
+        <Text style={styles.primaryLabel}>TIME</Text>
       </View>
-      <View style={styles.liveRibbonItem}>
-        <Text style={styles.liveRibbonValue}>{bearingLabel}</Text>
-        <Text style={styles.liveRibbonLabel}>BRG</Text>
+      <View style={[styles.item, styles.itemSecondary]}>
+        <Text style={styles.secondaryValue}>{bearingLabel}</Text>
+        <Text style={styles.secondaryLabel}>BRG</Text>
       </View>
-      <View style={styles.liveRibbonItem}>
-        <Text style={styles.liveRibbonValue}>{activePace}</Text>
-        <Text style={styles.liveRibbonLabel}>MIN/KM</Text>
+      <View style={[styles.item, styles.itemSecondary]}>
+        <Text style={styles.secondaryValue}>{activePace}</Text>
+        <Text style={styles.secondaryLabel}>MIN/KM</Text>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  liveStats: {
+  ribbon: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'stretch',
   },
-  liveRibbonItem: {
-    flex: 1,
-    minHeight: 48,
+  item: {
     alignItems: 'center',
     justifyContent: 'center',
-    paddingHorizontal: 3,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
     borderLeftWidth: 1,
     borderLeftColor: 'rgba(103,232,249,0.10)',
   },
-  liveRibbonValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
-  liveRibbonLabel: { ...typography.label, color: colours.muted, letterSpacing: 1, marginTop: 2 },
+  itemHero: { flex: 1.4 },
+  itemPrimary: { flex: 1.2 },
+  itemSecondary: { flex: 0.85 },
+  heroValue: { color: colours.text, fontSize: 22, fontWeight: '900' as const, letterSpacing: -0.5 },
+  heroLabel: { ...typography.label, color: colours.cyan, letterSpacing: 1.2, marginTop: 2 },
+  primaryValue: { color: colours.text, fontSize: 16, fontWeight: '900' as const },
+  primaryLabel: { ...typography.label, color: colours.muted, letterSpacing: 1, marginTop: 2 },
+  secondaryValue: { color: colours.textSoft, fontSize: 13, fontWeight: '800' as const },
+  secondaryLabel: { ...typography.label, color: colours.muted, letterSpacing: 0.8, marginTop: 2, fontSize: 8 },
 });

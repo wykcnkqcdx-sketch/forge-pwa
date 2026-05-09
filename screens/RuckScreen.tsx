@@ -23,7 +23,6 @@ import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
 import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
 import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
-import { RuckMissionModeSelector } from '../components/RuckMissionModeSelector';
 import { RuckTacticalOptionsDrawer } from '../components/RuckTacticalOptionsDrawer';
 import { RuckLiveStatsRibbon } from '../components/RuckLiveStatsRibbon';
 import { RuckMapHeader } from '../components/RuckMapHeader';
@@ -3050,11 +3049,12 @@ function updateSelectedCheckpointHere() {
             gpsQuality={gpsQuality}
             rejectedPointCount={rejectedPointCount}
             lastRejectedReason={lastRejectedReason}
+            missionMode={missionMode}
             tacticalOptionsOpen={tacticalOptionsOpen}
+            onModeChange={setMissionMode}
             onToggleOptions={() => setTacticalOptionsOpen((value) => !value)}
             onOpenFullscreen={() => setMapFullscreen(true)}
           />
-          <RuckMissionModeSelector missionMode={missionMode} onChange={setMissionMode} />
           {tacticalOptionsOpen ? (
             <RuckTacticalOptionsDrawer
               coordinateFormat={coordinateFormat}
