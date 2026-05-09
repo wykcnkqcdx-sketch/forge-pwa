@@ -23,6 +23,7 @@ import { RuckSessionSetupCard } from '../components/RuckSessionSetupCard';
 import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
 import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
+import { RuckFieldMarkTypePicker } from '../components/RuckFieldMarkTypePicker';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3288,25 +3289,14 @@ function updateSelectedCheckpointHere() {
             <Ionicons name="add" size={18} color={colours.background} />
           </Pressable>
         </View>
-        <View style={styles.markTypeGrid}>
-          {fieldMarkTypes.map((markType) => {
-            const active = activeMarkType === markType.key;
-            const selectedForMark = selectedCheckpoint?.markType === markType.key;
-            return (
-              <Pressable
-                key={markType.key}
-                style={[styles.markTypeButton, active && { borderColor: markType.tone, backgroundColor: `${markType.tone}1f` }]}
-                onPress={() => {
-                  setActiveMarkType(markType.key);
-                  if (selectedCheckpoint) updateSelectedCheckpoint({ markType: markType.key });
-                }}
-              >
-                <Ionicons name={markType.icon} size={15} color={active || selectedForMark ? markType.tone : colours.muted} />
-                <Text style={[styles.markTypeText, (active || selectedForMark) && { color: markType.tone }]}>{markType.shortLabel}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <RuckFieldMarkTypePicker
+          activeMarkType={activeMarkType}
+          selectedMarkType={selectedCheckpoint?.markType}
+          onSelect={(markType) => {
+            setActiveMarkType(markType);
+            if (selectedCheckpoint) updateSelectedCheckpoint({ markType });
+          }}
+        />
         <View style={styles.checkpointActions}>
           <Pressable style={styles.clearCheckpointButton} onPress={updateSelectedCheckpointFromInput} disabled={!selectedCheckpoint}>
             <Text style={styles.clearCheckpointText}>Move to grid</Text>
@@ -3960,25 +3950,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  markTypeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 10,
-  },
-  markTypeButton: {
-    minHeight: 36,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-  },
-  markTypeText: { ...typography.label, color: colours.muted, fontWeight: '900' },
   bulkInput: {
     minHeight: 96,
     borderRadius: 8,
