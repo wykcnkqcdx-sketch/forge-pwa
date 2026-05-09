@@ -2372,20 +2372,6 @@ function updateSelectedCheckpointHere() {
         {!fullscreen && (
           <View style={styles.mapSelectControls}>
             <Pressable
-              style={[styles.mapIconButton, !gpsFollowMode && styles.mapIconButtonActive, shadow.subtle]}
-              onPress={() => {
-                if (gpsFollowMode) {
-                  setGpsFollowMode(false);
-                  setMapCenter(effectiveMapCenter);
-                } else {
-                  setGpsFollowMode(true);
-                  setMapCenter(null);
-                }
-              }}
-            >
-              <Ionicons name={!gpsFollowMode ? 'locate-outline' : 'locate'} size={20} color={!gpsFollowMode ? colours.background : colours.cyan} />
-            </Pressable>
-            <Pressable
               style={[styles.mapIconButton, !mapNorthUp && styles.mapIconButtonActive, shadow.subtle]}
               onPress={() => setMapNorthUp(v => !v)}
             >
@@ -2394,11 +2380,19 @@ function updateSelectedCheckpointHere() {
             <Pressable style={[styles.mapIconButton, shadow.subtle]} onPress={addCheckpointHere}>
               <Ionicons name={getFieldMarkType(activeMarkType).icon} size={20} color={colours.cyan} />
             </Pressable>
-            <Pressable style={[styles.mapIconButton, shadow.subtle]} onPress={() => {
-              if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
-              recenterMapOnGps();
-            }}>
-              <Ionicons name="navigate-circle-outline" size={20} color={colours.cyan} />
+            <Pressable
+              style={[styles.mapIconButton, !gpsFollowMode && styles.mapIconButtonActive, shadow.subtle]}
+              onPress={() => {
+                if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
+                if (gpsFollowMode) {
+                  setGpsFollowMode(false);
+                  setMapCenter(effectiveMapCenter);
+                } else {
+                  recenterMapOnGps();
+                }
+              }}
+            >
+              <Ionicons name={gpsFollowMode ? 'locate' : 'locate-outline'} size={20} color={!gpsFollowMode ? colours.background : colours.cyan} />
             </Pressable>
           </View>
         )}
@@ -3285,8 +3279,8 @@ const styles = StyleSheet.create({
   },
   mapExpandFab: {
     position: 'absolute',
-    right: 10,
-    bottom: 62,
+    left: 10,
+    bottom: 60,
     width: 30,
     height: 30,
     borderRadius: 8,
@@ -3403,7 +3397,7 @@ const styles = StyleSheet.create({
   mapSelectControls: {
     position: 'absolute',
     right: 10,
-    bottom: 42,
+    bottom: 60,
     gap: 8,
   },
   mapIconButton: {
