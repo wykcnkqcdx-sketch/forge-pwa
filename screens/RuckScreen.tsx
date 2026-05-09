@@ -25,6 +25,7 @@ import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
 import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
 import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
 import { RuckMissionModeSelector } from '../components/RuckMissionModeSelector';
+import { RuckTacticalOptionsDrawer } from '../components/RuckTacticalOptionsDrawer';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -32,7 +33,7 @@ import { TrainingSession, TrackPoint } from '../data/mockData';
 import type { RuckCheckpoint, RuckMissionPlan, RuckSplit } from '../data/domain';
 import { distanceBetween, bearingBetween } from '../utils/mapUtils';
 import { decimateRouteForMap, sanitizeRoutePoints, WEAK_ACCURACY_METERS } from '../utils/routeQuality';
-import { CoordinateFormat, coordinateFormatOptions, formatCoordinate, parseCoordinate } from '../utils/coordinates';
+import { CoordinateFormat, formatCoordinate, parseCoordinate } from '../utils/coordinates';
 import { buildVisibleTiles, getMercatorRoutePoints, latLonToWorldPixel, MapLayerKey, mapLayerOptions, MapViewport, worldPixelToLatLon, MapTile } from '../utils/mapTiles';
 import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadActiveRoute, loadActiveRuckPlan, replaceActiveRoute, resetActiveRoute, saveActiveRuckPlan } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
@@ -3051,71 +3052,23 @@ function updateSelectedCheckpointHere() {
         <RuckMissionModeSelector missionMode={missionMode} onChange={setMissionMode} />
 
         {tacticalOptionsOpen ? (
-          <View style={styles.tacticalDrawer}>
-            <View style={styles.drawerSection}>
-              <Text style={styles.drawerLabel}>Coordinates</Text>
-              <View style={styles.coordinateSelector}>
-                {coordinateFormatOptions.map((option) => {
-                  const selected = coordinateFormat === option.key;
-                  return (
-                    <Pressable
-                      key={option.key}
-                      style={[styles.coordinateOption, selected && styles.coordinateOptionActive]}
-                      onPress={() => setCoordinateFormat(option.key)}
-                    >
-                      <Text style={[styles.coordinateOptionText, selected && styles.coordinateOptionTextActive]}>{option.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            <View style={styles.drawerSection}>
-              <Text style={styles.drawerLabel}>Map Layer</Text>
-              <View style={styles.layerSelector}>
-                {mapLayerOptions.map((option) => {
-                  const selected = mapLayer === option.key;
-                  return (
-                    <Pressable
-                      key={option.key}
-                      style={[styles.layerOption, selected && styles.layerOptionActive]}
-                      onPress={() => setMapLayer(option.key)}
-                    >
-                      <Text style={[styles.layerOptionText, selected && styles.layerOptionTextActive]}>{option.label}</Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-            </View>
-            <View style={styles.drawerActions}>
-              <Pressable style={[styles.drawerButton, tapMarkMode && styles.drawerButtonActive]} onPress={() => {
-                setMeasurementMode(null);
-                setTapMarkMode((value) => !value);
-              }}>
-                <Ionicons name="finger-print-outline" size={15} color={tapMarkMode ? colours.background : colours.cyan} />
-                <Text style={[styles.drawerButtonText, tapMarkMode && styles.drawerButtonTextActive]}>Tap Mark</Text>
-              </Pressable>
-              {selectedCheckpoint ? (
-                <Pressable style={styles.drawerButton} onPress={updateSelectedCheckpointHere}>
-                  <Ionicons name="pin" size={15} color={colours.cyan} />
-                  <Text style={styles.drawerButtonText}>Move CP</Text>
-                </Pressable>
-              ) : null}
-              {isDownloadingMap ? (
-                <View style={[styles.drawerButton, styles.drawerButtonActive]}>
-                  <Text style={styles.drawerButtonTextActive}>{downloadProgress}%</Text>
-                </View>
-              ) : (
-                <Pressable style={styles.drawerButton} onPress={downloadOfflineMap}>
-                  <Ionicons name="cloud-download-outline" size={15} color={colours.cyan} />
-                  <Text style={styles.drawerButtonText}>Offline</Text>
-                </Pressable>
-              )}
-              <Pressable style={styles.drawerButton} onPress={confirmClearOfflineMap}>
-                <Ionicons name="trash-outline" size={15} color={colours.red} />
-                <Text style={[styles.drawerButtonText, { color: colours.red }]}>Clear</Text>
-              </Pressable>
-            </View>
-          </View>
+          <RuckTacticalOptionsDrawer
+            coordinateFormat={coordinateFormat}
+            mapLayer={mapLayer}
+            tapMarkMode={tapMarkMode}
+            hasSelectedCheckpoint={Boolean(selectedCheckpoint)}
+            isDownloadingMap={isDownloadingMap}
+            downloadProgress={downloadProgress}
+            onCoordinateFormatChange={setCoordinateFormat}
+            onMapLayerChange={setMapLayer}
+            onToggleTapMark={() => {
+              setMeasurementMode(null);
+              setTapMarkMode((value) => !value);
+            }}
+            onMoveCheckpointHere={updateSelectedCheckpointHere}
+            onDownloadOfflineMap={downloadOfflineMap}
+            onClearOfflineMap={confirmClearOfflineMap}
+          />
         ) : null}
 
         {renderMapStage(false)}
@@ -3355,72 +3308,6 @@ const styles = StyleSheet.create({
   },
   signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
   signalText: { ...typography.label, color: colours.muted, letterSpacing: 1 },
-  tacticalDrawer: {
-    marginTop: 10,
-    borderRadius: 12,
-    padding: 10,
-    gap: 10,
-    backgroundColor: 'rgba(4,8,15,0.42)',
-    borderWidth: 1,
-    borderColor: 'rgba(103,232,249,0.14)',
-  },
-  drawerSection: { gap: 7 },
-  drawerLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.1 },
-  coordinateSelector: {
-    flexDirection: 'row',
-    gap: 6,
-    padding: 4,
-    borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  coordinateOption: {
-    flex: 1,
-    minHeight: 34,
-    borderRadius: 6,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  coordinateOptionActive: { backgroundColor: colours.cyan },
-  coordinateOptionText: { ...typography.label, color: colours.muted },
-  coordinateOptionTextActive: { color: colours.background },
-  layerSelector: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  layerOption: {
-    flex: 1,
-    minHeight: 32,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    paddingHorizontal: 4,
-  },
-  layerOptionActive: {
-    borderColor: statusColors(colours.green).borderMed,
-    backgroundColor: statusColors(colours.green).bgMed,
-  },
-  layerOptionText: { ...typography.label, color: colours.muted },
-  layerOptionTextActive: { color: colours.green },
-  drawerActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
-  drawerButton: {
-    minHeight: 36,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(103,232,249,0.22)',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-  },
-  drawerButtonActive: { backgroundColor: colours.cyan, borderColor: colours.cyan },
-  drawerButtonText: { ...typography.label, color: colours.cyan },
-  drawerButtonTextActive: { ...typography.label, color: colours.background },
   fullscreenContainer: {
     flex: 1,
     backgroundColor: '#0F1F35',
