@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, StyleProp, TextStyle } from 'react-native';
+import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -10,6 +10,7 @@ import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
+import { LiveTimerText } from '../components/LiveTimerText';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -63,6 +64,7 @@ import {
   type RuckMissionMode,
   type RuckTemplate,
 } from '../utils/ruck';
+import { fieldMarkTypes, formatFieldMarkLabel, getFieldMarkType, type FieldMarkType } from '../utils/ruckFieldMarks';
 
 function toTrackPoint(location: Location.LocationObject): TrackPoint {
   return {
@@ -75,7 +77,6 @@ function toTrackPoint(location: Location.LocationObject): TrackPoint {
 }
 
 const supportsBackgroundLocation = Platform.OS !== 'web';
-type FieldMarkType = NonNullable<RuckCheckpoint['markType']>;
 type NavTarget = { type: 'mark' | 'teammate'; id: string };
 type TeamEvent = { id: string; time: number; tone: string; title: string; detail: string };
 type PersistedFieldState = {
@@ -86,51 +87,6 @@ type PersistedFieldState = {
   mapOverlays: MapOverlay[];
   teamEvents: TeamEvent[];
 };
-
-const fieldMarkTypes: {
-  key: FieldMarkType;
-  label: string;
-  shortLabel: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  tone: string;
-}[] = [
-  { key: 'checkpoint', label: 'Checkpoint', shortLabel: 'CP', icon: 'flag-outline', tone: colours.cyan },
-  { key: 'rv', label: 'Rendezvous', shortLabel: 'RV', icon: 'people-outline', tone: colours.green },
-  { key: 'hazard', label: 'Hazard', shortLabel: 'HZ', icon: 'warning-outline', tone: colours.red },
-  { key: 'water', label: 'Water', shortLabel: 'WT', icon: 'water-outline', tone: '#60a5fa' },
-  { key: 'medic', label: 'Medic', shortLabel: 'MED', icon: 'medical-outline', tone: colours.amber },
-  { key: 'observation', label: 'Observation', shortLabel: 'OP', icon: 'eye-outline', tone: '#a78bfa' },
-  { key: 'objective', label: 'Objective', shortLabel: 'OBJ', icon: 'radio-button-on-outline', tone: '#f97316' },
-];
-
-function getFieldMarkType(markType?: RuckCheckpoint['markType']) {
-  return fieldMarkTypes.find((type) => type.key === markType) ?? fieldMarkTypes[0];
-}
-
-function formatFieldMarkLabel(checkpoint: RuckCheckpoint) {
-  const meta = getFieldMarkType(checkpoint.markType);
-  return checkpoint.label.toUpperCase().startsWith(meta.shortLabel)
-    ? checkpoint.label
-    : `${meta.shortLabel} ${checkpoint.label}`;
-}
-
-function LiveTimerText({ startTime, isTracking, staticSeconds, style }: { startTime: Date | null; isTracking: boolean; staticSeconds: number; style: StyleProp<TextStyle> }) {
-  const [elapsed, setElapsed] = useState(staticSeconds);
-
-  useEffect(() => {
-    if (!isTracking || !startTime) {
-      setElapsed(staticSeconds);
-      return;
-    }
-    setElapsed(Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000)));
-    const timer = setInterval(() => {
-      setElapsed(Math.max(0, Math.floor((Date.now() - startTime.getTime()) / 1000)));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, [isTracking, startTime, staticSeconds]);
-
-  return <Text style={style}>{formatElapsed(elapsed)}</Text>;
-}
 
 export function RuckScreen({
   addSession,
