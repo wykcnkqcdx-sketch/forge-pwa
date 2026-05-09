@@ -6,7 +6,7 @@ import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from '../lib
 import { buildGoogleSheetsPayload, exportToGoogleSheets } from '../lib/googleSheets';
 import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from '../lib/offlineQueue';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
-import { ensureDefaultCloudSquad } from '../lib/squadCloud';
+import { ensureDefaultCloudSquad, fetchCloudTeamPulse, type CloudTeamPulse } from '../lib/squadCloud';
 
 type CloudMutation = Parameters<typeof enqueueOfflineMutation>[0];
 
@@ -45,6 +45,7 @@ export function useCloudSync({
     isSupabaseConfigured ? 'auth' : 'local'
   );
   const [cloudSquadId, setCloudSquadId] = useState<string | null>(null);
+  const [cloudTeamPulse, setCloudTeamPulse] = useState<CloudTeamPulse | null>(null);
   const [googleSheetsExporting, setGoogleSheetsExporting] = useState(false);
   const [googleSheetsMessage, setGoogleSheetsMessage] = useState('');
 
@@ -78,6 +79,12 @@ export function useCloudSync({
     applyCloudSnapshot(snapshot);
     setCloudStatus('synced');
   }, [applyCloudSnapshot]);
+
+  const refreshCloudTeamPulse = useCallback(async (squadId?: string | null) => {
+    if (!squadId) return;
+    const pulse = await fetchCloudTeamPulse(squadId, members.length);
+    setCloudTeamPulse(pulse);
+  }, [members.length]);
 
   const flushOfflineMutations = useCallback(async (userId: string) => {
     const replayed = await replayOfflineQueue((mutation, createdAt) => pushCloudMutation(userId, mutation, createdAt));
@@ -125,7 +132,10 @@ export function useCloudSync({
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCloudSession(session ?? null);
-      if (!session) setCloudSquadId(null);
+      if (!session) {
+        setCloudSquadId(null);
+        setCloudTeamPulse(null);
+      }
       setAuthReady(true);
       setAuthError('');
       setCloudStatus(session ? 'syncing' : 'auth');
@@ -167,7 +177,10 @@ export function useCloudSync({
 
         if (!cancelled) {
           const squad = await ensureDefaultCloudSquad(userId, userEmail);
-          if (!cancelled) setCloudSquadId(squad.id);
+          if (!cancelled) {
+            setCloudSquadId(squad.id);
+            await refreshCloudTeamPulse(squad.id);
+          }
           cloudHydrated.current = true;
           setCloudStatus('synced');
         }
@@ -184,7 +197,7 @@ export function useCloudSync({
     hydrateCloud();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudSession?.user?.id, isReady, flushOfflineMutations]);
+  }, [cloudSession?.user?.id, isReady, flushOfflineMutations, refreshCloudTeamPulse]);
 
   // Debounced push on data change
   useEffect(() => {
@@ -201,6 +214,7 @@ export function useCloudSync({
         setCloudStatus('syncing');
         const replayed = await flushOfflineMutations(userId);
         if (replayed > 0) await refreshCloudSnapshot(userId);
+        await refreshCloudTeamPulse(cloudSquadId);
         setCloudStatus('synced');
       } catch (error) {
         console.error('Failed to sync cloud data', error);
@@ -210,7 +224,7 @@ export function useCloudSync({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, isReady, flushOfflineMutations, isBrowserOffline, refreshCloudSnapshot]);
+  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, cloudSquadId, isReady, flushOfflineMutations, isBrowserOffline, refreshCloudSnapshot, refreshCloudTeamPulse]);
 
   // Realtime subscription + online/focus handlers
   useEffect(() => {
@@ -222,6 +236,7 @@ export function useCloudSync({
       try {
         setCloudStatus('syncing');
         await refreshCloudSnapshot(userId);
+        await refreshCloudTeamPulse(cloudSquadId);
       } catch (error) {
         console.error('Failed to refresh realtime snapshot', error);
         setCloudStatus('error');
@@ -248,6 +263,7 @@ export function useCloudSync({
           setCloudStatus('syncing');
           await flushOfflineMutations(userId);
           await refreshCloudSnapshot(userId);
+          await refreshCloudTeamPulse(cloudSquadId);
         } catch (error) {
           console.error('Failed to sync after reconnect', error);
           setCloudStatus('error');
@@ -266,7 +282,29 @@ export function useCloudSync({
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       client.removeChannel(channel);
     };
-  }, [cloudSession?.user?.id, isReady, flushOfflineMutations, refreshCloudSnapshot]);
+  }, [cloudSession?.user?.id, cloudSquadId, isReady, flushOfflineMutations, refreshCloudSnapshot, refreshCloudTeamPulse]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !cloudSquadId || !isReady) return;
+    const client = supabase;
+
+    const refreshPulse = () => {
+      refreshCloudTeamPulse(cloudSquadId).catch((error) => {
+        console.error('Failed to refresh cloud team pulse', error);
+      });
+    };
+
+    refreshPulse();
+    const channel = client
+      .channel(`forge-team-pulse-${cloudSquadId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_completions', filter: `squad_id=eq.${cloudSquadId}` }, refreshPulse)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments', filter: `squad_id=eq.${cloudSquadId}` }, refreshPulse)
+      .subscribe();
+
+    return () => {
+      client.removeChannel(channel);
+    };
+  }, [cloudSquadId, isReady, refreshCloudTeamPulse]);
 
   // Refresh pending count on ready
   useEffect(() => {
@@ -331,6 +369,7 @@ export function useCloudSync({
       const userId = cloudSession.user.id;
       await flushOfflineMutations(userId);
       await refreshCloudSnapshot(userId);
+      await refreshCloudTeamPulse(cloudSquadId);
     } catch (error) {
       console.error('Manual cloud sync failed', error);
       if (isBrowserOffline()) offlineSyncPending.current = true;
@@ -371,6 +410,7 @@ export function useCloudSync({
     authError,
     cloudStatus,
     cloudSquadId,
+    cloudTeamPulse,
     googleSheetsExporting,
     googleSheetsMessage,
     coachLandingPrimed,

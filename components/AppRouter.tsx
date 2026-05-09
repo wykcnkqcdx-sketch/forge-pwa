@@ -90,6 +90,7 @@ export function AppRouter() {
             cloudStatus={cloud.cloudStatus}
             cloudEmail={cloud.cloudSession?.user.email ?? null}
             cloudSquadId={cloud.cloudSquadId}
+            cloudTeamPulse={cloud.cloudTeamPulse}
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
@@ -163,6 +164,7 @@ export function AppRouter() {
             cloudStatus={cloud.cloudStatus}
             cloudEmail={cloud.cloudSession?.user.email ?? null}
             cloudSquadId={cloud.cloudSquadId}
+            cloudTeamPulse={cloud.cloudTeamPulse}
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
@@ -244,6 +246,7 @@ export function AppRouter() {
             cloudStatus={cloud.cloudStatus}
             cloudEmail={cloud.cloudSession?.user.email ?? null}
             cloudSquadId={cloud.cloudSquadId}
+            cloudTeamPulse={cloud.cloudTeamPulse}
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}

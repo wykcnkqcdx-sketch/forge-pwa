@@ -11,6 +11,7 @@ import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { buildSecureInviteUrl, generateInviteToken, hashInviteToken, inviteExpiry } from '../lib/inviteTokens';
 import { supabase } from '../lib/supabase';
+import type { CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 
@@ -36,6 +37,7 @@ interface InstructorScreenProps {
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
   cloudEmail: string | null;
   cloudSquadId?: string | null;
+  cloudTeamPulse?: CloudTeamPulse | null;
   pendingSyncCount?: number;
   onCloudSync: () => void;
   onCloudSignOut: () => void;
@@ -125,6 +127,7 @@ export function InstructorScreen({
   cloudStatus,
   cloudEmail,
   cloudSquadId,
+  cloudTeamPulse,
   pendingSyncCount = 0,
   onCloudSync,
   onCloudSignOut,
@@ -241,6 +244,17 @@ export function InstructorScreen({
 
     return { weeklyVolume, readiness, compliance, weeklyGoal, goalPercent, completionsThisWeek };
   }, [groups.length, members, workoutCompletions]);
+  const displayedTeamPulse = cloudTeamPulse
+    ? {
+      weeklyVolume: cloudTeamPulse.weeklyVolume,
+      readiness: teamPulse.readiness,
+      compliance: cloudTeamPulse.completionRate,
+      weeklyGoal: cloudTeamPulse.weeklyGoal,
+      goalPercent: cloudTeamPulse.goalPercent,
+      completionsThisWeek: cloudTeamPulse.completionsThisWeek,
+      source: 'cloud' as const,
+    }
+    : { ...teamPulse, source: 'local' as const };
 
   function createGroup() {
     const trimmedName = newGroupName.trim();
@@ -498,19 +512,20 @@ export function InstructorScreen({
         <View style={styles.pulseHeader}>
           <View>
             <Text style={styles.muted}>Team Pulse</Text>
-            <Text style={styles.pulseValue}>{teamPulse.goalPercent}%</Text>
+            <Text style={styles.pulseValue}>{displayedTeamPulse.goalPercent}%</Text>
           </View>
           <View style={styles.pulseSummary}>
-            <Text style={styles.pulseMetric}>Readiness {teamPulse.readiness}/100</Text>
-            <Text style={styles.pulseMetric}>Completion {teamPulse.compliance}%</Text>
+            <Text style={styles.pulseMetric}>Readiness {displayedTeamPulse.readiness}/100</Text>
+            <Text style={styles.pulseMetric}>Completion {displayedTeamPulse.compliance}%</Text>
             <Text style={[styles.pulseMetric, { color: atRiskCount ? colours.amber : colours.green }]}>{atRiskCount} need review</Text>
           </View>
         </View>
-        <ProgressBar value={teamPulse.goalPercent} colour={teamPulse.goalPercent >= 75 ? colours.green : teamPulse.goalPercent >= 45 ? colours.amber : colours.red} />
+        <ProgressBar value={displayedTeamPulse.goalPercent} colour={displayedTeamPulse.goalPercent >= 75 ? colours.green : displayedTeamPulse.goalPercent >= 45 ? colours.amber : colours.red} />
         <View style={styles.pulseStatRow}>
-          <Text style={styles.pulseStat}>{teamPulse.weeklyVolume.toLocaleString()} / {teamPulse.weeklyGoal.toLocaleString()} weekly volume</Text>
-          <Text style={styles.pulseStat}>{teamPulse.completionsThisWeek} completions this week</Text>
+          <Text style={styles.pulseStat}>{displayedTeamPulse.weeklyVolume.toLocaleString()} / {displayedTeamPulse.weeklyGoal.toLocaleString()} weekly volume</Text>
+          <Text style={styles.pulseStat}>{displayedTeamPulse.completionsThisWeek} completions this week</Text>
         </View>
+        <Text style={styles.pulseSource}>{displayedTeamPulse.source === 'cloud' ? 'Source: Supabase completion rows' : 'Source: local device state'}</Text>
       </Card>
 
       <Card>
@@ -1124,6 +1139,7 @@ const styles = StyleSheet.create({
   pulseMetric: { color: colours.textSoft, fontSize: 13, fontWeight: '900', textAlign: 'right' },
   pulseStatRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 10 },
   pulseStat: { color: colours.muted, fontSize: 11, fontWeight: '900' },
+  pulseSource: { color: colours.cyan, fontSize: 11, fontWeight: '900', marginTop: 8 },
   reviewRow: {
     minHeight: 56,
     flexDirection: 'row',

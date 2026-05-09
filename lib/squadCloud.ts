@@ -107,6 +107,18 @@ export type RemoteAssignmentExerciseRow = z.infer<typeof RemoteAssignmentExercis
 export type RemoteTeamActivityRow = z.infer<typeof RemoteTeamActivitySchema>;
 export type RemoteMemberPrivacySettingsRow = z.infer<typeof RemoteMemberPrivacySettingsSchema>;
 
+export type CloudTeamPulse = {
+  source: 'cloud';
+  weeklyVolume: number;
+  weeklyGoal: number;
+  goalPercent: number;
+  completionsThisWeek: number;
+  assignedCompletionsThisWeek: number;
+  assignedThisWeek: number;
+  completionRate: number;
+  updatedAt: string;
+};
+
 export type SquadCloudSnapshot = {
   squads: RemoteSquadRow[];
   memberships: RemoteSquadMembershipRow[];
@@ -323,4 +335,66 @@ export async function syncSquadWorkoutCompletion(squadId: string, userId: string
     .from('team_activity')
     .insert(toRemoteTeamActivity(squadId, completion));
   if (activity.error) throw activity.error;
+}
+
+export async function fetchCloudTeamPulse(squadId: string, memberCount = 0): Promise<CloudTeamPulse> {
+  const client = ensureSupabase();
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const [completionResponse, assignmentResponse, membershipResponse] = await Promise.all([
+    client
+      .from('workout_completions')
+      .select('id, completion_type, volume, completed_at')
+      .eq('squad_id', squadId)
+      .gte('completed_at', weekAgo),
+    client
+      .from('assignments')
+      .select('id, status, created_at')
+      .eq('squad_id', squadId)
+      .gte('created_at', weekAgo),
+    client
+      .from('squad_memberships')
+      .select('id', { count: 'exact', head: true })
+      .eq('squad_id', squadId)
+      .eq('status', 'active'),
+  ]);
+
+  if (completionResponse.error) throw completionResponse.error;
+  if (assignmentResponse.error) throw assignmentResponse.error;
+  if (membershipResponse.error) throw membershipResponse.error;
+
+  const completions = z.array(z.object({
+    id: z.string(),
+    completion_type: z.enum(['assigned', 'quick_log', 'ad_hoc']),
+    volume: z.number().nullable(),
+    completed_at: z.string(),
+  })).parse(completionResponse.data);
+  const assignments = z.array(z.object({
+    id: z.string(),
+    status: z.enum(['draft', 'assigned', 'completed', 'archived']),
+    created_at: z.string(),
+  })).parse(assignmentResponse.data);
+
+  const activeMembers = membershipResponse.count ?? memberCount;
+  const assignedThisWeek = assignments.filter((assignment) => assignment.status !== 'draft' && assignment.status !== 'archived').length;
+  const assignedCompletionsThisWeek = completions.filter((completion) => completion.completion_type === 'assigned').length;
+  const completionsThisWeek = completions.length;
+  const weeklyVolume = completions.reduce((sum, completion) => sum + (completion.volume ?? 0), 0);
+  const weeklyGoal = Math.max(1000, activeMembers * 500);
+  const completionRate = assignedThisWeek > 0
+    ? Math.min(100, Math.round((assignedCompletionsThisWeek / assignedThisWeek) * 100))
+    : (completionsThisWeek > 0 ? 100 : 0);
+  const goalPercent = Math.min(100, Math.round((weeklyVolume / weeklyGoal) * 100));
+
+  return {
+    source: 'cloud',
+    weeklyVolume,
+    weeklyGoal,
+    goalPercent,
+    completionsThisWeek,
+    assignedCompletionsThisWeek,
+    assignedThisWeek,
+    completionRate,
+    updatedAt: new Date().toISOString(),
+  };
 }
