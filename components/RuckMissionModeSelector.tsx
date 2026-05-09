@@ -38,10 +38,10 @@ const styles = StyleSheet.create({
   modeSelector: {
     flexDirection: 'row',
     gap: 6,
-    marginTop: 14,
+    marginTop: 10,
     padding: 4,
     borderRadius: 10,
-    backgroundColor: 'rgba(4,8,15,0.38)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   modeOption: {
     flex: 1,

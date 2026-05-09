@@ -8,7 +8,6 @@ import * as Haptics from 'expo-haptics';
 import Svg, { Circle, G, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { Screen } from '../components/Screen';
-import { Card } from '../components/Card';
 import { LiveTimerText } from '../components/LiveTimerText';
 import { RuckMissionBriefCard } from '../components/RuckMissionBriefCard';
 import { RuckHistoryCard } from '../components/RuckHistoryCard';
@@ -2015,7 +2014,7 @@ function updateSelectedCheckpointHere() {
     return (
       <GestureDetector gesture={mapGestures}>
         <View
-          style={fullscreen ? styles.fullscreenMapStage : [styles.mapStage, showExpandedMap && styles.mapStageExpanded]}
+          style={fullscreen ? styles.fullscreenMapStage : styles.mapStage}
           onLayout={(event) => {
           const { width, height } = event.nativeEvent.layout;
           setMapViewport((current) => (
@@ -3025,71 +3024,69 @@ function updateSelectedCheckpointHere() {
         <Text style={styles.platformNote}>Web tracking runs while this tab stays open. Use the native app for locked-screen GPS.</Text>
       )}
 
-      <Card style={styles.mapCard}>
-        <RuckMapHeader
-          isTracking={isTracking}
-          hasStarted={Boolean(startTime)}
-          gpsQuality={gpsQuality}
-          rejectedPointCount={rejectedPointCount}
-          lastRejectedReason={lastRejectedReason}
-          tacticalOptionsOpen={tacticalOptionsOpen}
-          onToggleOptions={() => setTacticalOptionsOpen((value) => !value)}
-          onOpenFullscreen={() => setMapFullscreen(true)}
-        />
-
-        <RuckMissionModeSelector missionMode={missionMode} onChange={setMissionMode} />
-
-        {tacticalOptionsOpen ? (
-          <RuckTacticalOptionsDrawer
-            coordinateFormat={coordinateFormat}
-            mapLayer={mapLayer}
-            tapMarkMode={tapMarkMode}
-            hasSelectedCheckpoint={Boolean(selectedCheckpoint)}
-            isDownloadingMap={isDownloadingMap}
-            downloadProgress={downloadProgress}
-            onCoordinateFormatChange={setCoordinateFormat}
-            onMapLayerChange={setMapLayer}
-            onToggleTapMark={() => {
-              setMeasurementMode(null);
-              setTapMarkMode((value) => !value);
-            }}
-            onMoveCheckpointHere={updateSelectedCheckpointHere}
-            onDownloadOfflineMap={downloadOfflineMap}
-            onClearOfflineMap={confirmClearOfflineMap}
-          />
-        ) : null}
-
+      <View style={[styles.mapBlock, showExpandedMap && styles.mapBlockExpanded]}>
         {renderMapStage(false)}
 
+        <View style={styles.mapTopOverlay} pointerEvents="box-none">
+          <RuckMapHeader
+            isTracking={isTracking}
+            hasStarted={Boolean(startTime)}
+            gpsQuality={gpsQuality}
+            rejectedPointCount={rejectedPointCount}
+            lastRejectedReason={lastRejectedReason}
+            tacticalOptionsOpen={tacticalOptionsOpen}
+            onToggleOptions={() => setTacticalOptionsOpen((value) => !value)}
+            onOpenFullscreen={() => setMapFullscreen(true)}
+          />
+          <RuckMissionModeSelector missionMode={missionMode} onChange={setMissionMode} />
+          {tacticalOptionsOpen ? (
+            <RuckTacticalOptionsDrawer
+              coordinateFormat={coordinateFormat}
+              mapLayer={mapLayer}
+              tapMarkMode={tapMarkMode}
+              hasSelectedCheckpoint={Boolean(selectedCheckpoint)}
+              isDownloadingMap={isDownloadingMap}
+              downloadProgress={downloadProgress}
+              onCoordinateFormatChange={setCoordinateFormat}
+              onMapLayerChange={setMapLayer}
+              onToggleTapMark={() => {
+                setMeasurementMode(null);
+                setTapMarkMode((value) => !value);
+              }}
+              onMoveCheckpointHere={updateSelectedCheckpointHere}
+              onDownloadOfflineMap={downloadOfflineMap}
+              onClearOfflineMap={confirmClearOfflineMap}
+            />
+          ) : null}
+        </View>
+
+        <View style={styles.mapBottomOverlay} pointerEvents="box-none">
+          <RuckLiveStatsRibbon
+            currentDistance={currentDistance}
+            startTime={startTime}
+            isTracking={isTracking}
+            elapsedSeconds={elapsedSeconds}
+            missionMode={missionMode}
+            navTargetBearing={navTargetBearing}
+            displayBearing={displayBearing}
+            activePace={activePace}
+          />
+          {missionMode !== 'simple' && currentPoint && currentCoordinate && (
+            <Text style={styles.coordinateText}>
+              {!gpsFollowMode && mapCenter ? `Map centre: ${mapCenterCoordinate}` : currentCoordinate}
+              {currentPoint.accuracy ? ` | +/-${Math.round(currentPoint.accuracy)}m` : ''}
+            </Text>
+          )}
+        </View>
+
         <Pressable
-          style={[styles.expandMapButton, showExpandedMap && styles.expandMapButtonActive, hasActiveGpsSession && styles.expandMapButtonLocked]}
+          style={[styles.mapExpandFab, hasActiveGpsSession && styles.mapExpandFabLocked]}
           onPress={() => setMapExpanded((current) => !current)}
           disabled={hasActiveGpsSession}
         >
-          <Ionicons name={showExpandedMap ? 'contract' : 'expand'} size={17} color={showExpandedMap ? colours.cyan : colours.background} />
-          <Text style={[styles.expandMapButtonText, showExpandedMap && styles.expandMapButtonTextActive]}>
-            {hasActiveGpsSession ? 'Field map active' : showExpandedMap ? 'Compact map' : 'Field map'}
-          </Text>
+          <Ionicons name={showExpandedMap ? 'contract' : 'expand'} size={15} color={showExpandedMap ? colours.cyan : colours.textSoft} />
         </Pressable>
-
-        <RuckLiveStatsRibbon
-          currentDistance={currentDistance}
-          startTime={startTime}
-          isTracking={isTracking}
-          elapsedSeconds={elapsedSeconds}
-          missionMode={missionMode}
-          navTargetBearing={navTargetBearing}
-          displayBearing={displayBearing}
-          activePace={activePace}
-        />
-
-        {missionMode !== 'simple' && currentPoint && currentCoordinate && (
-        <Text style={styles.coordinateText}>
-          {!gpsFollowMode && mapCenter ? `Map centre: ${mapCenterCoordinate}` : currentCoordinate}
-          {currentPoint.accuracy ? ` | +/-${Math.round(currentPoint.accuracy)}m` : ''}
-        </Text>
-        )}
-      </Card>
+      </View>
 
       {reviewOpen && startTime ? (
         <RuckReviewCard
@@ -3255,7 +3252,51 @@ const styles = StyleSheet.create({
   muted: { ...typography.caption, color: colours.muted },
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   platformNote: { ...typography.caption, color: colours.amber, lineHeight: 18, marginTop: -8, marginBottom: 8 },
-  mapCard: { backgroundColor: '#0F1F35', borderColor: 'rgba(103,232,249,0.20)' },
+  mapBlock: {
+    height: 520,
+    position: 'relative',
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginBottom: 14,
+  },
+  mapBlockExpanded: {
+    height: 640,
+  },
+  mapTopOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    paddingHorizontal: 12,
+    paddingTop: 12,
+    paddingBottom: 10,
+    backgroundColor: 'rgba(4,8,15,0.82)',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(103,232,249,0.12)',
+  },
+  mapBottomOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(4,8,15,0.82)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(103,232,249,0.12)',
+  },
+  mapExpandFab: {
+    position: 'absolute',
+    right: 10,
+    bottom: 62,
+    width: 30,
+    height: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(4,8,15,0.65)',
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.18)',
+  },
+  mapExpandFabLocked: { opacity: 0.4 },
   fullscreenContainer: {
     flex: 1,
     backgroundColor: '#0F1F35',
@@ -3306,17 +3347,9 @@ const styles = StyleSheet.create({
   finishStripFullscreen: { bottom: 238 },
   bearingGuidanceStripFullscreen: { bottom: 88, left: 10, right: 200 },
   mapStage: {
-    height: 420,
-    marginTop: 14,
-    borderRadius: 14,
+    ...StyleSheet.absoluteFill,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: 'rgba(103,232,249,0.16)',
     backgroundColor: 'rgba(4,8,15,0.72)',
-    position: 'relative',
-  },
-  mapStageExpanded: {
-    height: 510,
   },
   mapShade: {
     ...StyleSheet.absoluteFillObject,
@@ -3505,22 +3538,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   finishStripText: { ...typography.label, color: colours.text },
-  expandMapButton: {
-    minHeight: 38,
-    marginTop: 9,
-    borderRadius: 8,
-    backgroundColor: colours.cyan,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  expandMapButtonActive: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  expandMapButtonLocked: { opacity: 0.92 },
-  expandMapButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
-  expandMapButtonTextActive: { color: colours.cyan },
   liveStat: {
     flex: 1,
     borderWidth: 1,
@@ -3532,7 +3549,7 @@ const styles = StyleSheet.create({
   },
   liveValue: { color: colours.cyan, fontSize: 18, fontWeight: '900' },
   liveLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.3, marginTop: 2 },
-  coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 10 },
+  coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 4, paddingBottom: 6, paddingHorizontal: 12 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: responsiveSpacing('md') },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },

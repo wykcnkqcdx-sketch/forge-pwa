@@ -53,12 +53,6 @@ const styles = StyleSheet.create({
   liveStats: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(4,8,15,0.44)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
   },
   liveRibbonItem: {
     flex: 1,
@@ -67,7 +61,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 3,
     borderLeftWidth: 1,
-    borderLeftColor: 'rgba(255,255,255,0.08)',
+    borderLeftColor: 'rgba(103,232,249,0.10)',
   },
   liveRibbonValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
   liveRibbonLabel: { ...typography.label, color: colours.muted, letterSpacing: 1, marginTop: 2 },
