@@ -21,6 +21,7 @@ import { RuckScoreCard } from '../components/RuckScoreCard';
 import { RuckNavigationGuideCard } from '../components/RuckNavigationGuideCard';
 import { RuckSessionSetupCard } from '../components/RuckSessionSetupCard';
 import { RuckMetricSummary } from '../components/RuckMetricSummary';
+import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3212,141 +3213,32 @@ function updateSelectedCheckpointHere() {
         sessions={sessions}
       />
 
-      <Card>
-        <View style={styles.navHeader}>
-          <View>
-            <Text style={styles.cardTitle}>Mission Pace</Text>
-            <Text style={styles.muted}>Target, splits, checkpoints</Text>
-          </View>
-          <View style={[styles.signalBadge, { borderColor: statusColors(targetDeltaMinutes <= 0 ? colours.green : colours.amber).borderMed, backgroundColor: statusColors(targetDeltaMinutes <= 0 ? colours.green : colours.amber).bgMed }]}>
-            <Text style={[styles.signalText, { color: targetDeltaMinutes <= 0 ? colours.green : colours.amber }]}>
-              {currentDistance > 0.02 ? formatSignedMinutes(targetDeltaMinutes).toUpperCase() : 'READY'}
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.templateGrid}>
-          {allRuckTemplates.map((template) => {
-            const selected = activeTemplateId === template.id;
-            return (
-              <Pressable
-                key={template.id}
-                style={[styles.templateButton, selected && styles.templateButtonActive]}
-                onPress={() => applyTemplate(template)}
-              >
-                {template.custom && (
-                  <Pressable style={styles.templateDelete} onPress={() => deleteCustomTemplate(template.id)}>
-                    <Ionicons name="close" size={13} color={colours.text} />
-                  </Pressable>
-                )}
-                <Text style={[styles.templateTitle, selected && styles.templateTitleActive]}>{template.label}</Text>
-                <Text style={styles.templateDetail}>{template.detail}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={styles.templateSaveRow}>
-          <TextInput
-            value={templateNameInput}
-            onChangeText={setTemplateNameInput}
-            placeholder="Template name"
-            placeholderTextColor={colours.soft}
-            style={styles.templateNameInput}
-          />
-          <Pressable style={styles.templateSaveButton} onPress={saveCustomTemplate}>
-            <Ionicons name="save" size={16} color={colours.background} />
-            <Text style={styles.templateSaveText}>Save</Text>
-          </Pressable>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Target Distance</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeTargetDistance(-0.5)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{targetDistanceKm.toFixed(1)}km</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeTargetDistance(0.5)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Target Time</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeTargetMinutes(-5)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{formatDuration(targetMinutes)}</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeTargetMinutes(5)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.navGrid}>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{targetPaceLabel}</Text>
-            <Text style={styles.navLabel}>Target pace</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{targetRemainingKm.toFixed(1)}km</Text>
-            <Text style={styles.navLabel}>Remaining</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{formatDuration(targetEtaMinutes)}</Text>
-            <Text style={styles.navLabel}>ETA at current pace</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{targetProjectedMinutes == null ? '--' : formatDuration(targetProjectedMinutes)}</Text>
-            <Text style={styles.navLabel}>Projected finish</Text>
-          </View>
-        </View>
-
-        <View style={styles.finishModeRow}>
-          {([
-            ['target', 'Target'],
-            ['finalCheckpoint', 'Final CP'],
-            ['selectedCheckpoint', 'Selected CP'],
-          ] as const).map(([mode, label]) => {
-            const selected = finishMode === mode;
-            return (
-              <Pressable
-                key={mode}
-                style={[styles.finishModeButton, selected && styles.finishModeButtonActive]}
-                onPress={() => setFinishMode(mode)}
-              >
-                <Text style={[styles.finishModeText, selected && styles.finishModeTextActive]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <View style={[styles.finishPanel, { borderColor: statusColors(finishOnTarget ? colours.green : colours.amber).borderMed, backgroundColor: statusColors(finishOnTarget ? colours.green : colours.amber).bgMed }]}>
-          <View>
-            <Text style={[styles.finishPanelTitle, { color: finishOnTarget ? colours.green : colours.amber }]}>
-              {finishOnTarget ? 'Finish on target' : 'Finish at risk'}
-            </Text>
-            <Text style={styles.finishPanelDetail}>{finishLabel}</Text>
-          </View>
-          <View style={styles.finishPanelMetrics}>
-            <View style={styles.finishMetric}>
-              <Text style={styles.finishMetricValue}>{finishDistanceRemainingKm.toFixed(1)}km</Text>
-              <Text style={styles.finishMetricLabel}>LEFT</Text>
-            </View>
-            <View style={styles.finishMetric}>
-              <Text style={styles.finishMetricValue}>{formatDuration(finishEtaMinutes)}</Text>
-              <Text style={styles.finishMetricLabel}>ETA</Text>
-            </View>
-            <View style={styles.finishMetric}>
-              <Text style={styles.finishMetricValue}>{finishRequiredPace > 0 ? finishRequiredPace.toFixed(1) : '--'}</Text>
-              <Text style={styles.finishMetricLabel}>REQ /KM</Text>
-            </View>
-          </View>
-        </View>
-      </Card>
+      <RuckMissionPaceCard
+        currentDistance={currentDistance}
+        targetDeltaMinutes={targetDeltaMinutes}
+        templates={allRuckTemplates}
+        activeTemplateId={activeTemplateId}
+        templateNameInput={templateNameInput}
+        targetDistanceKm={targetDistanceKm}
+        targetMinutes={targetMinutes}
+        targetPaceLabel={targetPaceLabel}
+        targetRemainingKm={targetRemainingKm}
+        targetEtaMinutes={targetEtaMinutes}
+        targetProjectedMinutes={targetProjectedMinutes}
+        finishMode={finishMode}
+        finishOnTarget={finishOnTarget}
+        finishLabel={finishLabel}
+        finishDistanceRemainingKm={finishDistanceRemainingKm}
+        finishEtaMinutes={finishEtaMinutes}
+        finishRequiredPace={finishRequiredPace}
+        onApplyTemplate={applyTemplate}
+        onDeleteTemplate={deleteCustomTemplate}
+        onTemplateNameChange={setTemplateNameInput}
+        onSaveTemplate={saveCustomTemplate}
+        onTargetDistanceChange={changeTargetDistance}
+        onTargetMinutesChange={changeTargetMinutes}
+        onFinishModeChange={setFinishMode}
+      />
 
       <RuckReadinessCard readiness={routeReadinessChecks} />
 
@@ -3943,73 +3835,6 @@ const styles = StyleSheet.create({
   },
   mapTelemetryValue: { color: colours.text, fontSize: 14, fontWeight: '900' },
   mapTelemetryLabel: { ...typography.label, color: colours.muted, letterSpacing: 1, marginTop: 2 },
-  templateGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-    marginBottom: 4,
-  },
-  templateButton: {
-    width: '48%',
-    flexGrow: 1,
-    minHeight: 58,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    justifyContent: 'center',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    position: 'relative',
-  },
-  templateButtonActive: {
-    borderColor: statusColors(colours.cyan).borderMed,
-    backgroundColor: statusColors(colours.cyan).bgMed,
-  },
-  templateTitle: { color: colours.text, fontSize: 12, fontWeight: '900' },
-  templateTitleActive: { color: colours.cyan },
-  templateDetail: { ...typography.caption, color: colours.muted, fontWeight: '800', marginTop: 3 },
-  templateDelete: {
-    position: 'absolute',
-    top: 5,
-    right: 5,
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.10)',
-  },
-  templateSaveRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 8,
-    marginBottom: 6,
-  },
-  templateNameInput: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    ...typography.caption, color: colours.text,
-    fontWeight: '800',
-    paddingHorizontal: 12,
-  },
-  templateSaveButton: {
-    minHeight: 44,
-    borderRadius: 8,
-    backgroundColor: colours.cyan,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-  },
-  templateSaveText: { ...typography.caption, color: colours.background, fontWeight: '900' },
   mapMissionStrip: {
     position: 'absolute',
     left: 10,
@@ -4129,51 +3954,6 @@ const styles = StyleSheet.create({
   navValue: { color: colours.cyan, fontSize: 17, fontWeight: '900' },
   navLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
   navGuide: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 12 },
-  finishModeRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  finishModeButton: {
-    flex: 1,
-    minHeight: 38,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  finishModeButtonActive: {
-    borderColor: statusColors(colours.cyan).borderMed,
-    backgroundColor: statusColors(colours.cyan).bgMed,
-  },
-  finishModeText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
-  finishModeTextActive: { color: colours.cyan },
-  finishPanel: {
-    borderRadius: 8,
-    borderWidth: 1,
-    marginTop: 12,
-    padding: 12,
-    gap: 10,
-  },
-  finishPanelTitle: { fontSize: 14, fontWeight: '900' },
-  finishPanelDetail: { color: colours.textSoft, fontSize: 12, fontWeight: '800', marginTop: 2 },
-  finishPanelMetrics: { flexDirection: 'row', gap: 8 },
-  finishMetric: {
-    flex: 1,
-    minHeight: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  finishMetricValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
-  finishMetricLabel: { ...typography.label, color: colours.muted, letterSpacing: 0.8, marginTop: 2 },
   checkpointButton: {
     minHeight: 40,
     borderRadius: 8,
