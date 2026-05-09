@@ -357,6 +357,17 @@ begin
     with check (public.is_squad_coach(squad_id));
   end if;
 
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'assignments' and policyname = 'members read assigned assignments') then
+    create policy "members read assigned assignments"
+    on public.assignments for select
+    using (
+      public.is_squad_coach(squad_id)
+      or assignee_membership_id in (
+        select id from public.squad_memberships where user_id = auth.uid() and status = 'active'
+      )
+    );
+  end if;
+
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'assignment_exercises' and policyname = 'members read assignment exercises') then
     create policy "members read assignment exercises"
     on public.assignment_exercises for select
@@ -383,6 +394,12 @@ begin
     create policy "members read team activity"
     on public.team_activity for select
     using (public.is_squad_member(squad_id));
+  end if;
+
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'workout_completions' and policyname = 'coaches read squad completions') then
+    create policy "coaches read squad completions"
+    on public.workout_completions for select
+    using (squad_id is not null and public.is_squad_coach(squad_id));
   end if;
 
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'team_activity' and policyname = 'members create own activity') then

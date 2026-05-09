@@ -233,6 +233,7 @@ export function MemberScreen({
       memberId: member.id,
       memberName: member.gymName || member.name,
       groupId: member.groupId,
+      assignmentId: assignmentSession?.id,
       completionType: 'assigned',
       sessionKind: assignmentMode?.type ?? 'Workout',
       assignment: assignmentSession?.title ?? member.assignment ?? 'Assigned Workout',

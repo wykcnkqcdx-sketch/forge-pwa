@@ -98,7 +98,7 @@ export function AppRouter() {
             onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}
             googleSheetsExporting={cloud.googleSheetsExporting}
             googleSheetsMessage={cloud.googleSheetsMessage}
-            onCompleteWorkout={(completion) => store.setWorkoutCompletions((current) => [completion, ...current])}
+            onCompleteWorkout={actions.completeWorkout}
             onAddSession={actions.addSession}
           />
         );
@@ -252,7 +252,7 @@ export function AppRouter() {
             onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}
             googleSheetsExporting={cloud.googleSheetsExporting}
             googleSheetsMessage={cloud.googleSheetsMessage}
-            onCompleteWorkout={(completion) => store.setWorkoutCompletions((current) => [completion, ...current])}
+            onCompleteWorkout={actions.completeWorkout}
             onAddSession={actions.addSession}
           />
         );

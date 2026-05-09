@@ -212,6 +212,8 @@ export function isInviteClaimable(invite: Pick<RemoteMemberInviteRow, 'status' |
   return invite.status === 'pending' && new Date(invite.expires_at).getTime() > now.getTime();
 }
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 function ensureSupabase() {
   if (!supabase) throw new Error('Supabase client is not configured.');
   return supabase;
@@ -260,4 +262,65 @@ export async function ensureDefaultCloudSquad(userId: string, email?: string | n
 
   if (membership.error) throw membership.error;
   return squad;
+}
+
+export async function syncSquadAssignment(squadId: string, assignedBy: string, member: SquadMember) {
+  if (!member.assignmentSession || !uuidPattern.test(member.assignmentSession.id)) return;
+  const client = ensureSupabase();
+  const assignment = toRemoteAssignment(squadId, assignedBy, member.assignmentSession);
+
+  const upserted = await client
+    .from('assignments')
+    .upsert(assignment, { onConflict: 'id' });
+  if (upserted.error) throw upserted.error;
+
+  const removedExercises = await client
+    .from('assignment_exercises')
+    .delete()
+    .eq('assignment_id', assignment.id);
+  if (removedExercises.error) throw removedExercises.error;
+
+  const exercises = member.assignmentSession.exercises.map((exercise, index) => toRemoteAssignmentExercise(assignment.id, exercise, index));
+  if (exercises.length > 0) {
+    const insertedExercises = await client
+      .from('assignment_exercises')
+      .insert(exercises);
+    if (insertedExercises.error) throw insertedExercises.error;
+  }
+}
+
+export async function syncSquadWorkoutCompletion(squadId: string, userId: string, completion: WorkoutCompletion) {
+  const client = ensureSupabase();
+  const assignmentId = completion.assignmentId && uuidPattern.test(completion.assignmentId)
+    ? completion.assignmentId
+    : null;
+
+  const upserted = await client
+    .from('workout_completions')
+    .upsert({
+      user_id: userId,
+      id: completion.id,
+      member_id: completion.memberId,
+      member_name: completion.memberName,
+      group_id: completion.groupId,
+      squad_id: squadId,
+      assignment_id: assignmentId,
+      membership_id: null,
+      completion_type: completion.completionType,
+      session_kind: completion.sessionKind,
+      assignment: completion.assignment,
+      effort: completion.effort,
+      duration_minutes: completion.durationMinutes,
+      note: completion.note ?? null,
+      volume: completion.volume,
+      exercises: completion.exercises ?? null,
+      completed_at: completion.completedAt,
+      updated_at: completion.updatedAt ?? completion.completedAt,
+    }, { onConflict: 'user_id,id' });
+  if (upserted.error) throw upserted.error;
+
+  const activity = await client
+    .from('team_activity')
+    .insert(toRemoteTeamActivity(squadId, completion));
+  if (activity.error) throw activity.error;
 }

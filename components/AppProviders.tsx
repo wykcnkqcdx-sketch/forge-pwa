@@ -15,6 +15,7 @@ import { useToast } from '../hooks/useToast';
 import { useLocalStore } from '../hooks/useLocalStore';
 import { useCloudSync } from '../hooks/useCloudSync';
 import { usePinLock } from '../hooks/usePinLock';
+import { syncSquadAssignment, syncSquadWorkoutCompletion } from '../lib/squadCloud';
 import type { AppNavigation, AppActions, Tab, MemberTab, PendingMemberInvite, ForgeBackup } from '../types/app';
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -320,8 +321,24 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   function updateMember(id: string, updates: Partial<SquadMember>) {
     const stamped = { ...updates, updatedAt: new Date().toISOString() };
+    const previous = members.find((member) => member.id === id);
+    const updatedMember = previous ? { ...previous, ...stamped } : null;
     setMembers((curr) => curr.map((m) => (m.id === id ? { ...m, ...stamped } : m)));
     enqueueCloudMutation({ type: 'update_member', payload: { id, updates: stamped } });
+    if (updatedMember?.assignmentSession && cloud.cloudSquadId && cloud.cloudSession?.user.id) {
+      syncSquadAssignment(cloud.cloudSquadId, cloud.cloudSession.user.id, updatedMember)
+        .catch((error) => console.error('Failed to sync squad assignment', error));
+    }
+  }
+
+  function completeWorkout(completion: WorkoutCompletion) {
+    const stamped = { ...completion, updatedAt: new Date().toISOString() };
+    setWorkoutCompletions((current) => [stamped, ...current]);
+    enqueueCloudMutation({ type: 'upsert_workout_completion', payload: stamped });
+    if (cloud.cloudSquadId && cloud.cloudSession?.user.id) {
+      syncSquadWorkoutCompletion(cloud.cloudSquadId, cloud.cloudSession.user.id, stamped)
+        .catch((error) => console.error('Failed to sync squad workout completion', error));
+    }
   }
 
   function addGroup(group: TrainingGroup) {
@@ -473,6 +490,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     addMember,
     deleteMember,
     updateMember,
+    completeWorkout,
     addGroup,
     addProgrammeTemplate,
     deleteProgrammeTemplate,

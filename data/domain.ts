@@ -124,6 +124,7 @@ export type WorkoutCompletion = {
   memberId: string;
   memberName: string;
   groupId: string;
+  assignmentId?: string;
   completionType: WorkoutCompletionType;
   sessionKind: TrainingSession['type'];
   assignment: string;

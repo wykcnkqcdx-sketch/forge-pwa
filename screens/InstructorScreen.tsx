@@ -51,6 +51,17 @@ const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.tit
 const assignmentCategories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function createUuid() {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (char) => {
+    const value = Math.floor(Math.random() * 16);
+    const nibble = char === 'x' ? value : (value & 0x3) | 0x8;
+    return nibble.toString(16);
+  });
+}
+
 export function parseDose(dose: string) {
   const setsRepsMatch = dose.match(/(\d+)\s*x\s*(\d+)/i);
   if (setsRepsMatch) {
@@ -443,24 +454,26 @@ export function InstructorScreen({
     const assignmentMode = selectedAssignmentMode;
     const chosenExerciseIds = activeAssignmentExerciseIds;
     const chosenExercises = activeAssignmentExercises;
+    const assignmentSession = {
+      id: createUuid(),
+      title: assignmentLabel,
+      type: assignmentMode?.type ?? 'Workout',
+      status: 'assigned' as const,
+      assignedAt: new Date().toISOString(),
+      coachNote: assignmentNote.trim() || undefined,
+      exercises: chosenExercises.map((exercise) => ({
+        ...exercise,
+        coachPinned: assignmentMode?.coachPinnedExerciseIds?.includes(exercise.exerciseId) ?? exercise.coachPinned ?? false,
+        status: 'assigned' as const,
+      })),
+    };
+
     onUpdateMember(member.id, {
       groupId: group.id,
       assignment: assignmentLabel,
       pinnedExerciseIds: assignmentMode?.coachPinnedExerciseIds?.filter((id) => chosenExerciseIds.includes(id))
         ?? chosenExerciseIds.slice(0, 2),
-      assignmentSession: {
-        id: `assign-${member.id}-${Date.now()}`,
-        title: assignmentLabel,
-        type: assignmentMode?.type ?? 'Workout',
-        status: 'assigned',
-        assignedAt: new Date().toISOString(),
-        coachNote: assignmentNote.trim() || undefined,
-        exercises: chosenExercises.map((exercise) => ({
-          ...exercise,
-          coachPinned: assignmentMode?.coachPinnedExerciseIds?.includes(exercise.exerciseId) ?? exercise.coachPinned ?? false,
-          status: 'assigned',
-        })),
-      },
+      assignmentSession,
     });
     const message = `${member.name} is now assigned to ${assignmentLabel} in ${group.name}.`;
     setAssignmentMemberId(member.id);

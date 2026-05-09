@@ -40,6 +40,7 @@ export type AppActions = {
   addMember: (member: SquadMember) => void;
   deleteMember: (id: string) => void;
   updateMember: (id: string, updates: Partial<SquadMember>) => void;
+  completeWorkout: (completion: WorkoutCompletion) => void;
   addGroup: (group: TrainingGroup) => void;
   addProgrammeTemplate: (template: ProgrammeTemplate) => void;
   deleteProgrammeTemplate: (id: string) => void;
