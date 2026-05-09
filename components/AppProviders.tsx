@@ -17,11 +17,10 @@ import type { AppNavigation, AppActions, Tab, MemberTab, PendingMemberInvite, Fo
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
   { id: 'home',       label: 'Home',    icon: 'home-outline',       iconActive: 'home' },
-  { id: 'train',      label: 'Train',   icon: 'barbell-outline',    iconActive: 'barbell' },
   { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
-  { id: 'fuel',       label: 'Fuel',    icon: 'restaurant-outline', iconActive: 'restaurant' },
-  { id: 'analytics',  label: 'Intel',   icon: 'analytics-outline',  iconActive: 'analytics' },
-  { id: 'settings', label: 'Ops', icon: 'settings-outline', iconActive: 'settings' },
+  { id: 'train',      label: 'Train',   icon: 'barbell-outline',    iconActive: 'barbell' },
+  { id: 'squad',      label: 'Squad',   icon: 'people-outline',     iconActive: 'people' },
+  { id: 'fieldGuide', label: 'Guide',   icon: 'map-outline',        iconActive: 'map' },
 ];
 
 const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [

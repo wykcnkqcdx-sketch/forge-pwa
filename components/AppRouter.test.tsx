@@ -17,6 +17,8 @@ vi.mock('../screens/RuckScreen', () => ({ RuckScreen: () => <span>RuckScreen</sp
 vi.mock('../screens/TrainScreen', () => ({ TrainScreen: () => <span>TrainScreen</span> }));
 vi.mock('../screens/FuelScreen', () => ({ FuelScreen: () => <span>FuelScreen</span> }));
 vi.mock('../screens/SettingsScreen', () => ({ SettingsScreen: () => <span>SettingsScreen</span> }));
+vi.mock('../screens/SquadScreen', () => ({ SquadScreen: () => <span>SquadScreen</span> }));
+vi.mock('../screens/FieldGuideScreen', () => ({ FieldGuideScreen: () => <span>FieldGuideScreen</span> }));
 vi.mock('../screens/OnboardingScreen', () => ({ OnboardingScreen: () => <span>OnboardingScreen</span> }));
 vi.mock('../screens/AuthScreen', () => ({ AuthScreen: () => <span>AuthScreen</span> }));
 vi.mock('./SplashScreen', () => ({ SplashScreen: () => <span>SplashScreen</span> }));

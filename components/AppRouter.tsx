@@ -8,6 +8,8 @@ import { RuckScreen } from '../screens/RuckScreen';
 import { TrainScreen } from '../screens/TrainScreen';
 import { FuelScreen } from '../screens/FuelScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
+import { SquadScreen } from '../screens/SquadScreen';
+import { FieldGuideScreen } from '../screens/FieldGuideScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { AuthScreen } from '../screens/AuthScreen';
 import * as Haptics from 'expo-haptics';
@@ -64,6 +66,43 @@ export function AppRouter() {
     switch (navigation.activeTab) {
       case 'train': return <TrainScreen addSession={actions.addSession} sessions={sessions} />;
       case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={sessions} />;
+      case 'squad':
+        return (
+          <SquadScreen
+            pinEnabled={Boolean(savedPin)}
+            sessions={sessions}
+            members={members}
+            groups={groups}
+            programmeTemplates={programmeTemplates}
+            readinessLogs={readinessLogs}
+            workoutCompletions={workoutCompletions}
+            onSetPin={pin.handleSetPin}
+            onWipe={pin.handleManualWipe}
+            onExport={actions.exportData}
+            onImport={actions.importData}
+            onAddMember={actions.addMember}
+            onDeleteMember={actions.deleteMember}
+            onUpdateMember={actions.updateMember}
+            onAddGroup={actions.addGroup}
+            onAddProgrammeTemplate={actions.addProgrammeTemplate}
+            onDeleteProgrammeTemplate={actions.deleteProgrammeTemplate}
+            cloudEnabled={isSupabaseConfigured}
+            cloudStatus={cloud.cloudStatus}
+            cloudEmail={cloud.cloudSession?.user.email ?? null}
+            pendingSyncCount={pendingSyncCount}
+            onCloudSync={cloud.syncCloudNow}
+            onCloudSignOut={cloud.signOutCloud}
+            googleSheetsEndpoint={googleSheetsEndpoint}
+            onChangeGoogleSheetsEndpoint={store.setGoogleSheetsEndpoint}
+            onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}
+            googleSheetsExporting={cloud.googleSheetsExporting}
+            googleSheetsMessage={cloud.googleSheetsMessage}
+            onCompleteWorkout={(completion) => store.setWorkoutCompletions((current) => [completion, ...current])}
+            onAddSession={actions.addSession}
+          />
+        );
+      case 'fieldGuide':
+        return <FieldGuideScreen />;
       case 'fuel':
         return (
           <FuelScreen
@@ -138,7 +177,6 @@ export function AppRouter() {
             sessions={sessions}
             goToRuck={() => switchTab('ruck')}
             goToAnalytics={() => switchTab('analytics')}
-            goToFuel={() => switchTab('fuel')}
             goToTrain={() => switchTab('train')}
             goToReadiness={() => switchTab('readiness')}
             readinessLogs={readinessLogs}
@@ -181,17 +219,38 @@ export function AppRouter() {
         );
       default:
         return (
-          <HomeScreen
-            member={activeMember}
+          <SquadScreen
+            initialMode="member"
+            pinEnabled={Boolean(savedPin)}
             sessions={visibleSessions}
-            goToRuck={() => navigation.setActiveMemberTab('ruck')}
-            goToAnalytics={() => navigation.setActiveMemberTab('train')}
-            goToFuel={() => navigation.setActiveMemberTab('fuel')}
-            goToTrain={() => navigation.setActiveMemberTab('train')}
-            goToReadiness={() => navigation.setActiveMemberTab('readiness')}
+            members={members}
+            groups={groups}
+            programmeTemplates={programmeTemplates}
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
-            secondaryActionLabel="Training"
+            onSetPin={pin.handleSetPin}
+            onWipe={pin.handleManualWipe}
+            onExport={actions.exportData}
+            onImport={actions.importData}
+            onAddMember={actions.addMember}
+            onDeleteMember={actions.deleteMember}
+            onUpdateMember={actions.updateMember}
+            onAddGroup={actions.addGroup}
+            onAddProgrammeTemplate={actions.addProgrammeTemplate}
+            onDeleteProgrammeTemplate={actions.deleteProgrammeTemplate}
+            cloudEnabled={isSupabaseConfigured}
+            cloudStatus={cloud.cloudStatus}
+            cloudEmail={cloud.cloudSession?.user.email ?? null}
+            pendingSyncCount={pendingSyncCount}
+            onCloudSync={cloud.syncCloudNow}
+            onCloudSignOut={cloud.signOutCloud}
+            googleSheetsEndpoint={googleSheetsEndpoint}
+            onChangeGoogleSheetsEndpoint={store.setGoogleSheetsEndpoint}
+            onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}
+            googleSheetsExporting={cloud.googleSheetsExporting}
+            googleSheetsMessage={cloud.googleSheetsMessage}
+            onCompleteWorkout={(completion) => store.setWorkoutCompletions((current) => [completion, ...current])}
+            onAddSession={actions.addSession}
           />
         );
     }

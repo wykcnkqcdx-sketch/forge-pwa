@@ -436,6 +436,23 @@ export function InstructorScreen({
       </View>
 
       <Card>
+        <Text style={styles.cardTitle}>Product Focus</Text>
+        <Text style={styles.cloudCopy}>
+          FORGE is now organised around ruck readiness, training completion, squad accountability, and field utility.
+        </Text>
+        <View style={styles.schemaGrid}>
+          {['squads', 'squad_memberships', 'member_invites', 'assignments', 'assignment_exercises', 'workout_completions', 'team_activity', 'member_privacy_settings'].map((table) => (
+            <View key={table} style={styles.schemaPill}>
+              <Text style={styles.schemaPillText}>{table}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={styles.inviteHelp}>
+          Backend priority: random invite tokens with expiry and accepted/revoked state, role claim flow, row-level security, and Team Pulse computed from completion rows.
+        </Text>
+      </Card>
+
+      <Card>
         <Text style={styles.cardTitle}>Security & Backup</Text>
         <View style={styles.actionGrid}>
           <Pressable onPress={onSetPin} style={[styles.actionButton, { borderColor: `${colours.amber}40`, backgroundColor: colours.amberDim }]}>
@@ -1023,6 +1040,16 @@ const styles = StyleSheet.create({
   aiSummary: { color: colours.text, fontSize: 14, lineHeight: 20 },
   aiAction: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 10 },
   actionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  schemaGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  schemaPill: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colours.layer1,
+  },
+  schemaPillText: { color: colours.cyan, fontSize: 10, fontWeight: '900' },
   actionButton: {
     width: '47%',
     borderWidth: 1,
