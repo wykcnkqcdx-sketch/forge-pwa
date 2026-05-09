@@ -114,6 +114,7 @@ const BEARING_CAUTION_DEGREES = 20;
 const BEARING_OFF_DEGREES = 45;
 type TrackingStatus = 'idle' | 'starting' | 'tracking' | 'paused';
 type FinishMode = 'target' | 'finalCheckpoint' | 'selectedCheckpoint';
+type RuckMissionMode = 'simple' | 'tactical' | 'navigation';
 type FieldMarkType = NonNullable<RuckCheckpoint['markType']>;
 type NavTarget = { type: 'mark' | 'teammate'; id: string };
 type TeamEvent = { id: string; time: number; tone: string; title: string; detail: string };
@@ -365,6 +366,8 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const [mapExpanded, setMapExpanded] = useState(false);
   const [mapFullscreen, setMapFullscreen] = useState(false);
   const [mapNorthUp, setMapNorthUp] = useState(true);
+  const [missionMode, setMissionMode] = useState<RuckMissionMode>('simple');
+  const [tacticalOptionsOpen, setTacticalOptionsOpen] = useState(false);
   const [isDownloadingMap, setIsDownloadingMap] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [targetDistanceKm, setTargetDistanceKm] = useState(8);
@@ -2260,7 +2263,7 @@ function updateSelectedCheckpointHere() {
   }
 
   function renderMapStage(fullscreen: boolean) {
-    const showOverlays = showExpandedMap || fullscreen;
+    const showOverlays = showExpandedMap || fullscreen || missionMode !== 'simple';
     return (
       <GestureDetector gesture={mapGestures}>
         <View
@@ -2541,10 +2544,12 @@ function updateSelectedCheckpointHere() {
 
         {showOverlays && !fullscreen && (
           <>
+            {missionMode === 'tactical' || fullscreen ? (
             <View style={[styles.mapGridOverlay, shadow.subtle]} pointerEvents="none">
               <Text style={styles.mapOverlayLabel}>{gpsFollowMode ? 'GPS GRID' : 'MAP CENTER'}</Text>
               <Text style={styles.mapOverlayValue}>{gpsFollowMode ? currentCoordinate ?? 'Awaiting fix' : mapCenterCoordinate ?? 'Awaiting fix'}</Text>
             </View>
+            ) : null}
             <View style={[styles.mapCompassOverlay, shadow.subtle]} pointerEvents="none">
               <Animated.View
                 style={{
@@ -2568,6 +2573,7 @@ function updateSelectedCheckpointHere() {
               <Text style={styles.mapCompassValue}>{displayHeading == null ? '---' : formatHeading(displayHeading)}</Text>
               <Text style={styles.mapCompassLabel}>{displayHeading == null ? 'HDG' : cardinalDirection(displayHeading)}</Text>
             </View>
+            {fullscreen ? (
             <View style={[styles.mapTelemetry, shadow.subtle]} pointerEvents="none">
               <View style={styles.mapTelemetryItem}>
                 <Text style={styles.mapTelemetryValue}>{currentDistance.toFixed(2)}</Text>
@@ -2586,6 +2592,8 @@ function updateSelectedCheckpointHere() {
                 <Text style={styles.mapTelemetryLabel}>ALT M</Text>
               </View>
             </View>
+            ) : null}
+            {missionMode === 'navigation' || fullscreen ? (
             <View style={[styles.mapMissionStrip, shadow.subtle]} pointerEvents="none">
               <Text style={styles.mapMissionText}>{arrivalCheckpoint ? 'ARRIVED' : formatSignedMinutes(targetDeltaMinutes)}</Text>
               <Text style={styles.mapMissionText}>{selectedCheckpoint?.label ?? checkpointStatus}</Text>
@@ -2593,6 +2601,8 @@ function updateSelectedCheckpointHere() {
                 {selectedCheckpointDistanceKm == null ? `${checkpointRemainingKm.toFixed(1)}km to CP` : `${selectedCheckpointDistanceKm.toFixed(1)}km to CP`}
               </Text>
             </View>
+            ) : null}
+            {missionMode === 'navigation' || fullscreen ? (
             <View style={[styles.finishStrip, shadow.subtle]} pointerEvents="none">
               <Text style={styles.finishStripText}>FINISH {finishDistanceRemainingKm.toFixed(1)}km</Text>
               <Text style={styles.finishStripText}>REQ {finishRequiredPace > 0 ? `${finishRequiredPace.toFixed(1)}/km` : '--'}</Text>
@@ -2600,9 +2610,10 @@ function updateSelectedCheckpointHere() {
                 {finishOnTarget ? 'ON TARGET' : 'AT RISK'}
               </Text>
             </View>
+            ) : null}
           </>
         )}
-        {showOverlays && !fullscreen && (
+        {(missionMode === 'navigation' || fullscreen) && !fullscreen && (
           <View style={[styles.bearingGuidanceStrip, { borderColor: statusColors(bearingGuidance.tone).borderMed, backgroundColor: statusColors(bearingGuidance.tone).bgMed }, shadow.subtle]} pointerEvents="none">
             <Text style={[styles.bearingGuidanceLabel, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
             <Text style={styles.bearingGuidanceDetail}>{bearingGuidance.detail}</Text>
@@ -2611,10 +2622,10 @@ function updateSelectedCheckpointHere() {
         {mapTiles.length > 0 && (
           <Text style={styles.mapAttribution}>{activeMapLayer.attribution}</Text>
         )}
-        {showOverlays && !fullscreen && (
+        {!fullscreen && (
           <View style={styles.mapSelectControls}>
             <Pressable
-              style={[styles.mapSelectButton, !gpsFollowMode && styles.mapSelectButtonActive, shadow.subtle]}
+              style={[styles.mapIconButton, !gpsFollowMode && styles.mapIconButtonActive, shadow.subtle]}
               onPress={() => {
                 if (gpsFollowMode) {
                   setGpsFollowMode(false);
@@ -2625,69 +2636,22 @@ function updateSelectedCheckpointHere() {
                 }
               }}
             >
-              <Ionicons name={!gpsFollowMode ? "locate-outline" : 'locate'} size={14} color={!gpsFollowMode ? colours.background : colours.cyan} />
-              <Text style={[styles.mapSelectButtonText, !gpsFollowMode && styles.mapSelectButtonTextActive]}>
-                {gpsFollowMode ? 'Pan Free' : 'GPS Follow'}
-              </Text>
+              <Ionicons name={!gpsFollowMode ? 'locate-outline' : 'locate'} size={20} color={!gpsFollowMode ? colours.background : colours.cyan} />
             </Pressable>
             <Pressable
-              style={[styles.mapSelectButton, !mapNorthUp && styles.mapSelectButtonActive, shadow.subtle]}
+              style={[styles.mapIconButton, !mapNorthUp && styles.mapIconButtonActive, shadow.subtle]}
               onPress={() => setMapNorthUp(v => !v)}
             >
-              <Ionicons name="compass" size={14} color={!mapNorthUp ? colours.background : colours.cyan} />
-              <Text style={[styles.mapSelectButtonText, !mapNorthUp && styles.mapSelectButtonTextActive]}>
-                {mapNorthUp ? 'North Up' : 'Heading Up'}
-              </Text>
+              <Ionicons name="compass" size={20} color={!mapNorthUp ? colours.background : colours.cyan} />
             </Pressable>
-            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={recenterMapOnGps}>
-              <Ionicons name="locate" size={14} color={colours.cyan} />
-              <Text style={styles.mapSelectButtonText}>My Position</Text>
+            <Pressable style={[styles.mapIconButton, shadow.subtle]} onPress={addCheckpointHere}>
+              <Ionicons name={getFieldMarkType(activeMarkType).icon} size={20} color={colours.cyan} />
             </Pressable>
-            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={addCheckpointHere}>
-              <Ionicons name={getFieldMarkType(activeMarkType).icon} size={14} color={colours.cyan} />
-              <Text style={styles.mapSelectButtonText}>Drop {getFieldMarkType(activeMarkType).shortLabel}</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.mapSelectButton, tapMarkMode && styles.mapSelectButtonActive, shadow.subtle]}
-              onPress={() => {
-                setMeasurementMode(null);
-                setTapMarkMode((value) => !value);
-              }}
-            >
-              <Ionicons name="finger-print-outline" size={14} color={tapMarkMode ? colours.background : colours.cyan} />
-              <Text style={[styles.mapSelectButtonText, tapMarkMode && styles.mapSelectButtonTextActive]}>Tap Mark</Text>
-            </Pressable>
-            {selectedCheckpoint ? (
-              <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={updateSelectedCheckpointHere}>
-                <Ionicons name="pin" size={14} color={colours.cyan} />
-                <Text style={styles.mapSelectButtonText}>Move CP</Text>
-              </Pressable>
-            ) : null}
-            {isDownloadingMap ? (
-              <View style={[styles.mapSelectButton, { backgroundColor: colours.cyan }]}>
-                <Text style={[styles.mapSelectButtonText, { color: colours.background }]}>{downloadProgress}%</Text>
-              </View>
-            ) : (
-              <Pressable style={styles.mapSelectButton} onPress={downloadOfflineMap}>
-                <Ionicons name="cloud-download" size={14} color={colours.cyan} />
-                <Text style={styles.mapSelectButtonText}>Offline</Text>
-              </Pressable>
-            )}
-            <Pressable style={styles.mapSelectButton} onPress={confirmClearOfflineMap}>
-              <Ionicons name="trash-outline" size={14} color={colours.red} />
-              <Text style={[styles.mapSelectButtonText, { color: colours.red }]}>Clear</Text>
-            </Pressable>
-            <Pressable style={styles.mapSelectButton} onPress={() => {
+            <Pressable style={[styles.mapIconButton, shadow.subtle]} onPress={() => {
               if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
-              setMapZoom((z) => Math.max(2, z - 1));
+              recenterMapOnGps();
             }}>
-              <Ionicons name="remove" size={16} color={colours.cyan} />
-            </Pressable>
-            <Pressable style={[styles.mapSelectButton, shadow.subtle]} onPress={() => {
-              if (zoomAnimFrame.current) cancelAnimationFrame(zoomAnimFrame.current);
-              setMapZoom((z) => Math.min(18, z + 1));
-            }}>
-              <Ionicons name="add" size={16} color={colours.cyan} />
+              <Ionicons name="navigate-circle-outline" size={20} color={colours.cyan} />
             </Pressable>
           </View>
         )}
@@ -3319,14 +3283,18 @@ function updateSelectedCheckpointHere() {
             <Text style={styles.mapLabel}>LIVE GPS</Text>
             <Text style={styles.mapText}>{isTracking ? 'Tracking active' : startTime ? 'Track paused' : 'Ready to acquire signal'}</Text>
             <Text style={styles.mapSubText}>
-              {gpsQuality.detail}
+              {`${gpsQuality.detail.toUpperCase()} - ${isTracking ? 'RECORDING' : 'IDLE'}`}
               {rejectedPointCount > 0 ? ` | ${rejectedPointCount} rejected${lastRejectedReason ? ` (${lastRejectedReason})` : ''}` : ''}
             </Text>
           </View>
-          <Pressable style={styles.atakEntryBtn} onPress={() => setMapFullscreen(true)}>
-            <Ionicons name="expand" size={14} color={colours.cyan} />
-            <Text style={styles.atakEntryBtnText}>ATAK VIEW</Text>
-          </Pressable>
+          <View style={styles.mapHeaderActions}>
+            <Pressable style={[styles.mapHeaderIcon, tacticalOptionsOpen && styles.mapHeaderIconActive]} onPress={() => setTacticalOptionsOpen((value) => !value)}>
+              <Ionicons name="options-outline" size={18} color={tacticalOptionsOpen ? colours.background : colours.cyan} />
+            </Pressable>
+            <Pressable style={styles.mapHeaderIcon} onPress={() => setMapFullscreen(true)}>
+              <Ionicons name="expand" size={18} color={colours.cyan} />
+            </Pressable>
+          </View>
           <View style={[styles.signalBadge, { borderColor: statusColors(gpsQuality.tone).borderMed, backgroundColor: statusColors(gpsQuality.tone).bgMed }]}>
             <View style={[styles.signalDot, { backgroundColor: gpsQuality.tone }]} />
             <Text style={[styles.signalText, { color: gpsQuality.tone }]}>
@@ -3335,35 +3303,93 @@ function updateSelectedCheckpointHere() {
           </View>
         </View>
 
-        <View style={styles.coordinateSelector}>
-          {coordinateFormatOptions.map((option) => {
-            const selected = coordinateFormat === option.key;
+        <View style={styles.modeSelector}>
+          {([
+            ['simple', 'Simple', 'footsteps-outline'],
+            ['tactical', 'Tactical', 'radio-outline'],
+            ['navigation', 'Nav', 'navigate-outline'],
+          ] as const).map(([mode, label, icon]) => {
+            const selected = missionMode === mode;
             return (
               <Pressable
-                key={option.key}
-                style={[styles.coordinateOption, selected && styles.coordinateOptionActive]}
-                onPress={() => setCoordinateFormat(option.key)}
+                key={mode}
+                style={[styles.modeOption, selected && styles.modeOptionActive]}
+                onPress={() => setMissionMode(mode)}
               >
-                <Text style={[styles.coordinateOptionText, selected && styles.coordinateOptionTextActive]}>{option.label}</Text>
+                <Ionicons name={icon} size={14} color={selected ? colours.background : colours.muted} />
+                <Text style={[styles.modeOptionText, selected && styles.modeOptionTextActive]}>{label}</Text>
               </Pressable>
             );
           })}
         </View>
 
-        <View style={styles.layerSelector}>
-          {mapLayerOptions.map((option) => {
-            const selected = mapLayer === option.key;
-            return (
-              <Pressable
-                key={option.key}
-                style={[styles.layerOption, selected && styles.layerOptionActive]}
-                onPress={() => setMapLayer(option.key)}
-              >
-                <Text style={[styles.layerOptionText, selected && styles.layerOptionTextActive]}>{option.label}</Text>
+        {tacticalOptionsOpen ? (
+          <View style={styles.tacticalDrawer}>
+            <View style={styles.drawerSection}>
+              <Text style={styles.drawerLabel}>Coordinates</Text>
+              <View style={styles.coordinateSelector}>
+                {coordinateFormatOptions.map((option) => {
+                  const selected = coordinateFormat === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[styles.coordinateOption, selected && styles.coordinateOptionActive]}
+                      onPress={() => setCoordinateFormat(option.key)}
+                    >
+                      <Text style={[styles.coordinateOptionText, selected && styles.coordinateOptionTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+            <View style={styles.drawerSection}>
+              <Text style={styles.drawerLabel}>Map Layer</Text>
+              <View style={styles.layerSelector}>
+                {mapLayerOptions.map((option) => {
+                  const selected = mapLayer === option.key;
+                  return (
+                    <Pressable
+                      key={option.key}
+                      style={[styles.layerOption, selected && styles.layerOptionActive]}
+                      onPress={() => setMapLayer(option.key)}
+                    >
+                      <Text style={[styles.layerOptionText, selected && styles.layerOptionTextActive]}>{option.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </View>
+            <View style={styles.drawerActions}>
+              <Pressable style={[styles.drawerButton, tapMarkMode && styles.drawerButtonActive]} onPress={() => {
+                setMeasurementMode(null);
+                setTapMarkMode((value) => !value);
+              }}>
+                <Ionicons name="finger-print-outline" size={15} color={tapMarkMode ? colours.background : colours.cyan} />
+                <Text style={[styles.drawerButtonText, tapMarkMode && styles.drawerButtonTextActive]}>Tap Mark</Text>
               </Pressable>
-            );
-          })}
-        </View>
+              {selectedCheckpoint ? (
+                <Pressable style={styles.drawerButton} onPress={updateSelectedCheckpointHere}>
+                  <Ionicons name="pin" size={15} color={colours.cyan} />
+                  <Text style={styles.drawerButtonText}>Move CP</Text>
+                </Pressable>
+              ) : null}
+              {isDownloadingMap ? (
+                <View style={[styles.drawerButton, styles.drawerButtonActive]}>
+                  <Text style={styles.drawerButtonTextActive}>{downloadProgress}%</Text>
+                </View>
+              ) : (
+                <Pressable style={styles.drawerButton} onPress={downloadOfflineMap}>
+                  <Ionicons name="cloud-download-outline" size={15} color={colours.cyan} />
+                  <Text style={styles.drawerButtonText}>Offline</Text>
+                </Pressable>
+              )}
+              <Pressable style={styles.drawerButton} onPress={confirmClearOfflineMap}>
+                <Ionicons name="trash-outline" size={15} color={colours.red} />
+                <Text style={[styles.drawerButtonText, { color: colours.red }]}>Clear</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         {renderMapStage(false)}
 
@@ -3372,32 +3398,32 @@ function updateSelectedCheckpointHere() {
           onPress={() => setMapExpanded((current) => !current)}
           disabled={hasActiveGpsSession}
         >
-          <Ionicons name={showExpandedMap ? 'contract' : 'expand'} size={17} color={showExpandedMap ? colours.background : colours.cyan} />
+          <Ionicons name={showExpandedMap ? 'contract' : 'expand'} size={17} color={showExpandedMap ? colours.cyan : colours.background} />
           <Text style={[styles.expandMapButtonText, showExpandedMap && styles.expandMapButtonTextActive]}>
             {hasActiveGpsSession ? 'Field map active' : showExpandedMap ? 'Compact map' : 'Field map'}
           </Text>
         </Pressable>
 
         <View style={styles.liveStats}>
-          <View style={styles.liveStat}>
-            <Text style={styles.liveValue}>{currentDistance.toFixed(2)}</Text>
-            <Text style={styles.liveLabel}>KM</Text>
+          <View style={styles.liveRibbonItem}>
+            <Text style={styles.liveRibbonValue}>{currentDistance.toFixed(2)}</Text>
+            <Text style={styles.liveRibbonLabel}>KM</Text>
           </View>
-          <View style={styles.liveStat}>
-            <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.liveValue} />
-            <Text style={styles.liveLabel}>TIME</Text>
+          <View style={styles.liveRibbonItem}>
+            <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.liveRibbonValue} />
+            <Text style={styles.liveRibbonLabel}>TIME</Text>
           </View>
-          <View style={styles.liveStat}>
-            <Text style={styles.liveValue}>{displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
-            <Text style={styles.liveLabel}>BRG</Text>
+          <View style={styles.liveRibbonItem}>
+            <Text style={styles.liveRibbonValue}>{missionMode === 'navigation' && navTargetBearing != null ? formatHeading(navTargetBearing) : displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
+            <Text style={styles.liveRibbonLabel}>BRG</Text>
           </View>
-          <View style={styles.liveStat}>
-            <Text style={styles.liveValue}>{activePace}</Text>
-            <Text style={styles.liveLabel}>MIN/KM</Text>
+          <View style={styles.liveRibbonItem}>
+            <Text style={styles.liveRibbonValue}>{activePace}</Text>
+            <Text style={styles.liveRibbonLabel}>MIN/KM</Text>
           </View>
         </View>
 
-        {currentPoint && currentCoordinate && (
+        {missionMode !== 'simple' && currentPoint && currentCoordinate && (
         <Text style={styles.coordinateText}>
           {!gpsFollowMode && mapCenter ? `Map centre: ${mapCenterCoordinate}` : currentCoordinate}
           {currentPoint.accuracy ? ` | +/-${Math.round(currentPoint.accuracy)}m` : ''}
@@ -4247,11 +4273,26 @@ const styles = StyleSheet.create({
   muted: { ...typography.caption, color: colours.muted },
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   platformNote: { ...typography.caption, color: colours.amber, lineHeight: 18, marginTop: -8, marginBottom: 8 },
-  mapCard: { backgroundColor: '#0F1F35' },
-  mapHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('md') },
+  mapCard: { backgroundColor: '#0F1F35', borderColor: 'rgba(103,232,249,0.20)' },
+  mapHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('sm') },
   mapLabel: { ...typography.label, color: colours.cyan, letterSpacing: 1.8 },
   mapText: { color: colours.text, fontWeight: '900', marginTop: 2 },
   mapSubText: { ...typography.caption, color: colours.muted, marginTop: 3 },
+  mapHeaderActions: { flexDirection: 'row', gap: 7 },
+  mapHeaderIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.18)',
+  },
+  mapHeaderIconActive: {
+    backgroundColor: colours.cyan,
+    borderColor: colours.cyan,
+  },
   signalBadge: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4265,13 +4306,42 @@ const styles = StyleSheet.create({
   },
   signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
   signalText: { ...typography.label, color: colours.muted, letterSpacing: 1 },
+  modeSelector: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 14,
+    padding: 4,
+    borderRadius: 10,
+    backgroundColor: 'rgba(4,8,15,0.38)',
+  },
+  modeOption: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 6,
+    paddingHorizontal: 6,
+  },
+  modeOptionActive: { backgroundColor: colours.cyan },
+  modeOptionText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
+  modeOptionTextActive: { color: colours.background },
+  tacticalDrawer: {
+    marginTop: 10,
+    borderRadius: 12,
+    padding: 10,
+    gap: 10,
+    backgroundColor: 'rgba(4,8,15,0.42)',
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.14)',
+  },
+  drawerSection: { gap: 7 },
+  drawerLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.1 },
   coordinateSelector: {
     flexDirection: 'row',
     gap: 6,
-    marginTop: 12,
     padding: 4,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
     borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
@@ -4289,7 +4359,6 @@ const styles = StyleSheet.create({
   layerSelector: {
     flexDirection: 'row',
     gap: 6,
-    marginTop: 8,
   },
   layerOption: {
     flex: 1,
@@ -4308,6 +4377,22 @@ const styles = StyleSheet.create({
   },
   layerOptionText: { ...typography.label, color: colours.muted },
   layerOptionTextActive: { color: colours.green },
+  drawerActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 7 },
+  drawerButton: {
+    minHeight: 36,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.22)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+  },
+  drawerButtonActive: { backgroundColor: colours.cyan, borderColor: colours.cyan },
+  drawerButtonText: { ...typography.label, color: colours.cyan },
+  drawerButtonTextActive: { ...typography.label, color: colours.background },
   fullscreenContainer: {
     flex: 1,
     backgroundColor: '#0F1F35',
@@ -4358,17 +4443,17 @@ const styles = StyleSheet.create({
   finishStripFullscreen: { bottom: 238 },
   bearingGuidanceStripFullscreen: { bottom: 88, left: 10, right: 200 },
   mapStage: {
-    height: 190,
+    height: 420,
     marginTop: 14,
-    borderRadius: 18,
+    borderRadius: 14,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: colours.border,
+    borderColor: 'rgba(103,232,249,0.16)',
     backgroundColor: 'rgba(4,8,15,0.72)',
     position: 'relative',
   },
   mapStageExpanded: {
-    height: 360,
+    height: 510,
   },
   mapShade: {
     ...StyleSheet.absoluteFillObject,
@@ -4421,12 +4506,23 @@ const styles = StyleSheet.create({
   },
   mapSelectControls: {
     position: 'absolute',
-    left: 10,
     right: 10,
-    top: 88,
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
+    bottom: 42,
+    gap: 8,
+  },
+  mapIconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(103,232,249,0.28)',
+    backgroundColor: 'rgba(4,8,15,0.78)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  mapIconButtonActive: {
+    backgroundColor: colours.cyan,
+    borderColor: colours.cyan,
   },
   mapSelectButton: {
     minHeight: 34,
@@ -4614,25 +4710,42 @@ const styles = StyleSheet.create({
   },
   finishStripText: { ...typography.label, color: colours.text },
   expandMapButton: {
-    minHeight: 40,
-    marginTop: 10,
+    minHeight: 38,
+    marginTop: 9,
     borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colours.cyan,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
   expandMapButtonActive: {
-    borderColor: `${colours.cyan}66`,
-    backgroundColor: colours.cyan,
+    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   expandMapButtonLocked: { opacity: 0.92 },
-  expandMapButtonText: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
-  expandMapButtonTextActive: { color: colours.background },
-  liveStats: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
+  expandMapButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
+  expandMapButtonTextActive: { color: colours.cyan },
+  liveStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(4,8,15,0.44)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    overflow: 'hidden',
+  },
+  liveRibbonItem: {
+    flex: 1,
+    minHeight: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderLeftWidth: 1,
+    borderLeftColor: 'rgba(255,255,255,0.08)',
+  },
+  liveRibbonValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
+  liveRibbonLabel: { ...typography.label, color: colours.muted, letterSpacing: 1, marginTop: 2 },
   liveStat: {
     flex: 1,
     borderWidth: 1,
