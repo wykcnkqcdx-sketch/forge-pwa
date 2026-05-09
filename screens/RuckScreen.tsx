@@ -22,6 +22,7 @@ import { RuckNavigationGuideCard } from '../components/RuckNavigationGuideCard';
 import { RuckSessionSetupCard } from '../components/RuckSessionSetupCard';
 import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
+import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3415,61 +3416,19 @@ function updateSelectedCheckpointHere() {
         </Pressable>
       </Card>
 
-      <Card>
-        <View style={styles.navHeader}>
-          <View>
-            <Text style={styles.cardTitle}>Checkpoint Mode</Text>
-            <Text style={styles.muted}>{checkpointStatus}</Text>
-          </View>
-          <Pressable
-            style={[styles.checkpointButton, checkpointIndex >= checkpointCount && styles.checkpointButtonDisabled]}
-            onPress={markCheckpointReached}
-            disabled={checkpointIndex >= checkpointCount}
-          >
-            <Ionicons name="flag" size={16} color={colours.background} />
-            <Text style={styles.checkpointButtonText}>Mark</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.undoMarkButton, checkpointIndex <= 0 && styles.checkpointButtonDisabled]}
-            onPress={undoCheckpointMark}
-            disabled={checkpointIndex <= 0}
-          >
-            <Ionicons name="arrow-undo" size={16} color={colours.text} />
-          </Pressable>
-        </View>
-
-        <View style={styles.controlRow}>
-          <Text style={styles.controlLabel}>Checkpoint Every</Text>
-          <View style={styles.buttons}>
-            <Pressable style={styles.smallButton} onPress={() => changeCheckpointInterval(-0.5)}>
-              <Text style={styles.smallButtonText}>-</Text>
-            </Pressable>
-            <Text style={styles.controlValue}>{checkpointIntervalKm.toFixed(1)}km</Text>
-            <Pressable style={styles.smallButton} onPress={() => changeCheckpointInterval(0.5)}>
-              <Text style={styles.smallButtonText}>+</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        <View style={styles.navGrid}>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{nextCheckpointKm.toFixed(1)}km</Text>
-            <Text style={styles.navLabel}>Next checkpoint</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{checkpointRemainingKm.toFixed(1)}km</Text>
-            <Text style={styles.navLabel}>Distance to CP</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{formatDuration(checkpointEtaMinutes)}</Text>
-            <Text style={styles.navLabel}>ETA to CP</Text>
-          </View>
-          <View style={styles.navItem}>
-            <Text style={styles.navValue}>{displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
-            <Text style={styles.navLabel}>Current bearing</Text>
-          </View>
-        </View>
-      </Card>
+      <RuckCheckpointModeCard
+        checkpointStatus={checkpointStatus}
+        checkpointIndex={checkpointIndex}
+        checkpointCount={checkpointCount}
+        checkpointIntervalKm={checkpointIntervalKm}
+        nextCheckpointKm={nextCheckpointKm}
+        checkpointRemainingKm={checkpointRemainingKm}
+        checkpointEtaMinutes={checkpointEtaMinutes}
+        displayBearing={displayBearing}
+        onMarkReached={markCheckpointReached}
+        onUndoMark={undoCheckpointMark}
+        onCheckpointIntervalChange={changeCheckpointInterval}
+      />
 
       <RuckMetricSummary
         weightKg={weight}
@@ -3935,12 +3894,6 @@ const styles = StyleSheet.create({
   liveLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.3, marginTop: 2 },
   coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 10 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
-  controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: responsiveSpacing('sm'), gap: responsiveSpacing('md') },
-  controlLabel: { color: colours.text, fontWeight: '800' },
-  buttons: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  smallButton: { width: touchTarget, height: touchTarget, borderRadius: 8, backgroundColor: colours.cyan, alignItems: 'center', justifyContent: 'center' },
-  smallButtonText: { color: '#07111E', fontSize: 20, fontWeight: '900' },
-  controlValue: { color: colours.text, fontWeight: '900', width: 55, textAlign: 'center' },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: responsiveSpacing('md') },
   navGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   navItem: {
@@ -3964,7 +3917,6 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
   },
-  checkpointButtonDisabled: { opacity: 0.5 },
   checkpointButtonText: { ...typography.caption, color: colours.background, fontWeight: '900' },
   bearingPanel: {
     minHeight: 58,
@@ -4112,16 +4064,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   clearCheckpointText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
-  undoMarkButton: {
-    minHeight: 40,
-    width: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
 
