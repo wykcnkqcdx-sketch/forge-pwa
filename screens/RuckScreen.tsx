@@ -26,6 +26,8 @@ import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
 import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
 import { RuckMissionModeSelector } from '../components/RuckMissionModeSelector';
 import { RuckTacticalOptionsDrawer } from '../components/RuckTacticalOptionsDrawer';
+import { RuckLiveStatsRibbon } from '../components/RuckLiveStatsRibbon';
+import { RuckMapHeader } from '../components/RuckMapHeader';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3024,30 +3026,16 @@ function updateSelectedCheckpointHere() {
       )}
 
       <Card style={styles.mapCard}>
-        <View style={styles.mapHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.mapLabel}>LIVE GPS</Text>
-            <Text style={styles.mapText}>{isTracking ? 'Tracking active' : startTime ? 'Track paused' : 'Ready to acquire signal'}</Text>
-            <Text style={styles.mapSubText}>
-              {`${gpsQuality.detail.toUpperCase()} - ${isTracking ? 'RECORDING' : 'IDLE'}`}
-              {rejectedPointCount > 0 ? ` | ${rejectedPointCount} rejected${lastRejectedReason ? ` (${lastRejectedReason})` : ''}` : ''}
-            </Text>
-          </View>
-          <View style={styles.mapHeaderActions}>
-            <Pressable style={[styles.mapHeaderIcon, tacticalOptionsOpen && styles.mapHeaderIconActive]} onPress={() => setTacticalOptionsOpen((value) => !value)}>
-              <Ionicons name="options-outline" size={18} color={tacticalOptionsOpen ? colours.background : colours.cyan} />
-            </Pressable>
-            <Pressable style={styles.mapHeaderIcon} onPress={() => setMapFullscreen(true)}>
-              <Ionicons name="expand" size={18} color={colours.cyan} />
-            </Pressable>
-          </View>
-          <View style={[styles.signalBadge, { borderColor: statusColors(gpsQuality.tone).borderMed, backgroundColor: statusColors(gpsQuality.tone).bgMed }]}>
-            <View style={[styles.signalDot, { backgroundColor: gpsQuality.tone }]} />
-            <Text style={[styles.signalText, { color: gpsQuality.tone }]}>
-              {isTracking ? gpsQuality.label : 'IDLE'}
-            </Text>
-          </View>
-        </View>
+        <RuckMapHeader
+          isTracking={isTracking}
+          hasStarted={Boolean(startTime)}
+          gpsQuality={gpsQuality}
+          rejectedPointCount={rejectedPointCount}
+          lastRejectedReason={lastRejectedReason}
+          tacticalOptionsOpen={tacticalOptionsOpen}
+          onToggleOptions={() => setTacticalOptionsOpen((value) => !value)}
+          onOpenFullscreen={() => setMapFullscreen(true)}
+        />
 
         <RuckMissionModeSelector missionMode={missionMode} onChange={setMissionMode} />
 
@@ -3084,24 +3072,16 @@ function updateSelectedCheckpointHere() {
           </Text>
         </Pressable>
 
-        <View style={styles.liveStats}>
-          <View style={styles.liveRibbonItem}>
-            <Text style={styles.liveRibbonValue}>{currentDistance.toFixed(2)}</Text>
-            <Text style={styles.liveRibbonLabel}>KM</Text>
-          </View>
-          <View style={styles.liveRibbonItem}>
-            <LiveTimerText startTime={startTime} isTracking={isTracking} staticSeconds={elapsedSeconds} style={styles.liveRibbonValue} />
-            <Text style={styles.liveRibbonLabel}>TIME</Text>
-          </View>
-          <View style={styles.liveRibbonItem}>
-            <Text style={styles.liveRibbonValue}>{missionMode === 'navigation' && navTargetBearing != null ? formatHeading(navTargetBearing) : displayBearing == null ? '--' : formatHeading(displayBearing)}</Text>
-            <Text style={styles.liveRibbonLabel}>BRG</Text>
-          </View>
-          <View style={styles.liveRibbonItem}>
-            <Text style={styles.liveRibbonValue}>{activePace}</Text>
-            <Text style={styles.liveRibbonLabel}>MIN/KM</Text>
-          </View>
-        </View>
+        <RuckLiveStatsRibbon
+          currentDistance={currentDistance}
+          startTime={startTime}
+          isTracking={isTracking}
+          elapsedSeconds={elapsedSeconds}
+          missionMode={missionMode}
+          navTargetBearing={navTargetBearing}
+          displayBearing={displayBearing}
+          activePace={activePace}
+        />
 
         {missionMode !== 'simple' && currentPoint && currentCoordinate && (
         <Text style={styles.coordinateText}>
@@ -3276,38 +3256,6 @@ const styles = StyleSheet.create({
   title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   platformNote: { ...typography.caption, color: colours.amber, lineHeight: 18, marginTop: -8, marginBottom: 8 },
   mapCard: { backgroundColor: '#0F1F35', borderColor: 'rgba(103,232,249,0.20)' },
-  mapHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('sm') },
-  mapLabel: { ...typography.label, color: colours.cyan, letterSpacing: 1.8 },
-  mapText: { color: colours.text, fontWeight: '900', marginTop: 2 },
-  mapSubText: { ...typography.caption, color: colours.muted, marginTop: 3 },
-  mapHeaderActions: { flexDirection: 'row', gap: 7 },
-  mapHeaderIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(103,232,249,0.18)',
-  },
-  mapHeaderIconActive: {
-    backgroundColor: colours.cyan,
-    borderColor: colours.cyan,
-  },
-  signalBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
-  signalText: { ...typography.label, color: colours.muted, letterSpacing: 1 },
   fullscreenContainer: {
     flex: 1,
     backgroundColor: '#0F1F35',
@@ -3573,27 +3521,6 @@ const styles = StyleSheet.create({
   expandMapButtonLocked: { opacity: 0.92 },
   expandMapButtonText: { color: colours.background, fontSize: 12, fontWeight: '900' },
   expandMapButtonTextActive: { color: colours.cyan },
-  liveStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: 10,
-    borderRadius: 8,
-    backgroundColor: 'rgba(4,8,15,0.44)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    overflow: 'hidden',
-  },
-  liveRibbonItem: {
-    flex: 1,
-    minHeight: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 3,
-    borderLeftWidth: 1,
-    borderLeftColor: 'rgba(255,255,255,0.08)',
-  },
-  liveRibbonValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
-  liveRibbonLabel: { ...typography.label, color: colours.muted, letterSpacing: 1, marginTop: 2 },
   liveStat: {
     flex: 1,
     borderWidth: 1,
