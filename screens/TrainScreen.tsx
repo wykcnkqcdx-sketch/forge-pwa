@@ -87,6 +87,8 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
   const [progMinutes, setProgMinutes] = useState<ProgrammeBuilderInput['sessionMinutes']>(45);
   const [progEquipment, setProgEquipment] = useState<ProgrammeEquipment>('Full Gym');
   const [progReadiness, setProgReadiness] = useState<ProgrammeReadiness>('Standard');
+  const [expandedProgrammeSection, setExpandedProgrammeSection] = useState<'structure' | 'coach' | 'science' | null>('structure');
+  const [expandedProgrammeDay, setExpandedProgrammeDay] = useState(0);
   const programmeRec = useMemo(
     () => showProgramme ? buildProgrammeRecommendation({ goal: progGoal, daysPerWeek: progDays, sessionMinutes: progMinutes, equipment: progEquipment, readiness: progReadiness }) : null,
     [showProgramme, progGoal, progDays, progMinutes, progEquipment, progReadiness]
@@ -112,6 +114,10 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
   async function clearProgramme() {
     await AsyncStorage.removeItem(ACTIVE_PROGRAMME_KEY);
     setActiveProgramme(null);
+  }
+
+  function toggleProgrammeSection(section: 'structure' | 'coach' | 'science') {
+    setExpandedProgrammeSection((current) => (current === section ? null : section));
   }
 
   const [focusedExerciseId, setFocusedExerciseId] = useState(availableModes[0].defaultExerciseIds[0]);
@@ -556,29 +562,110 @@ export function TrainScreen({ addSession, sessions }: { addSession: (session: Tr
 
             {programmeRec && (
               <View style={styles.progResult}>
-                <Text style={[styles.progResultTitle, { color: programmeRec.tone, fontSize: fs(15, { min: 13, max: 18 }) }]}>{programmeRec.assignmentTitle}</Text>
-                <Text style={[styles.progResultSummary, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{programmeRec.summary}</Text>
-
-                <Text style={[styles.progSectionLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>WEEKLY STRUCTURE</Text>
-                {programmeRec.weeklyStructure.map((day, i) => (
-                  <View key={i} style={styles.progDayRow}>
-                    <Text style={[styles.progDayNum, { color: programmeRec.tone, fontSize: fs(11, { min: 10, max: 13 }) }]}>D{i + 1}</Text>
-                    <Text style={[styles.progDayText, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{day}</Text>
+                <View style={styles.progResultHeader}>
+                  <View style={[styles.progResultIcon, { backgroundColor: programmeRec.tone }]}>
+                    <Ionicons name="pulse-outline" size={18} color={colours.background} />
                   </View>
-                ))}
-
-                <Text style={[styles.progSectionLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>COACH NOTE</Text>
-                <Text style={[styles.progCoachNote, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{programmeRec.coachNote}</Text>
-
-                <Text style={[styles.progSectionLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>EVIDENCE</Text>
-                {programmeRec.scienceNotes.map((note, i) => (
-                  <View key={i} style={styles.progSciRow}>
-                    <Text style={[styles.progSciBullet, { color: programmeRec.tone, fontSize: fs(13, { min: 12, max: 15 }) }]}>›</Text>
-                    <Text style={[styles.progSciText, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{note}</Text>
+                  <View style={styles.progResultCopy}>
+                    <Text style={[styles.progResultKicker, { color: programmeRec.tone, fontSize: fs(10, { min: 9, max: 12 }) }]}>PRIMARY GUIDANCE</Text>
+                    <Text style={[styles.progResultTitle, { fontSize: fs(22, { min: 19, max: 26 }) }]}>{programmeRec.assignmentTitle}</Text>
+                    <Text style={[styles.progResultSummary, { fontSize: fs(13, { min: 12, max: 15 }) }]}>{programmeRec.summary}</Text>
                   </View>
-                ))}
+                </View>
 
-                <Text style={[styles.progEvidenceLabel, { fontSize: fs(10, { min: 9, max: 11 }) }]}>{programmeRec.evidencePack.label}</Text>
+                <View style={styles.progSignalGrid}>
+                  <View style={styles.progSignalItem}>
+                    <Ionicons name="flash-outline" size={15} color={programmeRec.tone} />
+                    <View style={styles.progSignalCopy}>
+                      <Text style={styles.progSignalLabel}>Focus</Text>
+                      <Text style={[styles.progSignalValue, { fontSize: fs(12, { min: 11, max: 14 }) }]}>Force + carries + conditioning</Text>
+                    </View>
+                  </View>
+                  <View style={styles.progSignalItem}>
+                    <Ionicons name="calendar-outline" size={15} color={programmeRec.tone} />
+                    <View style={styles.progSignalCopy}>
+                      <Text style={styles.progSignalLabel}>Goal</Text>
+                      <Text style={[styles.progSignalValue, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{programmeRec.weeklyVolume}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.progSignalItem}>
+                    <Ionicons name="speedometer-outline" size={15} color={programmeRec.tone} />
+                    <View style={styles.progSignalCopy}>
+                      <Text style={styles.progSignalLabel}>Intensity</Text>
+                      <Text style={[styles.progSignalValue, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{programmeRec.intensity}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.progSignalItem}>
+                    <Ionicons name="chatbubble-ellipses-outline" size={15} color={programmeRec.tone} />
+                    <View style={styles.progSignalCopy}>
+                      <Text style={styles.progSignalLabel}>Coach Cue</Text>
+                      <Text style={[styles.progSignalValue, { fontSize: fs(12, { min: 11, max: 14 }) }]} numberOfLines={2}>{programmeRec.coachNote}</Text>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={styles.progAccordionList}>
+                  <Pressable style={styles.progAccordionHeader} onPress={() => toggleProgrammeSection('structure')}>
+                    <View style={styles.progAccordionTitleRow}>
+                      <Ionicons name="list-outline" size={16} color={programmeRec.tone} />
+                      <Text style={[styles.progAccordionTitle, { fontSize: fs(12, { min: 11, max: 14 }) }]}>Session Structure</Text>
+                    </View>
+                    <Ionicons name={expandedProgrammeSection === 'structure' ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+                  </Pressable>
+                  {expandedProgrammeSection === 'structure' ? (
+                    <View style={styles.progAccordionBody}>
+                      {programmeRec.weeklyStructure.map((day, i) => {
+                        const [dayTitle, ...detailParts] = day.split(':');
+                        const dayDetail = detailParts.join(':').trim();
+                        const open = expandedProgrammeDay === i;
+                        return (
+                          <Pressable key={day} style={[styles.progDayCard, open && styles.progDayCardOpen]} onPress={() => setExpandedProgrammeDay(open ? -1 : i)}>
+                            <View style={styles.progDayTop}>
+                              <Text style={[styles.progDayNum, { color: programmeRec.tone, fontSize: fs(10, { min: 9, max: 12 }) }]}>DAY {i + 1}</Text>
+                              <Ionicons name={open ? 'remove' : 'add'} size={16} color={open ? programmeRec.tone : colours.muted} />
+                            </View>
+                            <Text style={[styles.progDayTitle, { fontSize: fs(14, { min: 13, max: 16 }) }]}>{dayTitle.replace(/^Day\s+\d+\s*/i, '').trim() || dayTitle}</Text>
+                            <Text style={[styles.progDayMeta, { fontSize: fs(11, { min: 10, max: 12 }) }]}>{progMinutes} min - {programmeRec.intensity}</Text>
+                            {open ? <Text style={[styles.progDayDetail, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{dayDetail || day}</Text> : null}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  <Pressable style={styles.progAccordionHeader} onPress={() => toggleProgrammeSection('coach')}>
+                    <View style={styles.progAccordionTitleRow}>
+                      <Ionicons name="school-outline" size={16} color={programmeRec.tone} />
+                      <Text style={[styles.progAccordionTitle, { fontSize: fs(12, { min: 11, max: 14 }) }]}>Advanced Coaching Notes</Text>
+                    </View>
+                    <Ionicons name={expandedProgrammeSection === 'coach' ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+                  </Pressable>
+                  {expandedProgrammeSection === 'coach' ? (
+                    <View style={styles.progAccordionBody}>
+                      <Text style={[styles.progCoachNote, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{programmeRec.rationale}</Text>
+                      <Text style={[styles.progCoachNote, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{programmeRec.coachNote}</Text>
+                    </View>
+                  ) : null}
+
+                  <Pressable style={styles.progAccordionHeader} onPress={() => toggleProgrammeSection('science')}>
+                    <View style={styles.progAccordionTitleRow}>
+                      <Ionicons name="flask-outline" size={16} color={programmeRec.tone} />
+                      <Text style={[styles.progAccordionTitle, { fontSize: fs(12, { min: 11, max: 14 }) }]}>Evidence & Science</Text>
+                    </View>
+                    <Ionicons name={expandedProgrammeSection === 'science' ? 'chevron-up' : 'chevron-down'} size={16} color={colours.muted} />
+                  </Pressable>
+                  {expandedProgrammeSection === 'science' ? (
+                    <View style={styles.progAccordionBody}>
+                      {programmeRec.scienceNotes.map((note, i) => (
+                        <View key={i} style={styles.progSciRow}>
+                          <Text style={[styles.progSciBullet, { color: programmeRec.tone, fontSize: fs(13, { min: 12, max: 15 }) }]}>›</Text>
+                          <Text style={[styles.progSciText, { fontSize: fs(12, { min: 11, max: 14 }) }]}>{note}</Text>
+                        </View>
+                      ))}
+                      <Text style={[styles.progEvidenceLabel, { fontSize: fs(10, { min: 9, max: 11 }) }]}>{programmeRec.evidencePack.label} - updated {programmeRec.evidencePack.updatedAt}</Text>
+                    </View>
+                  ) : null}
+                </View>
 
                 <Pressable style={styles.progSaveBtn} onPress={() => saveProgramme(programmeRec)}>
                   <Ionicons name="checkmark-circle-outline" size={isTablet ? 17 : 15} color={colours.background} />
@@ -784,20 +871,59 @@ const styles = StyleSheet.create({
   primaryButtonText: { color: '#07111E', fontWeight: '900' },
   progHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   progHeaderLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  progBody: { marginTop: 16, gap: 4 },
-  progLabel: { color: colours.muted, fontWeight: '900', letterSpacing: 1.2, marginTop: 12, marginBottom: 6 },
+  progBody: { marginTop: 18, gap: 8 },
+  progLabel: { color: colours.muted, fontWeight: '900', letterSpacing: 1.2, marginTop: 14, marginBottom: 8 },
   progPills: { flexDirection: 'row', flexWrap: 'wrap' },
-  progPill: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.04)' },
-  progPillActive: { borderColor: colours.cyan, backgroundColor: 'rgba(0,230,255,0.12)' },
+  progPill: { borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', borderRadius: 999, paddingHorizontal: 13, paddingVertical: 7, backgroundColor: 'rgba(255,255,255,0.025)' },
+  progPillActive: { borderColor: colours.cyan, backgroundColor: colours.cyan },
   progPillText: { color: colours.muted, fontWeight: '900' },
-  progPillTextActive: { color: colours.cyan },
-  progResult: { marginTop: 20, gap: 6, borderTopWidth: 1, borderTopColor: colours.borderSoft, paddingTop: 16 },
-  progResultTitle: { fontWeight: '900', marginBottom: 4 },
+  progPillTextActive: { color: colours.background },
+  progResult: { marginTop: 22, gap: 14, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', paddingTop: 18 },
+  progResultHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  progResultIcon: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  progResultCopy: { flex: 1, maxWidth: 520 },
+  progResultKicker: { fontWeight: '900', letterSpacing: 1.1, marginBottom: 3 },
+  progResultTitle: { color: colours.text, fontWeight: '900', marginBottom: 5 },
   progResultSummary: { color: colours.textSoft, fontWeight: '800', lineHeight: 19 },
+  progSignalGrid: { gap: 8 },
+  progSignalItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 9,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    paddingHorizontal: 11,
+    paddingVertical: 10,
+  },
+  progSignalCopy: { flex: 1 },
+  progSignalLabel: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 0.9, marginBottom: 3 },
+  progSignalValue: { color: colours.text, fontWeight: '900', lineHeight: 18 },
+  progAccordionList: { gap: 8, marginTop: 2 },
+  progAccordionHeader: {
+    minHeight: 46,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  progAccordionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  progAccordionTitle: { color: colours.text, fontWeight: '900' },
+  progAccordionBody: { gap: 8, paddingHorizontal: 2, paddingBottom: 4 },
   progSectionLabel: { color: colours.muted, fontWeight: '900', letterSpacing: 1.2, marginTop: 14, marginBottom: 6 },
-  progDayRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start', marginBottom: 4 },
-  progDayNum: { fontWeight: '900', width: 20, marginTop: 1 },
-  progDayText: { flex: 1, color: colours.text, fontWeight: '800', lineHeight: 18 },
+  progDayCard: {
+    borderRadius: 10,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    padding: 12,
+  },
+  progDayCardOpen: { backgroundColor: 'rgba(255,255,255,0.055)' },
+  progDayTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  progDayNum: { fontWeight: '900', letterSpacing: 1 },
+  progDayTitle: { color: colours.text, fontWeight: '900', marginTop: 5 },
+  progDayMeta: { color: colours.muted, fontWeight: '800', marginTop: 3 },
+  progDayDetail: { color: colours.textSoft, fontWeight: '800', lineHeight: 18, marginTop: 10 },
   progCoachNote: { color: colours.textSoft, fontWeight: '800', lineHeight: 19 },
   progSciRow: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', marginBottom: 4 },
   progSciBullet: { fontWeight: '900', marginTop: 1 },

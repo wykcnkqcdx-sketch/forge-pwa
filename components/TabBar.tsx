@@ -116,7 +116,11 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     minWidth: 68,
     justifyContent: 'center',
-    ...shadow.cyan,
+    shadowColor: colours.cyan,
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.24,
+    shadowRadius: 12,
+    elevation: 7,
   },
   activePillLabel: {
     fontWeight: '900',
