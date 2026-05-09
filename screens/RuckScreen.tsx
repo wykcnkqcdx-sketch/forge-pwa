@@ -3310,6 +3310,7 @@ function updateSelectedCheckpointHere() {
           distanceKm={distance}
           plannedAscentM={plannedAscentM}
           terrainFactor={terrainFactor}
+          pandolf={pandolf}
           onBodyMassChange={changeBodyMass}
           onWeightChange={changeWeight}
           onDistanceChange={changeDistance}
