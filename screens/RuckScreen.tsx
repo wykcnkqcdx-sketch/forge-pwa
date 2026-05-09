@@ -23,8 +23,7 @@ import { RuckSessionSetupCard } from '../components/RuckSessionSetupCard';
 import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
 import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
-import { RuckFieldMarkTypePicker } from '../components/RuckFieldMarkTypePicker';
-import { RuckSelectedCheckpointPanel } from '../components/RuckSelectedCheckpointPanel';
+import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3246,99 +3245,40 @@ function updateSelectedCheckpointHere() {
 
       <RuckSplitsCard splits={splits} />
 
-      <Card>
-        <View style={styles.navHeader}>
-          <View>
-            <Text style={styles.cardTitle}>FORGE Field Marks</Text>
-            <Text style={styles.muted}>
-              {arrivalCheckpoint
-                ? `${formatFieldMarkLabel(arrivalCheckpoint)} reached inside ${CHECKPOINT_ARRIVAL_RADIUS_METERS}m`
-                : plannedCheckpoints.length > 0
-                  ? `${plannedCheckpoints.length} mapped${nearestCheckpoint ? ` | nearest ${Math.round(nearestCheckpoint.distanceKm * 1000)}m` : ''}`
-                  : 'Drop a mark from GPS, map tap, or grid'}
-            </Text>
-          </View>
-          <Pressable style={styles.checkpointButton} onPress={addCheckpointHere}>
-            <Ionicons name={getFieldMarkType(activeMarkType).icon} size={16} color={colours.background} />
-            <Text style={styles.checkpointButtonText}>Drop</Text>
-          </Pressable>
-        </View>
-
-        <View style={[styles.bearingPanel, { borderColor: statusColors(bearingGuidance.tone).borderMed, backgroundColor: statusColors(bearingGuidance.tone).bgMed }]}>
-          <View>
-            <Text style={[styles.bearingPanelTitle, { color: bearingGuidance.tone }]}>{bearingGuidance.label}</Text>
-            <Text style={styles.bearingPanelDetail}>{bearingGuidance.detail}</Text>
-          </View>
-          <View style={styles.bearingPanelMetric}>
-            <Text style={styles.bearingPanelValue}>{selectedCheckpointBearing == null ? '--' : formatHeading(selectedCheckpointBearing)}</Text>
-            <Text style={styles.bearingPanelLabel}>TO CP</Text>
-          </View>
-        </View>
-
-        <View style={styles.coordinateEntry}>
-          <TextInput
-            value={checkpointCoordinateInput}
-            onChangeText={setCheckpointCoordinateInput}
-            placeholder={coordinateFormat === 'mgrs' ? '29U PV 82123 12345' : coordinateFormat === 'utm' ? '29U 682123E 5912345N' : '53.34981, -6.26031'}
-            placeholderTextColor={colours.soft}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            style={styles.coordinateInput}
-          />
-          <Pressable style={styles.coordinateAddButton} onPress={addCheckpointFromInput}>
-            <Ionicons name="add" size={18} color={colours.background} />
-          </Pressable>
-        </View>
-        <RuckFieldMarkTypePicker
-          activeMarkType={activeMarkType}
-          selectedMarkType={selectedCheckpoint?.markType}
-          onSelect={(markType) => {
-            setActiveMarkType(markType);
-            if (selectedCheckpoint) updateSelectedCheckpoint({ markType });
-          }}
-        />
-        <View style={styles.checkpointActions}>
-          <Pressable style={styles.clearCheckpointButton} onPress={updateSelectedCheckpointFromInput} disabled={!selectedCheckpoint}>
-            <Text style={styles.clearCheckpointText}>Move to grid</Text>
-          </Pressable>
-          <Pressable style={styles.clearCheckpointButton} onPress={updateSelectedCheckpointHere} disabled={!selectedCheckpoint}>
-            <Text style={styles.clearCheckpointText}>Move here</Text>
-          </Pressable>
-        </View>
-
-        <RuckSelectedCheckpointPanel
-          selectedCheckpoint={selectedCheckpoint}
-          selectedCheckpointPoint={selectedCheckpointPoint}
-          plannedCheckpoints={plannedCheckpoints}
-          checkpointLabelInput={checkpointLabelInput}
-          selectedCheckpointDistanceKm={selectedCheckpointDistanceKm}
-          selectedCheckpointBearing={selectedCheckpointBearing}
-          selectedCheckpointEtaMinutes={selectedCheckpointEtaMinutes}
-          coordinateFormat={coordinateFormat}
-          onCheckpointLabelChange={setCheckpointLabelInput}
-          onSaveCheckpointLabel={saveSelectedCheckpointLabel}
-          onStatusChange={setSelectedCheckpointStatus}
-          onFocusMark={focusNavMark}
-          onClearSelected={clearSelectedCheckpoint}
-          onUndoLast={undoLastCheckpoint}
-          onClearAll={clearAllCheckpoints}
-        />
-
-        <TextInput
-          value={checkpointBulkInput}
-          onChangeText={setCheckpointBulkInput}
-          placeholder={'Bulk import, one per line\nRV: 29U PV 82123 12345\nBridge: 29U 682123E 5912345N'}
-          placeholderTextColor={colours.soft}
-          autoCapitalize="characters"
-          autoCorrect={false}
-          multiline
-          style={styles.bulkInput}
-        />
-        <Pressable style={styles.importButton} onPress={importCheckpoints}>
-          <Ionicons name="download" size={16} color={colours.background} />
-          <Text style={styles.checkpointButtonText}>Import checkpoints</Text>
-        </Pressable>
-      </Card>
+      <RuckFieldMarksCard
+        arrivalCheckpoint={arrivalCheckpoint}
+        plannedCheckpoints={plannedCheckpoints}
+        nearestCheckpointDistanceMeters={nearestCheckpoint ? Math.round(nearestCheckpoint.distanceKm * 1000) : null}
+        activeMarkType={activeMarkType}
+        selectedCheckpoint={selectedCheckpoint}
+        selectedCheckpointPoint={selectedCheckpointPoint}
+        selectedCheckpointDistanceKm={selectedCheckpointDistanceKm}
+        selectedCheckpointBearing={selectedCheckpointBearing}
+        selectedCheckpointEtaMinutes={selectedCheckpointEtaMinutes}
+        checkpointCoordinateInput={checkpointCoordinateInput}
+        checkpointBulkInput={checkpointBulkInput}
+        checkpointLabelInput={checkpointLabelInput}
+        coordinateFormat={coordinateFormat}
+        bearingGuidance={bearingGuidance}
+        onAddCheckpointHere={addCheckpointHere}
+        onCoordinateInputChange={setCheckpointCoordinateInput}
+        onAddCheckpointFromInput={addCheckpointFromInput}
+        onMarkTypeSelect={(markType) => {
+          setActiveMarkType(markType);
+          if (selectedCheckpoint) updateSelectedCheckpoint({ markType });
+        }}
+        onMoveSelectedToGrid={updateSelectedCheckpointFromInput}
+        onMoveSelectedHere={updateSelectedCheckpointHere}
+        onCheckpointLabelChange={setCheckpointLabelInput}
+        onSaveCheckpointLabel={saveSelectedCheckpointLabel}
+        onStatusChange={setSelectedCheckpointStatus}
+        onFocusMark={focusNavMark}
+        onClearSelected={clearSelectedCheckpoint}
+        onUndoLast={undoLastCheckpoint}
+        onClearAll={clearAllCheckpoints}
+        onBulkInputChange={setCheckpointBulkInput}
+        onImportCheckpoints={importCheckpoints}
+      />
 
       <RuckCheckpointModeCard
         checkpointStatus={checkpointStatus}
@@ -3819,100 +3759,6 @@ const styles = StyleSheet.create({
   coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 10 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: responsiveSpacing('md') },
-  checkpointButton: {
-    minHeight: 40,
-    borderRadius: 8,
-    backgroundColor: colours.cyan,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-  },
-  checkpointButtonText: { ...typography.caption, color: colours.background, fontWeight: '900' },
-  bearingPanel: {
-    minHeight: 58,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  bearingPanelTitle: { fontSize: 13, fontWeight: '900' },
-  bearingPanelDetail: { ...typography.caption, color: colours.textSoft, fontWeight: '800', marginTop: 2 },
-  bearingPanelMetric: { alignItems: 'flex-end' },
-  bearingPanelValue: { color: colours.text, fontSize: 15, fontWeight: '900' },
-  bearingPanelLabel: { ...typography.label, color: colours.muted, letterSpacing: 1 },
-  coordinateEntry: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 12,
-  },
-  coordinateInput: {
-    flex: 1,
-    minHeight: touchTarget,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    ...typography.caption, color: colours.text,
-    fontWeight: '800',
-    paddingHorizontal: 12,
-  },
-  coordinateAddButton: {
-    width: touchTarget,
-    height: touchTarget,
-    borderRadius: 8,
-    backgroundColor: colours.cyan,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bulkInput: {
-    minHeight: 96,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    ...typography.caption, color: colours.text,
-    fontWeight: '800',
-    lineHeight: 18,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    marginTop: 12,
-    textAlignVertical: 'top',
-  },
-  importButton: {
-    minHeight: 42,
-    borderRadius: 8,
-    backgroundColor: colours.cyan,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    marginTop: 10,
-  },
-  checkpointActions: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
-  },
-  clearCheckpointButton: {
-    minHeight: 40,
-    flex: 1,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 8,
-  },
-  clearCheckpointText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
   primaryButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 16, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#07111E', fontWeight: '900', fontSize: 16 },
 
