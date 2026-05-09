@@ -15,12 +15,11 @@ import { RuckReviewCard } from '../components/RuckReviewCard';
 import { RuckTrackingControls } from '../components/RuckTrackingControls';
 import { RuckSplitsCard } from '../components/RuckSplitsCard';
 import { RuckReadinessCard } from '../components/RuckReadinessCard';
-import { RuckPandolfCard } from '../components/RuckPandolfCard';
-import { RuckScoreCard } from '../components/RuckScoreCard';
 import { RuckNavigationGuideCard } from '../components/RuckNavigationGuideCard';
 import { RuckSessionSetupCard } from '../components/RuckSessionSetupCard';
 import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
+import { RuckPerformancePanel } from '../components/RuckPerformancePanel';
 import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
 import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
 import { RuckTacticalOptionsDrawer } from '../components/RuckTacticalOptionsDrawer';
@@ -3279,10 +3278,9 @@ function updateSelectedCheckpointHere() {
             pandolf={pandolf}
             activeHeading={activeHeading}
           />
+          <RuckPerformancePanel score={score} pandolf={pandolf} distanceKm={distance} loadKg={weight} />
           <RuckSplitsCard splits={splits} />
           <RuckReadinessCard readiness={routeReadinessChecks} />
-          <RuckScoreCard score={score} />
-          <RuckPandolfCard pandolf={pandolf} distanceKm={distance} loadKg={weight} />
         </>
       )}
 
