@@ -3012,8 +3012,15 @@ function updateSelectedCheckpointHere() {
 
   return (
     <Screen>
-      <Text style={styles.muted}>Loaded movement</Text>
-      <Text style={styles.title}>Ruck Tracker</Text>
+      <View style={styles.missionHeader}>
+        <Text style={styles.missionLabel}>FORGE RUCK</Text>
+        <View style={styles.missionStateBadge}>
+          <View style={[styles.missionStateDot, { backgroundColor: isTracking ? colours.green : startTime ? colours.amber : colours.muted }]} />
+          <Text style={[styles.missionStateText, { color: isTracking ? colours.green : startTime ? colours.amber : colours.muted }]}>
+            {isTracking ? 'TRACKING' : startTime ? 'PAUSED' : 'READY'}
+          </Text>
+        </View>
+      </View>
       {!supportsBackgroundLocation && (
         <Text style={styles.platformNote}>Web tracking runs while this tab stays open. Use the native app for locked-screen GPS.</Text>
       )}
@@ -3243,9 +3250,22 @@ function updateSelectedCheckpointHere() {
 }
 
 const styles = StyleSheet.create({
-  muted: { ...typography.caption, color: colours.muted },
-  title: { color: colours.text, fontSize: 32, fontWeight: '900', marginBottom: responsiveSpacing('md') },
-  platformNote: { ...typography.caption, color: colours.amber, lineHeight: 18, marginTop: -8, marginBottom: 8 },
+  missionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  missionLabel: { color: colours.text, fontSize: 22, fontWeight: '900', letterSpacing: 1.2 },
+  missionStateBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  missionStateDot: { width: 6, height: 6, borderRadius: 3 },
+  missionStateText: { ...typography.label, letterSpacing: 1.2 },
+  platformNote: { ...typography.caption, color: colours.amber, lineHeight: 18 },
   mapBlock: {
     height: 520,
     position: 'relative',
