@@ -16,6 +16,7 @@ import { RuckHistoryCard } from '../components/RuckHistoryCard';
 import { RuckReviewCard } from '../components/RuckReviewCard';
 import { RuckTrackingControls } from '../components/RuckTrackingControls';
 import { RuckSplitsCard } from '../components/RuckSplitsCard';
+import { RuckReadinessCard } from '../components/RuckReadinessCard';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3343,27 +3344,7 @@ function updateSelectedCheckpointHere() {
         </View>
       </Card>
 
-      <Card>
-        <View style={styles.navHeader}>
-          <View>
-            <Text style={styles.cardTitle}>Route Readiness</Text>
-            <Text style={styles.muted}>{routeReadinessChecks.blockingIssues === 0 ? 'Plan checks clear' : `${routeReadinessChecks.blockingIssues} item(s) need attention`}</Text>
-          </View>
-          <View style={[styles.readinessBadge, { borderColor: statusColors(routeReadinessChecks.tone).borderMed, backgroundColor: statusColors(routeReadinessChecks.tone).bgMed }]}>
-            <Text style={[styles.readinessBadgeText, { color: routeReadinessChecks.tone }]}>{routeReadinessChecks.status}</Text>
-          </View>
-        </View>
-
-        <View style={styles.readinessList}>
-          {routeReadinessChecks.checks.map((check) => (
-            <View key={check.label} style={styles.readinessRow}>
-              <View style={[styles.readinessDot, { backgroundColor: check.tone }]} />
-              <Text style={styles.readinessLabel}>{check.label}</Text>
-              <Text style={[styles.readinessValue, { color: check.tone }]}>{check.value}</Text>
-            </View>
-          ))}
-        </View>
-      </Card>
+      <RuckReadinessCard readiness={routeReadinessChecks} />
 
       <RuckSplitsCard splits={splits} />
 
@@ -4327,35 +4308,6 @@ const styles = StyleSheet.create({
   },
   finishMetricValue: { color: colours.text, fontSize: 13, fontWeight: '900' },
   finishMetricLabel: { ...typography.label, color: colours.muted, letterSpacing: 0.8, marginTop: 2 },
-  readinessBadge: {
-    minHeight: 34,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  readinessBadgeText: { ...typography.caption, fontWeight: '900', letterSpacing: 0.8 },
-  readinessList: {
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 8,
-    overflow: 'hidden',
-    marginTop: 12,
-    backgroundColor: 'rgba(255,255,255,0.035)',
-  },
-  readinessRow: {
-    minHeight: 42,
-    borderTopWidth: 1,
-    borderColor: colours.borderSoft,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 10,
-  },
-  readinessDot: { width: 8, height: 8, borderRadius: 4 },
-  readinessLabel: { ...typography.caption, color: colours.text, fontWeight: '900', flex: 1 },
-  readinessValue: { ...typography.caption, fontWeight: '900', textAlign: 'right' },
   checkpointButton: {
     minHeight: 40,
     borderRadius: 8,
