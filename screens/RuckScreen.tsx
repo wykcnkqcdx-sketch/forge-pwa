@@ -24,6 +24,7 @@ import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
 import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
 import { RuckFieldMarksCard } from '../components/RuckFieldMarksCard';
+import { RuckMissionModeSelector } from '../components/RuckMissionModeSelector';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3047,25 +3048,7 @@ function updateSelectedCheckpointHere() {
           </View>
         </View>
 
-        <View style={styles.modeSelector}>
-          {([
-            ['simple', 'Simple', 'footsteps-outline'],
-            ['tactical', 'Tactical', 'radio-outline'],
-            ['navigation', 'Nav', 'navigate-outline'],
-          ] as const).map(([mode, label, icon]) => {
-            const selected = missionMode === mode;
-            return (
-              <Pressable
-                key={mode}
-                style={[styles.modeOption, selected && styles.modeOptionActive]}
-                onPress={() => setMissionMode(mode)}
-              >
-                <Ionicons name={icon} size={14} color={selected ? colours.background : colours.muted} />
-                <Text style={[styles.modeOptionText, selected && styles.modeOptionTextActive]}>{label}</Text>
-              </Pressable>
-            );
-          })}
-        </View>
+        <RuckMissionModeSelector missionMode={missionMode} onChange={setMissionMode} />
 
         {tacticalOptionsOpen ? (
           <View style={styles.tacticalDrawer}>
@@ -3372,27 +3355,6 @@ const styles = StyleSheet.create({
   },
   signalDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colours.muted },
   signalText: { ...typography.label, color: colours.muted, letterSpacing: 1 },
-  modeSelector: {
-    flexDirection: 'row',
-    gap: 6,
-    marginTop: 14,
-    padding: 4,
-    borderRadius: 10,
-    backgroundColor: 'rgba(4,8,15,0.38)',
-  },
-  modeOption: {
-    flex: 1,
-    minHeight: 36,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'row',
-    gap: 6,
-    paddingHorizontal: 6,
-  },
-  modeOptionActive: { backgroundColor: colours.cyan },
-  modeOptionText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
-  modeOptionTextActive: { color: colours.background },
   tacticalDrawer: {
     marginTop: 10,
     borderRadius: 12,
