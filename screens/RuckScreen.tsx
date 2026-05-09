@@ -24,6 +24,7 @@ import { RuckMetricSummary } from '../components/RuckMetricSummary';
 import { RuckMissionPaceCard } from '../components/RuckMissionPaceCard';
 import { RuckCheckpointModeCard } from '../components/RuckCheckpointModeCard';
 import { RuckFieldMarkTypePicker } from '../components/RuckFieldMarkTypePicker';
+import { RuckSelectedCheckpointPanel } from '../components/RuckSelectedCheckpointPanel';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -335,7 +336,6 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
   const selectedCheckpointEtaMinutes = selectedCheckpointDistanceKm == null
     ? null
     : selectedCheckpointDistanceKm * (currentDistance > 0.02 && elapsedSeconds > 0 ? elapsedSeconds / 60 / currentDistance : targetPace);
-  const selectedCheckpointMeta = getFieldMarkType(selectedCheckpoint?.markType);
   const navTeammateTarget = navTarget?.type === 'teammate'
     ? teammates.find((teammate) => teammate.callsign === navTarget.id) ?? null
     : null;
@@ -3306,89 +3306,23 @@ function updateSelectedCheckpointHere() {
           </Pressable>
         </View>
 
-        {selectedCheckpoint ? (
-          <>
-            <View style={styles.coordinateEntry}>
-              <TextInput
-                value={checkpointLabelInput}
-                onChangeText={setCheckpointLabelInput}
-                placeholder="Checkpoint label"
-                placeholderTextColor={colours.soft}
-                autoCapitalize="words"
-                style={styles.coordinateInput}
-              />
-              <Pressable style={styles.coordinateAddButton} onPress={saveSelectedCheckpointLabel}>
-                <Ionicons name="checkmark" size={18} color={colours.background} />
-              </Pressable>
-            </View>
-
-            <View style={styles.statusRow}>
-              {(['planned', 'reached', 'skipped'] as const).map((statusOption) => {
-                const selected = selectedCheckpoint.status === statusOption;
-                return (
-                  <Pressable
-                    key={statusOption}
-                    style={[styles.statusButton, selected && styles.statusButtonActive]}
-                    onPress={() => setSelectedCheckpointStatus(statusOption)}
-                  >
-                    <Text style={[styles.statusButtonText, selected && styles.statusButtonTextActive]}>{statusOption.toUpperCase()}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-
-            <View style={styles.navGrid}>
-              <View style={styles.navItem}>
-                <Text style={[styles.navValue, { color: selectedCheckpointMeta.tone }]}>{formatFieldMarkLabel(selectedCheckpoint)}</Text>
-                <Text style={styles.navLabel}>{selectedCheckpoint.status} | {selectedCheckpoint.source === 'current' ? 'GPS mark' : 'Manual mark'}</Text>
-              </View>
-              <View style={styles.navItem}>
-                <Text style={styles.navValue}>{selectedCheckpointDistanceKm == null ? '--' : `${selectedCheckpointDistanceKm.toFixed(2)}km`}</Text>
-                <Text style={styles.navLabel}>Distance to CP</Text>
-              </View>
-              <View style={styles.navItem}>
-                <Text style={styles.navValue}>{selectedCheckpointBearing == null ? '--' : formatHeading(selectedCheckpointBearing)}</Text>
-                <Text style={styles.navLabel}>Bearing to CP</Text>
-              </View>
-              <View style={styles.navItem}>
-                <Text style={styles.navValue}>{selectedCheckpointEtaMinutes == null ? '--' : formatDuration(selectedCheckpointEtaMinutes)}</Text>
-                <Text style={styles.navLabel}>ETA to CP</Text>
-              </View>
-            </View>
-            <Text style={styles.coordinateText}>
-              {selectedCheckpointPoint
-                ? formatCoordinate(selectedCheckpointPoint.latitude, selectedCheckpointPoint.longitude, coordinateFormat)
-                : 'NEEDS GRID'}
-            </Text>
-            <View style={styles.checkpointList}>
-              {plannedCheckpoints.map((checkpoint) => {
-                const selected = selectedCheckpoint.id === checkpoint.id;
-                return (
-                  <Pressable
-                    key={checkpoint.id}
-                    style={[styles.checkpointPill, selected && styles.checkpointPillActive]}
-                    onPress={() => focusNavMark(checkpoint.id)}
-                  >
-                    <Text style={[styles.checkpointPillText, selected && styles.checkpointPillTextActive]}>{formatFieldMarkLabel(checkpoint)}</Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <View style={styles.checkpointActions}>
-              <Pressable style={styles.clearCheckpointButton} onPress={clearSelectedCheckpoint}>
-                <Text style={styles.clearCheckpointText}>Remove selected</Text>
-              </Pressable>
-              <Pressable style={styles.clearCheckpointButton} onPress={undoLastCheckpoint}>
-                <Text style={styles.clearCheckpointText}>Undo last</Text>
-              </Pressable>
-              <Pressable style={styles.clearCheckpointButton} onPress={clearAllCheckpoints}>
-                <Text style={styles.clearCheckpointText}>Clear all</Text>
-              </Pressable>
-            </View>
-          </>
-        ) : (
-          <Text style={styles.navGuide}>Use the active coordinate format selector above the map. LAT/LON, DMS, UTM, and MGRS are accepted.</Text>
-        )}
+        <RuckSelectedCheckpointPanel
+          selectedCheckpoint={selectedCheckpoint}
+          selectedCheckpointPoint={selectedCheckpointPoint}
+          plannedCheckpoints={plannedCheckpoints}
+          checkpointLabelInput={checkpointLabelInput}
+          selectedCheckpointDistanceKm={selectedCheckpointDistanceKm}
+          selectedCheckpointBearing={selectedCheckpointBearing}
+          selectedCheckpointEtaMinutes={selectedCheckpointEtaMinutes}
+          coordinateFormat={coordinateFormat}
+          onCheckpointLabelChange={setCheckpointLabelInput}
+          onSaveCheckpointLabel={saveSelectedCheckpointLabel}
+          onStatusChange={setSelectedCheckpointStatus}
+          onFocusMark={focusNavMark}
+          onClearSelected={clearSelectedCheckpoint}
+          onUndoLast={undoLastCheckpoint}
+          onClearAll={clearAllCheckpoints}
+        />
 
         <TextInput
           value={checkpointBulkInput}
@@ -3885,18 +3819,6 @@ const styles = StyleSheet.create({
   coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 10 },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   navHeader: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: responsiveSpacing('md') },
-  navGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
-  navItem: {
-    width: '47%',
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 12,
-    padding: responsiveSpacing('md'),
-    backgroundColor: 'rgba(255,255,255,0.04)',
-  },
-  navValue: { color: colours.cyan, fontSize: 17, fontWeight: '900' },
-  navLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
-  navGuide: { color: colours.textSoft, fontSize: 13, lineHeight: 19, marginTop: 12 },
   checkpointButton: {
     minHeight: 40,
     borderRadius: 8,
@@ -3974,50 +3896,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 10,
   },
-  statusRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 10,
-  },
-  statusButton: {
-    flex: 1,
-    minHeight: 36,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 6,
-  },
-  statusButtonActive: {
-    borderColor: statusColors(colours.green).borderMed,
-    backgroundColor: statusColors(colours.green).bgMed,
-  },
-  statusButtonText: { ...typography.label, color: colours.muted },
-  statusButtonTextActive: { color: colours.green },
-  checkpointList: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 12,
-  },
-  checkpointPill: {
-    minHeight: 34,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 12,
-  },
-  checkpointPillActive: {
-    borderColor: statusColors(colours.amber).borderMed,
-    backgroundColor: statusColors(colours.amber).bgMed,
-  },
-  checkpointPillText: { ...typography.caption, color: colours.muted, fontWeight: '900' },
-  checkpointPillTextActive: { color: colours.amber },
   checkpointActions: {
     flexDirection: 'row',
     gap: 8,
