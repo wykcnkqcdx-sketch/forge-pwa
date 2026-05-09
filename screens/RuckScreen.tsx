@@ -14,6 +14,7 @@ import { LiveTimerText } from '../components/LiveTimerText';
 import { RuckMissionBriefCard } from '../components/RuckMissionBriefCard';
 import { RuckHistoryCard } from '../components/RuckHistoryCard';
 import { RuckReviewCard } from '../components/RuckReviewCard';
+import { RuckTrackingControls } from '../components/RuckTrackingControls';
 import { colours, touchTarget, shadow, typography } from '../theme';
 import { responsiveSpacing, statusColors } from '../utils/styling';
 import { showAlert, showConfirm } from '../lib/dialogs';
@@ -3184,39 +3185,16 @@ function updateSelectedCheckpointHere() {
       ) : null}
 
       {!reviewOpen ? (
-      <View style={styles.trackingControls}>
-        {isTracking ? (
-          <View style={styles.trackingActive}>
-            <Pressable style={[styles.trackButton, styles.stopButton]} onPress={stopTracking}>
-              <Ionicons name="stop" size={20} color={colours.background} />
-              <Text style={styles.trackButtonText}>Stop Tracking</Text>
-            </Pressable>
-          </View>
-        ) : startTime ? (
-          <View style={styles.trackingActive}>
-            <Pressable style={styles.trackButton} onPress={resumeTracking}>
-              <Ionicons name="play" size={20} color={colours.background} />
-              <Text style={styles.trackButtonText}>Resume</Text>
-            </Pressable>
-            <Pressable style={styles.saveButton} onPress={openRuckReview}>
-              <Text style={styles.saveButtonText}>Review Ruck</Text>
-            </Pressable>
-            <Pressable style={[styles.trackButton, styles.discardButton]} onPress={discardTrackedRuck}>
-              <Ionicons name="close" size={20} color={colours.text} />
-              <Text style={[styles.trackButtonText, { color: colours.text }]}>Discard</Text>
-            </Pressable>
-          </View>
-        ) : (
-          <Pressable
-            style={[styles.trackButton, isStarting && styles.trackButtonDisabled]}
-            onPress={() => startTracking()}
-            disabled={isStarting}
-          >
-            <Ionicons name={isStarting ? 'sync' : 'play'} size={20} color={colours.background} />
-            <Text style={styles.trackButtonText}>{isStarting ? 'Starting GPS...' : 'Start GPS Tracking'}</Text>
-          </Pressable>
-        )}
-      </View>
+        <RuckTrackingControls
+          isTracking={isTracking}
+          isStarting={isStarting}
+          hasStarted={Boolean(startTime)}
+          onStart={() => startTracking()}
+          onStop={stopTracking}
+          onResume={resumeTracking}
+          onReview={openRuckReview}
+          onDiscard={discardTrackedRuck}
+        />
       ) : null}
 
       <RuckHistoryCard sessions={sessions} />
@@ -4298,15 +4276,6 @@ const styles = StyleSheet.create({
   liveValue: { color: colours.cyan, fontSize: 18, fontWeight: '900' },
   liveLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.3, marginTop: 2 },
   coordinateText: { ...typography.caption, color: colours.muted, textAlign: 'center', marginTop: 10 },
-  trackingControls: { marginBottom: 16 },
-  trackButton: { minHeight: touchTarget, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: colours.green, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, gap: 8 },
-  trackButtonDisabled: { opacity: 0.62 },
-  trackButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
-  stopButton: { backgroundColor: colours.red },
-  trackingActive: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
-  saveButton: { minHeight: touchTarget, backgroundColor: colours.cyan, borderRadius: 8, paddingVertical: 12, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center', flex: 1 },
-  saveButtonText: { color: colours.background, fontWeight: '900', fontSize: 16 },
-  discardButton: { backgroundColor: 'rgba(255,255,255,0.08)', borderColor: colours.border, borderWidth: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('md') },
   cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
   controlRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: responsiveSpacing('sm'), gap: responsiveSpacing('md') },
