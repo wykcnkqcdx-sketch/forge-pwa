@@ -89,6 +89,7 @@ export function AppRouter() {
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloud.cloudStatus}
             cloudEmail={cloud.cloudSession?.user.email ?? null}
+            cloudSquadId={cloud.cloudSquadId}
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
@@ -161,6 +162,7 @@ export function AppRouter() {
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloud.cloudStatus}
             cloudEmail={cloud.cloudSession?.user.email ?? null}
+            cloudSquadId={cloud.cloudSquadId}
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
@@ -241,6 +243,7 @@ export function AppRouter() {
             cloudEnabled={isSupabaseConfigured}
             cloudStatus={cloud.cloudStatus}
             cloudEmail={cloud.cloudSession?.user.email ?? null}
+            cloudSquadId={cloud.cloudSquadId}
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}

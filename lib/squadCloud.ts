@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { AssignedExerciseBlock, SquadMember } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
+import { supabase } from './supabase';
 
 export const RemoteSquadSchema = z.object({
   id: z.string(),
@@ -209,4 +210,54 @@ export function buildInviteUrl(appBaseUrl: string, rawToken: string) {
 
 export function isInviteClaimable(invite: Pick<RemoteMemberInviteRow, 'status' | 'expires_at'>, now = new Date()) {
   return invite.status === 'pending' && new Date(invite.expires_at).getTime() > now.getTime();
+}
+
+function ensureSupabase() {
+  if (!supabase) throw new Error('Supabase client is not configured.');
+  return supabase;
+}
+
+export async function ensureDefaultCloudSquad(userId: string, email?: string | null) {
+  const client = ensureSupabase();
+
+  const owned = await client
+    .from('squads')
+    .select('*')
+    .eq('owner_user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1);
+
+  if (owned.error) throw owned.error;
+  const existing = z.array(RemoteSquadSchema).parse(owned.data)[0];
+  if (existing) return existing;
+
+  const created = await client
+    .from('squads')
+    .insert({
+      owner_user_id: userId,
+      name: 'FORGE Squad',
+      focus: 'Ruck readiness',
+      target_readiness: 75,
+    })
+    .select('*')
+    .single();
+
+  if (created.error) throw created.error;
+  const squad = RemoteSquadSchema.parse(created.data);
+
+  const membership = await client
+    .from('squad_memberships')
+    .insert({
+      squad_id: squad.id,
+      user_id: userId,
+      display_name: 'Coach',
+      gym_name: 'Coach',
+      email: email ?? null,
+      role: 'owner',
+      status: 'active',
+      joined_at: new Date().toISOString(),
+    });
+
+  if (membership.error) throw membership.error;
+  return squad;
 }

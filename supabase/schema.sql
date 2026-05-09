@@ -319,6 +319,19 @@ begin
     with check (public.is_squad_coach(squad_id));
   end if;
 
+  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'squad_memberships' and policyname = 'owners can create initial membership') then
+    create policy "owners can create initial membership"
+    on public.squad_memberships for insert
+    with check (
+      user_id = auth.uid()
+      and role = 'owner'
+      and exists (
+        select 1 from public.squads s
+        where s.id = squad_id and s.owner_user_id = auth.uid()
+      )
+    );
+  end if;
+
   if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'member_invites' and policyname = 'coaches can manage invites') then
     create policy "coaches can manage invites"
     on public.member_invites for all

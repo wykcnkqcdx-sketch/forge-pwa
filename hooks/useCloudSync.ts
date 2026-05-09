@@ -6,6 +6,7 @@ import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from '../lib
 import { buildGoogleSheetsPayload, exportToGoogleSheets } from '../lib/googleSheets';
 import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from '../lib/offlineQueue';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import { ensureDefaultCloudSquad } from '../lib/squadCloud';
 
 type CloudMutation = Parameters<typeof enqueueOfflineMutation>[0];
 
@@ -43,6 +44,7 @@ export function useCloudSync({
   const [cloudStatus, setCloudStatus] = useState<'local' | 'auth' | 'syncing' | 'synced' | 'error'>(
     isSupabaseConfigured ? 'auth' : 'local'
   );
+  const [cloudSquadId, setCloudSquadId] = useState<string | null>(null);
   const [googleSheetsExporting, setGoogleSheetsExporting] = useState(false);
   const [googleSheetsMessage, setGoogleSheetsMessage] = useState('');
 
@@ -123,6 +125,7 @@ export function useCloudSync({
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCloudSession(session ?? null);
+      if (!session) setCloudSquadId(null);
       setAuthReady(true);
       setAuthError('');
       setCloudStatus(session ? 'syncing' : 'auth');
@@ -142,6 +145,7 @@ export function useCloudSync({
 
     let cancelled = false;
     const userId = cloudSession.user.id;
+    const userEmail = cloudSession.user.email;
 
     async function hydrateCloud() {
       try {
@@ -162,6 +166,8 @@ export function useCloudSync({
         }
 
         if (!cancelled) {
+          const squad = await ensureDefaultCloudSquad(userId, userEmail);
+          if (!cancelled) setCloudSquadId(squad.id);
           cloudHydrated.current = true;
           setCloudStatus('synced');
         }
@@ -364,6 +370,7 @@ export function useCloudSync({
     authLoading,
     authError,
     cloudStatus,
+    cloudSquadId,
     googleSheetsExporting,
     googleSheetsMessage,
     coachLandingPrimed,

@@ -35,6 +35,7 @@ interface InstructorScreenProps {
   cloudEnabled: boolean;
   cloudStatus: 'local' | 'auth' | 'syncing' | 'synced' | 'error';
   cloudEmail: string | null;
+  cloudSquadId?: string | null;
   pendingSyncCount?: number;
   onCloudSync: () => void;
   onCloudSignOut: () => void;
@@ -112,6 +113,7 @@ export function InstructorScreen({
   cloudEnabled,
   cloudStatus,
   cloudEmail,
+  cloudSquadId,
   pendingSyncCount = 0,
   onCloudSync,
   onCloudSignOut,
@@ -290,9 +292,10 @@ export function InstructorScreen({
     const expiresAt = inviteExpiry();
     let inviteStorageNote = `Token hash ${tokenHash.slice(0, 12)}... is ready for member_invites storage.`;
 
-    if (cloudEnabled && supabase && uuidPattern.test(selectedGroupId)) {
+    const inviteSquadId = cloudSquadId ?? (uuidPattern.test(selectedGroupId) ? selectedGroupId : null);
+    if (cloudEnabled && supabase && inviteSquadId) {
       const { error } = await supabase.rpc('create_member_invite', {
-        p_squad_id: selectedGroupId,
+        p_squad_id: inviteSquadId,
         p_token_hash: tokenHash,
         p_email: trimmedEmail || null,
         p_display_name: trimmedName,
