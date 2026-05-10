@@ -1096,7 +1096,9 @@ export function InstructorScreen({
                     <Text style={styles.inviteOpsButtonText}>Sync</Text>
                   </Pressable>
                 ) : group.key === 'invited' || group.key === 'manual' ? (
-                  <Text style={styles.inviteOpsHint}>New invite</Text>
+                  <Pressable style={styles.inviteOpsButton} onPress={() => { void createSecureInviteForMember(member, 'resent'); }}>
+                    <Text style={styles.inviteOpsButtonText}>Send Invite</Text>
+                  </Pressable>
                 ) : (
                   <Text style={styles.inviteOpsReady}>Ready</Text>
                 )}

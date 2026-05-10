@@ -31,6 +31,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Coach roster cards now show an actionable `Sync Now` button when a member has accepted an invite but is not yet linked to a cloud assignment target.
 - Assignment history now separates cloud-delivered, local-only, completed, and pending targets, with a tested delivery status helper.
 - Coach dashboard now includes Invite Operations grouped by accepted-needs-sync, pending invite, manual/local, and cloud-ready states.
+- Invite Operations can now generate a fresh secure invite for pending/manual members and reuse the add-member invite flow.
 - Added `membershipId` to workout completions.
 - Member assigned-workout and quick-log completions now carry `cloudMembershipId`.
 - Squad completion sync writes `membership_id` and uses it as the team activity actor.
