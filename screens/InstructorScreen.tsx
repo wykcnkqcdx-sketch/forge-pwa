@@ -577,6 +577,21 @@ export function InstructorScreen({
     return inviteUrl;
   }
 
+  function markInviteManual(member: SquadMember) {
+    showConfirm(
+      'Mark manual',
+      `Clear invite state for ${member.gymName || member.name} and keep them as a local/manual roster member?`,
+      () => {
+        onUpdateMember(member.id, {
+          inviteStatus: 'Manual',
+          cloudMembershipId: undefined,
+          updatedAt: new Date().toISOString(),
+        });
+      },
+      'Mark Manual',
+    );
+  }
+
   async function addMember() {
     const trimmedName = newMemberName.trim();
     const trimmedGymName = newMemberGymName.trim();
@@ -1091,17 +1106,33 @@ export function InstructorScreen({
                   <Text style={styles.memberName}>{member.gymName || member.name}</Text>
                   <Text style={styles.muted}>{member.email ?? 'No email'}{member.cloudMembershipId ? ` - ${member.cloudMembershipId.slice(0, 8)}...` : ''}</Text>
                 </View>
-                {group.key === 'acceptedNeedsSync' ? (
-                  <Pressable style={styles.inviteOpsButton} onPress={onCloudSync}>
-                    <Text style={styles.inviteOpsButtonText}>Sync</Text>
-                  </Pressable>
-                ) : group.key === 'invited' || group.key === 'manual' ? (
-                  <Pressable style={styles.inviteOpsButton} onPress={() => { void createSecureInviteForMember(member, 'resent'); }}>
-                    <Text style={styles.inviteOpsButtonText}>Send Invite</Text>
-                  </Pressable>
-                ) : (
-                  <Text style={styles.inviteOpsReady}>Ready</Text>
-                )}
+                <View style={styles.inviteOpsActions}>
+                  {group.key === 'acceptedNeedsSync' ? (
+                    <>
+                      <Pressable style={styles.inviteOpsButton} onPress={onCloudSync}>
+                        <Text style={styles.inviteOpsButtonText}>Sync</Text>
+                      </Pressable>
+                      <Pressable style={[styles.inviteOpsButton, styles.inviteOpsDangerButton]} onPress={() => markInviteManual(member)}>
+                        <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Mark Manual</Text>
+                      </Pressable>
+                    </>
+                  ) : group.key === 'invited' ? (
+                    <>
+                      <Pressable style={styles.inviteOpsButton} onPress={() => { void createSecureInviteForMember(member, 'resent'); }}>
+                        <Text style={styles.inviteOpsButtonText}>Send Invite</Text>
+                      </Pressable>
+                      <Pressable style={[styles.inviteOpsButton, styles.inviteOpsDangerButton]} onPress={() => markInviteManual(member)}>
+                        <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Mark Manual</Text>
+                      </Pressable>
+                    </>
+                  ) : group.key === 'manual' ? (
+                    <Pressable style={styles.inviteOpsButton} onPress={() => { void createSecureInviteForMember(member, 'resent'); }}>
+                      <Text style={styles.inviteOpsButtonText}>Send Invite</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.inviteOpsReady}>Ready</Text>
+                  )}
+                </View>
               </View>
             )) : (
               <Text style={styles.inviteOpsEmpty}>No members in this state.</Text>
@@ -1741,6 +1772,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     backgroundColor: 'rgba(255,255,255,0.04)',
   },
+  inviteOpsActions: { alignItems: 'flex-end', gap: 6 },
   inviteOpsButton: {
     borderWidth: 1,
     borderColor: `${colours.cyan}55`,
@@ -1750,6 +1782,8 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyanDim,
   },
   inviteOpsButtonText: { color: colours.cyan, fontSize: 11, fontWeight: '900' },
+  inviteOpsDangerButton: { borderColor: `${colours.red}45`, backgroundColor: colours.redDim },
+  inviteOpsDangerText: { color: colours.red },
   inviteOpsHint: { color: colours.amber, fontSize: 11, fontWeight: '900' },
   inviteOpsReady: { color: colours.green, fontSize: 11, fontWeight: '900' },
   inviteOpsEmpty: { color: colours.muted, fontSize: 11, fontWeight: '800' },
