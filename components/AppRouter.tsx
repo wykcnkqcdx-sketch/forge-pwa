@@ -97,6 +97,7 @@ export function AppRouter() {
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
+            onRevokeCloudInvite={cloud.revokeCloudInvite}
             googleSheetsEndpoint={googleSheetsEndpoint}
             onChangeGoogleSheetsEndpoint={store.setGoogleSheetsEndpoint}
             onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}
@@ -174,6 +175,7 @@ export function AppRouter() {
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
+            onRevokeCloudInvite={cloud.revokeCloudInvite}
             googleSheetsEndpoint={googleSheetsEndpoint}
             onChangeGoogleSheetsEndpoint={store.setGoogleSheetsEndpoint}
             onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}
@@ -259,6 +261,7 @@ export function AppRouter() {
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
+            onRevokeCloudInvite={cloud.revokeCloudInvite}
             googleSheetsEndpoint={googleSheetsEndpoint}
             onChangeGoogleSheetsEndpoint={store.setGoogleSheetsEndpoint}
             onExportGoogleSheets={() => cloud.exportGoogleSheetsNow(members, groups, programmeTemplates)}

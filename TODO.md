@@ -43,6 +43,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Coach sync now reconciles active member-role memberships back to local roster rows by email, id, gym name, or display name while ignoring coach/owner memberships.
 - Ghost Mode now anonymizes cloud `team_activity` rows while preserving completion rows for coach review and aggregate Team Pulse.
 - Phase tests now cover invite token helpers, cloud roster reconciliation, router auth gates, and Ghost Mode team activity.
+- Invite Operations can now revoke pending Supabase invites through a coach-only `revoke_member_invite` RPC and refresh cloud invite rows.
 
 ## Verification
 

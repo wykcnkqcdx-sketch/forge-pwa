@@ -580,3 +580,41 @@ begin
   return membership_row;
 end;
 $$;
+
+create or replace function public.revoke_member_invite(p_invite_id uuid)
+returns public.member_invites
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  invite_row public.member_invites;
+begin
+  select *
+  into invite_row
+  from public.member_invites
+  where id = p_invite_id
+  limit 1;
+
+  if invite_row.id is null then
+    raise exception 'Invite not found';
+  end if;
+
+  if not public.is_squad_coach(invite_row.squad_id) then
+    raise exception 'Only squad coaches can revoke invites';
+  end if;
+
+  if invite_row.status <> 'pending' then
+    raise exception 'Only pending invites can be revoked';
+  end if;
+
+  update public.member_invites
+  set status = 'revoked',
+      revoked_at = now(),
+      updated_at = now()
+  where id = invite_row.id
+  returning * into invite_row;
+
+  return invite_row;
+end;
+$$;

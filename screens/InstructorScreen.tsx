@@ -46,6 +46,7 @@ interface InstructorScreenProps {
   pendingSyncCount?: number;
   onCloudSync: () => void;
   onCloudSignOut: () => void;
+  onRevokeCloudInvite?: (inviteId: string) => Promise<void>;
   googleSheetsEndpoint: string;
   onChangeGoogleSheetsEndpoint: (value: string) => void;
   onExportGoogleSheets: () => void;
@@ -197,6 +198,7 @@ export function InstructorScreen({
   pendingSyncCount = 0,
   onCloudSync,
   onCloudSignOut,
+  onRevokeCloudInvite,
   googleSheetsEndpoint,
   onChangeGoogleSheetsEndpoint,
   onExportGoogleSheets,
@@ -597,6 +599,17 @@ export function InstructorScreen({
         });
       },
       'Mark Manual',
+    );
+  }
+
+  function confirmRevokeCloudInvite(invite: CloudInvite) {
+    if (!onRevokeCloudInvite) return;
+    const label = invite.gymName || invite.displayName || invite.email || 'this invite';
+    showConfirm(
+      'Revoke invite',
+      `Revoke the pending cloud invite for ${label}? The existing link will stop working.`,
+      () => { void onRevokeCloudInvite(invite.id); },
+      'Revoke',
     );
   }
 
@@ -1127,7 +1140,13 @@ export function InstructorScreen({
                   <Text style={styles.memberName}>{invite.gymName || invite.displayName || invite.email || 'Invite'}</Text>
                   <Text style={styles.muted}>{invite.email ?? 'No email'} - expires {new Date(invite.expiresAt).toLocaleDateString()}</Text>
                 </View>
-                <Text style={styles.inviteOpsReady}>{invite.status.toUpperCase()}</Text>
+                {invite.status === 'pending' && onRevokeCloudInvite ? (
+                  <Pressable style={[styles.inviteOpsButton, styles.inviteOpsDangerButton]} onPress={() => confirmRevokeCloudInvite(invite)}>
+                    <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Revoke</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={styles.inviteOpsReady}>{invite.status.toUpperCase()}</Text>
+                )}
               </View>
             ))}
           </View>

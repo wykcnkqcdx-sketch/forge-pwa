@@ -6,7 +6,7 @@ import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from '../lib
 import { buildGoogleSheetsPayload, exportToGoogleSheets } from '../lib/googleSheets';
 import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from '../lib/offlineQueue';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
-import { ensureDefaultCloudSquad, fetchCloudAssignmentDeployments, fetchCloudInvites, fetchCloudMemberAssignments, fetchCloudSquadMembershipTargets, fetchCloudTeamActivity, fetchCloudTeamPulse, type CloudInvite, type CloudTeamActivity, type CloudTeamPulse } from '../lib/squadCloud';
+import { ensureDefaultCloudSquad, fetchCloudAssignmentDeployments, fetchCloudInvites, fetchCloudMemberAssignments, fetchCloudSquadMembershipTargets, fetchCloudTeamActivity, fetchCloudTeamPulse, revokeCloudInvite as revokeRemoteCloudInvite, type CloudInvite, type CloudTeamActivity, type CloudTeamPulse } from '../lib/squadCloud';
 import type { RemoteSquadMembershipRow } from '../lib/squadCloud';
 
 type CloudMutation = Parameters<typeof enqueueOfflineMutation>[0];
@@ -421,6 +421,7 @@ export function useCloudSync({
       .on('postgres_changes', { event: '*', schema: 'public', table: 'workout_completions', filter: `squad_id=eq.${cloudSquadId}` }, refreshPulse)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'assignments', filter: `squad_id=eq.${cloudSquadId}` }, refreshPulse)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'team_activity', filter: `squad_id=eq.${cloudSquadId}` }, refreshPulse)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'member_invites', filter: `squad_id=eq.${cloudSquadId}` }, refreshPulse)
       .subscribe();
 
     return () => {
@@ -504,6 +505,24 @@ export function useCloudSync({
     }
   }
 
+  async function revokeCloudInvite(inviteId: string) {
+    if (!isSupabaseConfigured || !supabase) { setCloudStatus('local'); return; }
+    if (!cloudSession?.user) { setCloudStatus('auth'); return; }
+    if (!cloudSquadId) return;
+
+    try {
+      setCloudStatus('syncing');
+      await revokeRemoteCloudInvite(inviteId);
+      await refreshCloudInvites(cloudSquadId);
+      setCloudStatus('synced');
+      showToast('Invite revoked');
+    } catch (error) {
+      console.error('Failed to revoke cloud invite', error);
+      setCloudStatus('error');
+      showToast('Invite revoke failed');
+    }
+  }
+
   async function exportGoogleSheetsNow(members_: SquadMember[], groups_: import('../data/mockData').TrainingGroup[], programmeTemplates_: import('../data/mockData').ProgrammeTemplate[]) {
     const trimmedEndpoint = googleSheetsEndpoint.trim();
     if (!trimmedEndpoint) {
@@ -548,6 +567,7 @@ export function useCloudSync({
     signUpWithEmail,
     signOutCloud,
     syncCloudNow,
+    revokeCloudInvite,
     exportGoogleSheetsNow,
     resetCloudForWipe,
   };

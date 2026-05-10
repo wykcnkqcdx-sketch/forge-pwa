@@ -536,6 +536,13 @@ export async function fetchCloudInvites(squadId: string, limit = 50): Promise<Cl
   return z.array(RemoteMemberInviteSchema).parse(response.data).map(fromRemoteMemberInvite);
 }
 
+export async function revokeCloudInvite(inviteId: string): Promise<CloudInvite> {
+  const client = ensureSupabase();
+  const { data, error } = await client.rpc('revoke_member_invite', { p_invite_id: inviteId });
+  if (error) throw error;
+  return fromRemoteMemberInvite(RemoteMemberInviteSchema.parse(data));
+}
+
 function fromRemoteMemberAssignment(assignment: RemoteAssignmentRow, exercises: RemoteAssignmentExerciseRow[]): MemberAssignment {
   return {
     id: assignment.id,
