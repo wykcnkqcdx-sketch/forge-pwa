@@ -43,7 +43,7 @@ const mockUseApp = {
   pendingSyncCount: 0,
   pendingInviteToken: null,
   toast: { toastMessage: '', toastAnim: { interpolate: vi.fn() } },
-  cloud: { authReady: true, cloudStatus: 'local', authLoading: false, authError: '', signInWithEmail: vi.fn(), signUpWithEmail: vi.fn(), cloudSession: null, syncCloudNow: vi.fn(), signOutCloud: vi.fn(), exportGoogleSheetsNow: vi.fn(), googleSheetsExporting: false, googleSheetsMessage: '', cloudTeamActivity: [] },
+  cloud: { authReady: true, cloudStatus: 'local', authLoading: false, authError: '', signInWithEmail: vi.fn(), signUpWithEmail: vi.fn(), cloudSession: null, syncCloudNow: vi.fn(), signOutCloud: vi.fn(), exportGoogleSheetsNow: vi.fn(), googleSheetsExporting: false, googleSheetsMessage: '', cloudTeamActivity: [], cloudInvites: [] },
   pin: { isUnlocked: true, pinInput: '', pinError: false, handlePinInput: vi.fn(), pinSetupMode: null, newPinInput: '', confirmPinInput: '', pinSetupError: '', setNewPinInput: vi.fn(), setConfirmPinInput: vi.fn(), savePinSetup: vi.fn(), closePinSetup: vi.fn(), handleSetPin: vi.fn(), handleManualWipe: vi.fn(), resetInactivityTimer: vi.fn() },
   slideAnim: { interpolate: vi.fn() }, fadeAnim: { interpolate: vi.fn() }, pulseAnim: { interpolate: vi.fn() }, typedText: '',
   tabs: [{ id: 'home', label: 'Home', icon: 'home', iconActive: 'home' }],

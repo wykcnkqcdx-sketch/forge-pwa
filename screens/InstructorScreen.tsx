@@ -1101,6 +1101,39 @@ export function InstructorScreen({
           <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Invite Operations</Text>
           <Text style={styles.muted}>{members.length} roster</Text>
         </View>
+        <View style={styles.inviteCloudGrid}>
+          <View style={styles.inviteCloudTile}>
+            <Text style={[styles.inviteCloudValue, { color: colours.amber }]}>{cloudInviteCounts.pending}</Text>
+            <Text style={styles.inviteCloudLabel}>Pending</Text>
+          </View>
+          <View style={styles.inviteCloudTile}>
+            <Text style={[styles.inviteCloudValue, { color: colours.green }]}>{cloudInviteCounts.accepted}</Text>
+            <Text style={styles.inviteCloudLabel}>Accepted</Text>
+          </View>
+          <View style={styles.inviteCloudTile}>
+            <Text style={[styles.inviteCloudValue, { color: colours.red }]}>{cloudInviteCounts.expired}</Text>
+            <Text style={styles.inviteCloudLabel}>Expired</Text>
+          </View>
+          <View style={styles.inviteCloudTile}>
+            <Text style={[styles.inviteCloudValue, { color: colours.muted }]}>{cloudInviteCounts.revoked}</Text>
+            <Text style={styles.inviteCloudLabel}>Revoked</Text>
+          </View>
+        </View>
+        {cloudInvites.length ? (
+          <View style={styles.inviteCloudList}>
+            {cloudInvites.slice(0, 3).map((invite) => (
+              <View key={invite.id} style={styles.inviteCloudRow}>
+                <View style={styles.memberCopy}>
+                  <Text style={styles.memberName}>{invite.gymName || invite.displayName || invite.email || 'Invite'}</Text>
+                  <Text style={styles.muted}>{invite.email ?? 'No email'} - expires {new Date(invite.expiresAt).toLocaleDateString()}</Text>
+                </View>
+                <Text style={styles.inviteOpsReady}>{invite.status.toUpperCase()}</Text>
+              </View>
+            ))}
+          </View>
+        ) : (
+          <Text style={styles.inviteOpsEmpty}>No cloud invite rows loaded yet.</Text>
+        )}
         {inviteLifecycleGroups.map((group) => (
           <View key={group.key} style={styles.inviteOpsSection}>
             <View style={styles.inviteOpsHeader}>
@@ -1767,6 +1800,32 @@ const styles = StyleSheet.create({
   inviteOpsTitle: { color: colours.text, fontSize: 13, fontWeight: '900' },
   inviteOpsCount: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
   inviteOpsAction: { color: colours.textSoft, fontSize: 11, fontWeight: '700', lineHeight: 16 },
+  inviteCloudGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  inviteCloudTile: {
+    flex: 1,
+    minWidth: 96,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  inviteCloudValue: { fontSize: 22, lineHeight: 26, fontWeight: '900' },
+  inviteCloudLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 3 },
+  inviteCloudList: { gap: 6, marginBottom: 10 },
+  inviteCloudRow: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(0,0,0,0.14)',
+  },
   inviteOpsRow: {
     minHeight: 42,
     flexDirection: 'row',

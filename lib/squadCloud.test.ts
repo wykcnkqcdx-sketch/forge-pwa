@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fromRemoteTeamActivity, toRemoteTeamActivity } from './squadCloud';
+import { fromRemoteMemberInvite, fromRemoteTeamActivity, toRemoteTeamActivity } from './squadCloud';
 import type { WorkoutCompletion } from '../data/domain';
 
 vi.mock('./supabase', () => ({
@@ -64,6 +64,42 @@ describe('fromRemoteTeamActivity', () => {
       body: undefined,
       metadata: { ghostMode: true, volume: 300 },
       createdAt: '2026-05-10T10:00:00.000Z',
+    });
+  });
+});
+
+describe('fromRemoteMemberInvite', () => {
+  it('maps remote invite rows into cloud invite items', () => {
+    const invite = fromRemoteMemberInvite({
+      id: 'invite-1',
+      squad_id: 'squad-1',
+      created_by: 'coach-1',
+      token_hash: 'hash',
+      email: 'doyle@example.com',
+      display_name: 'Pte Doyle',
+      gym_name: 'Doyle',
+      role: 'member',
+      status: 'pending',
+      expires_at: '2026-05-17T12:00:00.000Z',
+      accepted_by: null,
+      accepted_at: null,
+      revoked_at: null,
+      created_at: '2026-05-10T12:00:00.000Z',
+      updated_at: '2026-05-10T12:00:00.000Z',
+    });
+
+    expect(invite).toEqual({
+      id: 'invite-1',
+      squadId: 'squad-1',
+      email: 'doyle@example.com',
+      displayName: 'Pte Doyle',
+      gymName: 'Doyle',
+      role: 'member',
+      status: 'pending',
+      expiresAt: '2026-05-17T12:00:00.000Z',
+      acceptedAt: undefined,
+      revokedAt: undefined,
+      createdAt: '2026-05-10T12:00:00.000Z',
     });
   });
 });
