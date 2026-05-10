@@ -261,16 +261,49 @@ export function InstructorScreen({
       : cloudStatus === 'error'
         ? colours.red
         : colours.amber;
-  const membersNeedingReview = useMemo(
-    () => members
-      .filter((member) => member.risk !== 'Low' || member.readiness < 60 || member.compliance < 70 || member.load > 85)
-      .sort((a, b) => {
-        const riskWeight = { High: 3, Medium: 2, Low: 1 };
-        return riskWeight[b.risk] - riskWeight[a.risk] || a.readiness - b.readiness;
+  const membersNeedingReview = useMemo(() => {
+    const weekMs = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    return members
+      .map((member) => {
+        const latestReadiness = latestReadinessByMember.get(member.id);
+        const latestCompletion = latestCompletionByMember.get(member.id);
+        const recentHardFeedback = workoutCompletions.filter((completion) => (
+          completion.memberId === member.id
+          && completion.effort === 'Too Hard'
+          && now - new Date(completion.completedAt).getTime() <= weekMs
+        ));
+        const pendingAssignments = assignmentDeployments.filter((deployment) => {
+          if (!deployment.targetMemberIds.includes(member.id)) return false;
+          if (deployment.completedMemberIds?.includes(member.id)) return false;
+          return !workoutCompletions.some((completion) => (
+            completion.memberId === member.id
+            && completion.assignment === deployment.title
+            && new Date(completion.completedAt).getTime() >= new Date(deployment.assignedAt).getTime()
+          ));
+        });
+        const reasons: Array<{ label: string; tone: string }> = [];
+
+        if (member.risk === 'High') reasons.push({ label: 'High risk', tone: colours.red });
+        if (member.risk === 'Medium') reasons.push({ label: 'Risk watch', tone: colours.amber });
+        if (member.readiness < 60) reasons.push({ label: `Ready ${member.readiness}`, tone: colours.red });
+        if (member.compliance < 70) reasons.push({ label: `Comply ${member.compliance}%`, tone: colours.amber });
+        if (member.load > 85) reasons.push({ label: `Load ${member.load}`, tone: colours.amber });
+        if (latestReadiness?.limitsTraining || (latestReadiness?.pain ?? 0) >= 4) {
+          const painLabel = latestReadiness?.painArea ? `Pain ${latestReadiness.painArea}` : 'Pain flag';
+          reasons.push({ label: painLabel, tone: colours.red });
+        }
+        if (recentHardFeedback.length) reasons.push({ label: 'Too hard', tone: colours.amber });
+        if (pendingAssignments.length) reasons.push({ label: `${pendingAssignments.length} pending`, tone: colours.cyan });
+
+        const reviewScore = reasons.reduce((score, reason) => score + (reason.tone === colours.red ? 3 : 1), 0);
+        return { member, latestCompletion, latestReadiness, pendingAssignments, reasons, reviewScore };
       })
-      .slice(0, 5),
-    [members]
-  );
+      .filter((entry) => entry.reasons.length)
+      .sort((a, b) => b.reviewScore - a.reviewScore || a.member.readiness - b.member.readiness)
+      .slice(0, 5);
+  }, [assignmentDeployments, latestCompletionByMember, latestReadinessByMember, members, workoutCompletions]);
   const teamPulse = useMemo(() => {
     const weeklyVolume = members.reduce((total, member) => total + (member.weeklyVolume ?? 0), 0);
     const readiness = members.length ? Math.round(members.reduce((total, member) => total + member.readiness, 0) / members.length) : 0;
@@ -699,16 +732,28 @@ export function InstructorScreen({
           <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Members Needing Review</Text>
           <Text style={styles.muted}>{membersNeedingReview.length || 'none'}</Text>
         </View>
-        {membersNeedingReview.length ? membersNeedingReview.map((member) => (
-          <View key={`review-${member.id}`} style={styles.reviewRow}>
+        {membersNeedingReview.length ? membersNeedingReview.map((entry) => (
+          <View key={`review-${entry.member.id}`} style={styles.reviewRow}>
             <View style={styles.memberCopy}>
-              <Text style={styles.memberName}>{member.gymName || member.name}</Text>
-              <Text style={styles.muted}>Ready {member.readiness} - Comply {member.compliance}% - Load {member.load}</Text>
+              <Text style={styles.memberName}>{entry.member.gymName || entry.member.name}</Text>
+              <Text style={styles.muted}>Ready {entry.member.readiness} - Comply {entry.member.compliance}% - Load {entry.member.load}</Text>
+              <View style={styles.reviewTags}>
+                {entry.reasons.slice(0, 4).map((reason) => (
+                  <View key={`${entry.member.id}-${reason.label}`} style={[styles.reviewTag, { borderColor: `${reason.tone}55`, backgroundColor: `${reason.tone}18` }]}>
+                    <Text style={[styles.reviewTagText, { color: reason.tone }]}>{reason.label}</Text>
+                  </View>
+                ))}
+              </View>
+              {entry.latestCompletion?.note ? (
+                <Text style={styles.assignmentHistoryFeedback}>{entry.latestCompletion.note}</Text>
+              ) : null}
             </View>
-            <Text style={[styles.reviewRisk, { color: member.risk === 'High' ? colours.red : colours.amber }]}>{member.risk}</Text>
+            <Text style={[styles.reviewRisk, { color: entry.member.risk === 'High' ? colours.red : entry.member.risk === 'Medium' ? colours.amber : colours.cyan }]}>
+              {entry.pendingAssignments.length ? `${entry.pendingAssignments.length} PEND` : entry.member.risk}
+            </Text>
           </View>
         )) : (
-          <Text style={styles.inviteHelp}>No member is currently flagged for readiness, compliance, pain risk, or excessive load.</Text>
+          <Text style={styles.inviteHelp}>No member is currently flagged for readiness, compliance, pain risk, pending work, hard feedback, or excessive load.</Text>
         )}
       </Card>
 
@@ -1466,6 +1511,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   reviewRisk: { fontSize: 12, fontWeight: '900' },
+  reviewTags: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 },
+  reviewTag: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  reviewTagText: { fontSize: 10, fontWeight: '900' },
   assignmentQuickStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   assignmentQuickText: {
     borderWidth: 1,
