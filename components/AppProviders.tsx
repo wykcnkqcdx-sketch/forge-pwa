@@ -111,6 +111,7 @@ type AppContextType = {
 
   // UI state
   pendingSyncCount: number;
+  pendingInviteToken: string | null;
   pendingMemberInvite: PendingMemberInvite | null;
   setPendingMemberInvite: (invite: PendingMemberInvite | null) => void;
 
@@ -194,8 +195,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [activeMemberId, setActiveMemberId] = useState<string | null>(null);
   const [activeMemberTab, setActiveMemberTab] = useState<MemberTab>('portal');
+  const [pendingInviteToken, setPendingInviteToken] = useState<string | null>(null);
   const [pendingMemberInvite, setPendingMemberInvite] = useState<PendingMemberInvite | null>(null);
   const claimedInviteTokenRef = useRef<string | null>(null);
+  const notifiedInviteTokenRef = useRef<string | null>(null);
 
   // ── Splash animation ──────────────────────────────────────────────────────
   const [typedText, setTypedText] = useState('');
@@ -246,13 +249,20 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     const url = new URL(window.location.href);
     const inviteToken = url.searchParams.get('invite');
     if (inviteToken) {
+      setPendingInviteToken(inviteToken);
       if (claimedInviteTokenRef.current === inviteToken) return;
       if (!isSupabaseConfigured || !supabase) {
-        showToast('Secure invite detected. Configure Supabase to claim it.');
+        if (notifiedInviteTokenRef.current !== inviteToken) {
+          notifiedInviteTokenRef.current = inviteToken;
+          showToast('Secure invite detected. Configure Supabase to claim it.');
+        }
         return;
       }
       if (!cloud.cloudSession?.user) {
-        showToast('Secure invite detected. Sign in to claim it.');
+        if (notifiedInviteTokenRef.current !== inviteToken) {
+          notifiedInviteTokenRef.current = inviteToken;
+          showToast('Secure invite detected. Sign in to claim it.');
+        }
         return;
       }
 
@@ -278,6 +288,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
               email: membership.email ?? undefined,
             });
           }
+          setPendingInviteToken(null);
+          setHasSeenOnboarding(true);
+          url.searchParams.delete('invite');
+          window.history.replaceState({}, document.title, url.toString());
           showToast('Invite accepted. Squad access is active.');
           setActiveTab('squad');
           await cloud.syncCloudNow();
@@ -291,6 +305,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       })();
       return;
     }
+    setPendingInviteToken(null);
     const memberId = url.searchParams.get('member');
     if (memberId) {
       setActiveMemberId(memberId);
@@ -625,6 +640,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
     // UI state
     pendingSyncCount,
+    pendingInviteToken,
     pendingMemberInvite,
     setPendingMemberInvite,
 

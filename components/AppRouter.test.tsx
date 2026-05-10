@@ -41,6 +41,7 @@ const mockUseApp = {
   navigation: { activeTab: 'home', activeMemberId: null, activeMemberTab: 'portal', setActiveTab: vi.fn(), setActiveMemberId: vi.fn(), setActiveMemberTab: vi.fn() },
   actions: { addSession: vi.fn(), deleteSession: vi.fn(), editSession: vi.fn(), addMember: vi.fn(), deleteMember: vi.fn(), updateMember: vi.fn(), addGroup: vi.fn(), addProgrammeTemplate: vi.fn(), deleteProgrammeTemplate: vi.fn(), addReadinessLog: vi.fn(), completeOnboarding: vi.fn(), exportData: vi.fn(), importData: vi.fn() },
   pendingSyncCount: 0,
+  pendingInviteToken: null,
   toast: { toastMessage: '', toastAnim: { interpolate: vi.fn() } },
   cloud: { authReady: true, cloudStatus: 'local', authLoading: false, authError: '', signInWithEmail: vi.fn(), signUpWithEmail: vi.fn(), cloudSession: null, syncCloudNow: vi.fn(), signOutCloud: vi.fn(), exportGoogleSheetsNow: vi.fn(), googleSheetsExporting: false, googleSheetsMessage: '' },
   pin: { isUnlocked: true, pinInput: '', pinError: false, handlePinInput: vi.fn(), pinSetupMode: null, newPinInput: '', confirmPinInput: '', pinSetupError: '', setNewPinInput: vi.fn(), setConfirmPinInput: vi.fn(), savePinSetup: vi.fn(), closePinSetup: vi.fn(), handleSetPin: vi.fn(), handleManualWipe: vi.fn(), resetInactivityTimer: vi.fn() },

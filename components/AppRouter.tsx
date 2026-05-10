@@ -38,7 +38,7 @@ export function AppRouter() {
     actions,
 
     // UI state
-    pendingSyncCount,
+    pendingSyncCount, pendingInviteToken,
 
     // Hooks
     toast, cloud, pin,
@@ -270,6 +270,10 @@ export function AppRouter() {
   // ── Render gates ──────────────────────────────────────────────────────────
   if (!isReady || !cloud.authReady) {
     return <SplashScreen pulseAnim={pulseAnim} typedText={typedText} />;
+  }
+
+  if (isSupabaseConfigured && pendingInviteToken && !cloud.cloudSession) {
+    return <AuthScreen loading={cloud.authLoading} error={cloud.authError} onSignIn={cloud.signInWithEmail} onSignUp={cloud.signUpWithEmail} />;
   }
 
   if (!hasSeenOnboarding) {
