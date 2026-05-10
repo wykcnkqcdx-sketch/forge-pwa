@@ -31,11 +31,33 @@ interface Props {
   group?: TrainingGroup;
   latestCompletion?: WorkoutCompletion;
   latestReadiness?: ReadinessLog;
+  cloudEnabled?: boolean;
   onDelete: (member: SquadMember) => void;
 }
 
-export function SquadMemberCard({ member, group, latestCompletion, latestReadiness, onDelete }: Props) {
+function memberLifecycle(member: SquadMember, cloudEnabled?: boolean) {
+  if (member.cloudMembershipId) {
+    return {
+      label: 'Assignment Target Ready',
+      detail: `Cloud target ${member.cloudMembershipId.slice(0, 8)}...`,
+      tone: colours.green,
+    };
+  }
+  if (!cloudEnabled) {
+    return { label: 'Local Only', detail: 'Cloud targeting unavailable', tone: colours.muted };
+  }
+  if (member.inviteStatus === 'Invited') {
+    return { label: 'Invited', detail: 'Waiting for member claim', tone: colours.amber };
+  }
+  if (member.inviteStatus === 'Joined') {
+    return { label: 'Accepted', detail: 'Sync membership target', tone: colours.cyan };
+  }
+  return { label: 'Manual', detail: 'Create secure invite for cloud assignments', tone: colours.textSoft };
+}
+
+export function SquadMemberCard({ member, group, latestCompletion, latestReadiness, cloudEnabled, onDelete }: Props) {
   const latestTone = latestCompletion ? completionTone(latestCompletion.completionType) : colours.borderSoft;
+  const lifecycle = memberLifecycle(member, cloudEnabled);
 
   return (
     <View style={styles.memberCard}>
@@ -48,10 +70,16 @@ export function SquadMemberCard({ member, group, latestCompletion, latestReadine
       ) : null}
       <View style={styles.headerRow}>
         <View style={styles.memberCopy}>
-          <Text style={styles.memberName}>{member.name}</Text>
+          <View style={styles.memberTitleRow}>
+            <Text style={styles.memberName}>{member.name}</Text>
+            <View style={[styles.lifecycleBadge, { borderColor: statusColors(lifecycle.tone).borderMed, backgroundColor: statusColors(lifecycle.tone).bgMed }]}>
+              <Text style={[styles.lifecycleBadgeText, { color: lifecycle.tone }]}>{lifecycle.label}</Text>
+            </View>
+          </View>
           <Text style={styles.muted}>
             {group?.name ?? 'Unassigned'} - {member.inviteStatus ?? 'Manual'} - Compliance {member.compliance}% - Risk {member.risk}
           </Text>
+          <Text style={[styles.lifecycleDetail, { color: lifecycle.tone }]}>{lifecycle.detail}</Text>
           {member.gymName && <Text style={styles.memberPortalName}>Portal: {member.gymName}{member.ghostMode ? ' - Ghost Mode' : ''}</Text>}
           {member.email && <Text style={styles.memberEmail}>{member.email}</Text>}
           {member.deviceSyncProvider && <Text style={styles.memberDeviceSync}>{member.deviceSyncProvider} - {member.deviceSyncStatus ?? 'Disconnected'}</Text>}
@@ -96,7 +124,11 @@ const styles = StyleSheet.create({
   memberCard: { borderColor: colours.border, borderWidth: 1, borderRadius: 18, padding: responsiveSpacing('md'), backgroundColor: 'rgba(0,0,0,0.18)', marginBottom: responsiveSpacing('sm') },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('md') },
   memberCopy: { flex: 1 },
+  memberTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   memberName: { color: colours.text, fontWeight: '900' },
+  lifecycleBadge: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4 },
+  lifecycleBadgeText: { fontSize: 10, fontWeight: '900' },
+  lifecycleDetail: { ...typography.caption, fontWeight: '800', marginTop: 3 },
   muted: { ...typography.caption, color: colours.muted },
   memberPortalName: { ...typography.caption, color: colours.amber, fontWeight: '800', marginTop: 3 },
   memberEmail: { ...typography.caption, color: colours.cyan, fontWeight: '800', marginTop: 3 },

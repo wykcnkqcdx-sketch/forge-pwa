@@ -255,6 +255,13 @@ export function InstructorScreen({
       source: 'cloud' as const,
     }
     : { ...teamPulse, source: 'local' as const };
+  const lifecycleCounts = useMemo(() => {
+    const targetReady = members.filter((member) => member.cloudMembershipId).length;
+    const invited = members.filter((member) => !member.cloudMembershipId && member.inviteStatus === 'Invited').length;
+    const acceptedNeedsSync = members.filter((member) => !member.cloudMembershipId && member.inviteStatus === 'Joined').length;
+    const manual = members.filter((member) => !member.cloudMembershipId && (!member.inviteStatus || member.inviteStatus === 'Manual')).length;
+    return { targetReady, invited, acceptedNeedsSync, manual };
+  }, [members]);
 
   function createGroup() {
     const trimmedName = newGroupName.trim();
@@ -604,6 +611,32 @@ export function InstructorScreen({
         <Text style={styles.inviteHelp}>
           Backend priority: random invite tokens with expiry and accepted/revoked state, role claim flow, row-level security, and Team Pulse computed from completion rows.
         </Text>
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Member Lifecycle</Text>
+          <Text style={styles.muted}>{lifecycleCounts.targetReady}/{members.length} ready</Text>
+        </View>
+        <View style={styles.lifecycleGrid}>
+          <View style={styles.lifecycleTile}>
+            <Text style={[styles.lifecycleNumber, { color: colours.green }]}>{lifecycleCounts.targetReady}</Text>
+            <Text style={styles.lifecycleLabel}>Target ready</Text>
+          </View>
+          <View style={styles.lifecycleTile}>
+            <Text style={[styles.lifecycleNumber, { color: colours.amber }]}>{lifecycleCounts.invited}</Text>
+            <Text style={styles.lifecycleLabel}>Invited</Text>
+          </View>
+          <View style={styles.lifecycleTile}>
+            <Text style={[styles.lifecycleNumber, { color: colours.cyan }]}>{lifecycleCounts.acceptedNeedsSync}</Text>
+            <Text style={styles.lifecycleLabel}>Accepted</Text>
+          </View>
+          <View style={styles.lifecycleTile}>
+            <Text style={[styles.lifecycleNumber, { color: colours.muted }]}>{lifecycleCounts.manual}</Text>
+            <Text style={styles.lifecycleLabel}>Manual</Text>
+          </View>
+        </View>
+        <Text style={styles.inviteHelp}>Use Sync Now after a member accepts an invite. Once a target is ready, coach assignments can land in that member&apos;s cloud portal.</Text>
       </Card>
 
       <Card>
@@ -1094,6 +1127,7 @@ export function InstructorScreen({
               group={groups.find((g) => g.id === member.groupId)}
               latestCompletion={latestCompletionByMember.get(member.id)}
               latestReadiness={latestReadinessByMember.get(member.id)}
+              cloudEnabled={cloudEnabled}
               onDelete={confirmDeleteMember}
             />
           )}
@@ -1140,6 +1174,18 @@ const styles = StyleSheet.create({
   pulseStatRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', gap: 8, marginTop: 10 },
   pulseStat: { color: colours.muted, fontSize: 11, fontWeight: '900' },
   pulseSource: { color: colours.cyan, fontSize: 11, fontWeight: '900', marginTop: 8 },
+  lifecycleGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  lifecycleTile: {
+    flex: 1,
+    minWidth: 120,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 12,
+  },
+  lifecycleNumber: { fontSize: 26, lineHeight: 30, fontWeight: '900' },
+  lifecycleLabel: { color: colours.textSoft, fontSize: 11, fontWeight: '900', marginTop: 4 },
   reviewRow: {
     minHeight: 56,
     flexDirection: 'row',
