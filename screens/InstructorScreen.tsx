@@ -14,6 +14,7 @@ import { supabase } from '../lib/supabase';
 import type { CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
+import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
@@ -374,12 +375,14 @@ export function InstructorScreen({
       targetNames: string[];
       targetCount: number;
       cloudReadyCount: number;
+      localOnlyCount?: number;
       completedCount: number;
       exerciseCount: number;
       effortCounts?: AssignmentDeployment['effortCounts'];
       latestFeedback?: AssignmentDeployment['latestFeedback'];
       targetMemberIds?: string[];
       completedMemberIds?: string[];
+      deliveryRows?: ReturnType<typeof buildAssignmentDeliveryRows>['rows'];
     }>();
 
     members.forEach((member) => {
@@ -402,11 +405,24 @@ export function InstructorScreen({
         && new Date(completion.completedAt).getTime() >= new Date(session.assignedAt).getTime()
       ));
 
+      existing.targetMemberIds = [...(existing.targetMemberIds ?? []), member.id];
+      existing.completedMemberIds = completed ? [...(existing.completedMemberIds ?? []), member.id] : existing.completedMemberIds;
       existing.targetNames.push(member.gymName || member.name);
       existing.targetCount += 1;
       existing.cloudReadyCount += member.cloudMembershipId ? 1 : 0;
+      existing.localOnlyCount = existing.targetCount - existing.cloudReadyCount;
       existing.completedCount += completed ? 1 : 0;
       existing.exerciseCount = Math.max(existing.exerciseCount, session.exercises.length);
+      existing.deliveryRows = buildAssignmentDeliveryRows({
+        assignmentTitle: existing.title,
+        assignedAt: existing.assignedAt,
+        targetMemberIds: existing.targetMemberIds,
+        targetNames: existing.targetNames,
+        cloudReadyMemberIds: members.filter((item) => item.cloudMembershipId).map((item) => item.id),
+        completedMemberIds: existing.completedMemberIds,
+        members,
+        workoutCompletions,
+      }).rows;
       grouped.set(key, existing);
     });
 
@@ -423,6 +439,17 @@ export function InstructorScreen({
           && new Date(completion.completedAt).getTime() >= new Date(deployment.assignedAt).getTime()
         ))).length;
 
+      const delivery = buildAssignmentDeliveryRows({
+        assignmentTitle: deployment.title,
+        assignedAt: deployment.assignedAt,
+        targetMemberIds: deployment.targetMemberIds,
+        targetNames: deployment.targetNames,
+        cloudReadyMemberIds: deployment.cloudReadyMemberIds,
+        completedMemberIds: deployment.completedMemberIds,
+        members,
+        workoutCompletions,
+      });
+
       return {
         key: deployment.id,
         title: deployment.title,
@@ -430,36 +457,23 @@ export function InstructorScreen({
         targetMemberIds: deployment.targetMemberIds,
         targetNames: deployment.targetNames,
         targetCount: deployment.targetMemberIds.length,
-        cloudReadyCount: deployment.cloudReadyMemberIds.length,
+        cloudReadyCount: delivery.cloudDeliveredCount,
+        localOnlyCount: delivery.localOnlyCount,
         completedCount,
         exerciseCount: deployment.exerciseCount,
         effortCounts: deployment.effortCounts,
         latestFeedback: deployment.latestFeedback,
         completedMemberIds: deployment.completedMemberIds,
+        deliveryRows: delivery.rows,
       };
     });
-  }, [assignmentDeployments, fallbackAssignmentHistory, workoutCompletions]);
+  }, [assignmentDeployments, fallbackAssignmentHistory, members, workoutCompletions]);
   const selectedDeployment = assignmentHistory.find((assignment) => assignment.key === selectedDeploymentKey) ?? null;
   const selectedDeploymentTargets = useMemo(() => {
     if (!selectedDeployment) return [];
-    return selectedDeployment.targetNames.map((name, index) => {
-      const memberId = selectedDeployment.targetMemberIds?.[index];
-      const completion = workoutCompletions.find((item) => (
-        item.memberId === memberId
-        && item.assignment === selectedDeployment.title
-        && new Date(item.completedAt).getTime() >= new Date(selectedDeployment.assignedAt).getTime()
-      ));
-      const cloudCompleted = selectedDeployment.completedMemberIds?.includes(memberId ?? '');
-      return {
-        key: memberId ?? `${selectedDeployment.key}-${index}`,
-        name,
-        status: completion || cloudCompleted ? 'Completed' : 'Pending',
-        effort: completion?.effort,
-        note: completion?.note,
-        completedAt: completion?.completedAt,
-      };
-    });
-  }, [selectedDeployment, workoutCompletions]);
+    return selectedDeployment.deliveryRows ?? [];
+  }, [selectedDeployment]);
+  const deliveryToneColor = (tone: string) => tone === 'success' ? colours.green : colours.amber;
 
   function createGroup() {
     const trimmedName = newGroupName.trim();
@@ -916,7 +930,10 @@ export function InstructorScreen({
                 <View style={styles.memberCopy}>
                   <Text style={styles.memberName}>{assignment.title}</Text>
                   <Text style={styles.muted}>
-                    {assignment.targetCount} target{assignment.targetCount === 1 ? '' : 's'} - {assignment.exerciseCount} exercises - {assignment.cloudReadyCount} cloud-ready
+                    {assignment.targetCount} target{assignment.targetCount === 1 ? '' : 's'} - {assignment.exerciseCount} exercises - {assignment.cloudReadyCount} cloud delivered - {assignment.localOnlyCount ?? Math.max(0, assignment.targetCount - assignment.cloudReadyCount)} local only
+                  </Text>
+                  <Text style={styles.assignmentHistoryTargets}>
+                    Completed {assignment.completedCount} / Pending {Math.max(0, assignment.targetCount - assignment.completedCount)}
                   </Text>
                   <Text style={styles.assignmentHistoryTargets}>
                     {assignment.targetNames.slice(0, 4).join(', ')}{assignment.targetNames.length > 4 ? ` +${assignment.targetNames.length - 4}` : ''}
@@ -946,15 +963,20 @@ export function InstructorScreen({
                       <View style={styles.memberCopy}>
                         <Text style={styles.memberName}>{target.name}</Text>
                         <Text style={styles.muted}>
-                          {target.status}{target.effort ? ` - ${target.effort}` : ''}
+                          {target.deliveryLabel} - {target.completionLabel}{target.effort ? ` - ${target.effort}` : ''}
                         </Text>
                         {target.note ? (
                           <Text style={styles.assignmentHistoryFeedback}>{target.note}</Text>
                         ) : null}
                       </View>
-                      <Text style={[styles.deploymentStatus, { color: target.status === 'Completed' ? colours.green : colours.amber }]}>
-                        {target.status}
-                      </Text>
+                      <View style={styles.deploymentStatusStack}>
+                        <Text style={[styles.deploymentStatus, { color: deliveryToneColor(target.deliveryToneKey) }]}>
+                          {target.deliveryLabel}
+                        </Text>
+                        <Text style={[styles.deploymentStatus, { color: deliveryToneColor(target.completionToneKey) }]}>
+                          {target.completionLabel}
+                        </Text>
+                      </View>
                     </View>
                   ))}
                 </View>
@@ -1553,6 +1575,9 @@ export function InstructorScreen({
                     ? selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'
                     : 'Whole squad'} / {assignmentLabel} / {activeAssignmentExerciseIds.length} exercises / {assignmentTargets.length} targets
               </Text>
+              <Text style={styles.assignmentSummaryMeta}>
+                This will sync to {assignmentTargets.filter((target) => target.cloudMembershipId).length} member portal{assignmentTargets.filter((target) => target.cloudMembershipId).length === 1 ? '' : 's'}; {assignmentTargets.filter((target) => !target.cloudMembershipId).length} need invite or sync.
+              </Text>
               <Text style={[styles.assignmentSummaryMeta, { color: selectedTargetState.tone }]}>{selectedTargetState.label}</Text>
             </View>
 
@@ -1750,6 +1775,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   deploymentStatus: { fontSize: 11, fontWeight: '900' },
+  deploymentStatusStack: { alignItems: 'flex-end', gap: 3 },
   cloudActions: {
     flexDirection: 'row',
     alignItems: 'center',
