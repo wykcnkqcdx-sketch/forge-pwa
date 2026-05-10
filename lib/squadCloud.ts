@@ -324,6 +324,9 @@ export async function syncSquadWorkoutCompletion(squadId: string, userId: string
   const assignmentId = completion.assignmentId && uuidPattern.test(completion.assignmentId)
     ? completion.assignmentId
     : null;
+  const membershipId = completion.membershipId && uuidPattern.test(completion.membershipId)
+    ? completion.membershipId
+    : null;
 
   const upserted = await client
     .from('workout_completions')
@@ -335,7 +338,7 @@ export async function syncSquadWorkoutCompletion(squadId: string, userId: string
       group_id: completion.groupId,
       squad_id: squadId,
       assignment_id: assignmentId,
-      membership_id: null,
+      membership_id: membershipId,
       completion_type: completion.completionType,
       session_kind: completion.sessionKind,
       assignment: completion.assignment,
@@ -351,7 +354,7 @@ export async function syncSquadWorkoutCompletion(squadId: string, userId: string
 
   const activity = await client
     .from('team_activity')
-    .insert(toRemoteTeamActivity(squadId, completion));
+    .insert(toRemoteTeamActivity(squadId, completion, membershipId));
   if (activity.error) throw activity.error;
 }
 
