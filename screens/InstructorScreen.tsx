@@ -109,11 +109,20 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
 }
 
 type AssignmentScope = 'member' | 'group' | 'squad';
+type CloudInviteFilter = 'all' | CloudInvite['status'];
 
 function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
   if (invite.status === 'pending' && new Date(invite.expiresAt).getTime() <= Date.now()) return 'expired';
   return invite.status;
 }
+
+const cloudInviteFilters: Array<{ key: CloudInviteFilter; label: string }> = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'expired', label: 'Expired' },
+  { key: 'revoked', label: 'Revoked' },
+  { key: 'accepted', label: 'Accepted' },
+];
 
 function assignmentScopeState(targets: SquadMember[], scope: AssignmentScope, cloudEnabled: boolean) {
   if (scope === 'member') return assignmentTargetState(targets[0] ?? null, cloudEnabled);
@@ -227,6 +236,8 @@ export function InstructorScreen({
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
   const [selectedDeploymentKey, setSelectedDeploymentKey] = useState<string | null>(null);
   const [selectedReviewMemberId, setSelectedReviewMemberId] = useState<string | null>(null);
+  const [cloudInviteFilter, setCloudInviteFilter] = useState<CloudInviteFilter>('all');
+  const [cloudInviteLimit, setCloudInviteLimit] = useState(5);
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -384,6 +395,10 @@ export function InstructorScreen({
     expired: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'expired').length,
     revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
   }), [cloudInvites]);
+  const filteredCloudInvites = useMemo(() => cloudInvites.filter((invite) => (
+    cloudInviteFilter === 'all' || cloudInviteDisplayStatus(invite) === cloudInviteFilter
+  )), [cloudInviteFilter, cloudInvites]);
+  const visibleCloudInvites = filteredCloudInvites.slice(0, cloudInviteLimit);
   const fallbackAssignmentHistory = useMemo(() => {
     const grouped = new Map<string, {
       key: string;
@@ -1156,7 +1171,20 @@ export function InstructorScreen({
         </View>
         {cloudInvites.length ? (
           <View style={styles.inviteCloudList}>
-            {cloudInvites.slice(0, 3).map((invite) => {
+            <View style={styles.inviteFilterRow}>
+              {cloudInviteFilters.map((filter) => {
+                const active = cloudInviteFilter === filter.key;
+                return (
+                  <Pressable key={filter.key} style={[styles.inviteFilterButton, active && styles.inviteFilterButtonActive]} onPress={() => {
+                    setCloudInviteFilter(filter.key);
+                    setCloudInviteLimit(5);
+                  }}>
+                    <Text style={[styles.inviteFilterText, active && styles.inviteFilterTextActive]}>{filter.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {visibleCloudInvites.length ? visibleCloudInvites.map((invite) => {
               const displayStatus = cloudInviteDisplayStatus(invite);
               return (
                 <View key={invite.id} style={styles.inviteCloudRow}>
@@ -1177,7 +1205,14 @@ export function InstructorScreen({
                   )}
                 </View>
               );
-            })}
+            }) : (
+              <Text style={styles.inviteOpsEmpty}>No cloud invites match this filter.</Text>
+            )}
+            {filteredCloudInvites.length > visibleCloudInvites.length ? (
+              <Pressable style={styles.inviteMoreButton} onPress={() => setCloudInviteLimit((limit) => limit + 5)}>
+                <Text style={styles.inviteOpsButtonText}>Show {Math.min(5, filteredCloudInvites.length - visibleCloudInvites.length)} more</Text>
+              </Pressable>
+            ) : null}
           </View>
         ) : (
           <Text style={styles.inviteOpsEmpty}>No cloud invite rows loaded yet.</Text>
@@ -1861,6 +1896,20 @@ const styles = StyleSheet.create({
   inviteCloudValue: { fontSize: 22, lineHeight: 26, fontWeight: '900' },
   inviteCloudLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 3 },
   inviteCloudList: { gap: 6, marginBottom: 10 },
+  inviteFilterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+  inviteFilterButton: {
+    minHeight: 32,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  inviteFilterButtonActive: { borderColor: colours.cyan, backgroundColor: colours.cyanDim },
+  inviteFilterText: { color: colours.textSoft, fontSize: 11, fontWeight: '900' },
+  inviteFilterTextActive: { color: colours.cyan },
   inviteCloudRow: {
     minHeight: 42,
     flexDirection: 'row',
@@ -1873,6 +1922,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     backgroundColor: 'rgba(0,0,0,0.14)',
+  },
+  inviteMoreButton: {
+    minHeight: 36,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.03)',
   },
   inviteOpsRow: {
     minHeight: 42,
