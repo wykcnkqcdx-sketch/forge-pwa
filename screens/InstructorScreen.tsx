@@ -184,6 +184,7 @@ export function InstructorScreen({
   const [assignmentNote, setAssignmentNote] = useState('');
   const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
+  const [selectedDeploymentKey, setSelectedDeploymentKey] = useState<string | null>(null);
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -313,6 +314,8 @@ export function InstructorScreen({
       exerciseCount: number;
       effortCounts?: AssignmentDeployment['effortCounts'];
       latestFeedback?: AssignmentDeployment['latestFeedback'];
+      targetMemberIds?: string[];
+      completedMemberIds?: string[];
     }>();
 
     members.forEach((member) => {
@@ -360,6 +363,7 @@ export function InstructorScreen({
         key: deployment.id,
         title: deployment.title,
         assignedAt: deployment.assignedAt,
+        targetMemberIds: deployment.targetMemberIds,
         targetNames: deployment.targetNames,
         targetCount: deployment.targetMemberIds.length,
         cloudReadyCount: deployment.cloudReadyMemberIds.length,
@@ -367,9 +371,31 @@ export function InstructorScreen({
         exerciseCount: deployment.exerciseCount,
         effortCounts: deployment.effortCounts,
         latestFeedback: deployment.latestFeedback,
+        completedMemberIds: deployment.completedMemberIds,
       };
     });
   }, [assignmentDeployments, fallbackAssignmentHistory, workoutCompletions]);
+  const selectedDeployment = assignmentHistory.find((assignment) => assignment.key === selectedDeploymentKey) ?? null;
+  const selectedDeploymentTargets = useMemo(() => {
+    if (!selectedDeployment) return [];
+    return selectedDeployment.targetNames.map((name, index) => {
+      const memberId = selectedDeployment.targetMemberIds?.[index];
+      const completion = workoutCompletions.find((item) => (
+        item.memberId === memberId
+        && item.assignment === selectedDeployment.title
+        && new Date(item.completedAt).getTime() >= new Date(selectedDeployment.assignedAt).getTime()
+      ));
+      const cloudCompleted = selectedDeployment.completedMemberIds?.includes(memberId ?? '');
+      return {
+        key: memberId ?? `${selectedDeployment.key}-${index}`,
+        name,
+        status: completion || cloudCompleted ? 'Completed' : 'Pending',
+        effort: completion?.effort,
+        note: completion?.note,
+        completedAt: completion?.completedAt,
+      };
+    });
+  }, [selectedDeployment, workoutCompletions]);
 
   function createGroup() {
     const trimmedName = newGroupName.trim();
@@ -718,32 +744,57 @@ export function InstructorScreen({
             ? Math.round((assignment.completedCount / assignment.targetCount) * 100)
             : 0;
           return (
-            <View key={assignment.key} style={styles.assignmentHistoryRow}>
-              <View style={styles.memberCopy}>
-                <Text style={styles.memberName}>{assignment.title}</Text>
-                <Text style={styles.muted}>
-                  {assignment.targetCount} target{assignment.targetCount === 1 ? '' : 's'} - {assignment.exerciseCount} exercises - {assignment.cloudReadyCount} cloud-ready
-                </Text>
-                <Text style={styles.assignmentHistoryTargets}>
-                  {assignment.targetNames.slice(0, 4).join(', ')}{assignment.targetNames.length > 4 ? ` +${assignment.targetNames.length - 4}` : ''}
-                </Text>
-                {assignment.effortCounts ? (
+            <View key={assignment.key}>
+              <Pressable
+                style={styles.assignmentHistoryRow}
+                onPress={() => setSelectedDeploymentKey((current) => current === assignment.key ? null : assignment.key)}
+              >
+                <View style={styles.memberCopy}>
+                  <Text style={styles.memberName}>{assignment.title}</Text>
+                  <Text style={styles.muted}>
+                    {assignment.targetCount} target{assignment.targetCount === 1 ? '' : 's'} - {assignment.exerciseCount} exercises - {assignment.cloudReadyCount} cloud-ready
+                  </Text>
                   <Text style={styles.assignmentHistoryTargets}>
-                    Easy {assignment.effortCounts.tooEasy} / Right {assignment.effortCounts.aboutRight} / Hard {assignment.effortCounts.tooHard}
+                    {assignment.targetNames.slice(0, 4).join(', ')}{assignment.targetNames.length > 4 ? ` +${assignment.targetNames.length - 4}` : ''}
                   </Text>
-                ) : null}
-                {assignment.latestFeedback ? (
-                  <Text style={styles.assignmentHistoryFeedback}>
-                    {assignment.latestFeedback.memberName}: {assignment.latestFeedback.note || assignment.latestFeedback.effort}
+                  {assignment.effortCounts ? (
+                    <Text style={styles.assignmentHistoryTargets}>
+                      Easy {assignment.effortCounts.tooEasy} / Right {assignment.effortCounts.aboutRight} / Hard {assignment.effortCounts.tooHard}
+                    </Text>
+                  ) : null}
+                  {assignment.latestFeedback ? (
+                    <Text style={styles.assignmentHistoryFeedback}>
+                      {assignment.latestFeedback.memberName}: {assignment.latestFeedback.note || assignment.latestFeedback.effort}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={styles.assignmentHistoryScore}>
+                  <Text style={[styles.assignmentHistoryPercent, { color: completionPercent >= 75 ? colours.green : completionPercent >= 40 ? colours.amber : colours.red }]}>
+                    {completionPercent}%
                   </Text>
-                ) : null}
-              </View>
-              <View style={styles.assignmentHistoryScore}>
-                <Text style={[styles.assignmentHistoryPercent, { color: completionPercent >= 75 ? colours.green : completionPercent >= 40 ? colours.amber : colours.red }]}>
-                  {completionPercent}%
-                </Text>
-                <Text style={styles.scoreMeta}>DONE</Text>
-              </View>
+                  <Text style={styles.scoreMeta}>DONE</Text>
+                </View>
+              </Pressable>
+              {selectedDeploymentKey === assignment.key ? (
+                <View style={styles.deploymentDetailPanel}>
+                  {selectedDeploymentTargets.map((target) => (
+                    <View key={target.key} style={styles.deploymentTargetRow}>
+                      <View style={styles.memberCopy}>
+                        <Text style={styles.memberName}>{target.name}</Text>
+                        <Text style={styles.muted}>
+                          {target.status}{target.effort ? ` - ${target.effort}` : ''}
+                        </Text>
+                        {target.note ? (
+                          <Text style={styles.assignmentHistoryFeedback}>{target.note}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.deploymentStatus, { color: target.status === 'Completed' ? colours.green : colours.amber }]}>
+                        {target.status}
+                      </Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           );
         }) : (
@@ -1441,6 +1492,26 @@ const styles = StyleSheet.create({
   assignmentHistoryFeedback: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
   assignmentHistoryScore: { alignItems: 'flex-end' },
   assignmentHistoryPercent: { fontSize: 24, lineHeight: 28, fontWeight: '900' },
+  deploymentDetailPanel: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 10,
+  },
+  deploymentTargetRow: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    paddingVertical: 8,
+  },
+  deploymentStatus: { fontSize: 11, fontWeight: '900' },
   cloudActions: {
     flexDirection: 'row',
     alignItems: 'center',
