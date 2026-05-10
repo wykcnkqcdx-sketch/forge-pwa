@@ -20,7 +20,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 3. Done: hydrate accepted memberships into the member portal from cloud assignments.
 4. Done: link local coach members to accepted `cloudMembershipId` records during Sync Now.
 5. Done: write member workout completions with `squad_id`, `assignment_id`, and `membership_id`.
-6. Enforce Ghost Mode in cloud team activity display.
+6. Done: enforce Ghost Mode in cloud team activity display.
 7. Add focused tests for invite token helpers, membership hydration, and completion sync mapping.
 
 ## Latest Slice
@@ -32,6 +32,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Invite URLs now hold a pending token, show auth before first-run onboarding when signed out, clear the token after claim, and mark onboarding complete for accepted members.
 - Accepted invites now immediately fetch cloud member assignments and upsert the hydrated member into local state, with a no-assignment fallback if assignment sync is delayed.
 - Coach sync now reconciles active member-role memberships back to local roster rows by email, id, gym name, or display name while ignoring coach/owner memberships.
+- Ghost Mode now anonymizes cloud `team_activity` rows while preserving completion rows for coach review and aggregate Team Pulse.
 
 ## Verification
 

@@ -455,7 +455,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     setAssignmentDeployments((current) => current.map((deployment) => updateDeploymentCompletion(deployment, stamped)));
     enqueueCloudMutation({ type: 'upsert_workout_completion', payload: stamped });
     if (cloud.cloudSquadId && cloud.cloudSession?.user.id) {
-      syncSquadWorkoutCompletion(cloud.cloudSquadId, cloud.cloudSession.user.id, stamped)
+      const completionMember = members.find((member) => member.id === stamped.memberId);
+      syncSquadWorkoutCompletion(cloud.cloudSquadId, cloud.cloudSession.user.id, stamped, {
+        ghostMode: completionMember?.ghostMode ?? false,
+      })
         .catch((error) => console.error('Failed to sync squad workout completion', error));
     }
   }

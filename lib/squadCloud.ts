@@ -198,18 +198,21 @@ export function toRemoteTeamActivity(
   squadId: string,
   completion: WorkoutCompletion,
   actorMembershipId?: string | null,
+  options: { ghostMode?: boolean } = {},
 ): Omit<RemoteTeamActivityRow, 'id' | 'created_at'> {
+  const actorName = options.ghostMode ? 'A teammate' : completion.memberName;
   return {
     squad_id: squadId,
     actor_membership_id: actorMembershipId ?? null,
     activity_type: 'workout_completed',
-    title: `${completion.memberName} completed ${completion.assignment}`,
-    body: completion.note ?? null,
+    title: `${actorName} completed ${completion.assignment}`,
+    body: options.ghostMode ? null : completion.note ?? null,
     metadata: {
       completionId: completion.id,
       effort: completion.effort,
       durationMinutes: completion.durationMinutes,
       volume: completion.volume,
+      ghostMode: options.ghostMode ?? false,
     },
   };
 }
@@ -319,7 +322,12 @@ export async function syncSquadAssignment(squadId: string, assignedBy: string, m
   }
 }
 
-export async function syncSquadWorkoutCompletion(squadId: string, userId: string, completion: WorkoutCompletion) {
+export async function syncSquadWorkoutCompletion(
+  squadId: string,
+  userId: string,
+  completion: WorkoutCompletion,
+  options: { ghostMode?: boolean } = {},
+) {
   const client = ensureSupabase();
   const assignmentId = completion.assignmentId && uuidPattern.test(completion.assignmentId)
     ? completion.assignmentId
@@ -354,7 +362,7 @@ export async function syncSquadWorkoutCompletion(squadId: string, userId: string
 
   const activity = await client
     .from('team_activity')
-    .insert(toRemoteTeamActivity(squadId, completion, membershipId));
+    .insert(toRemoteTeamActivity(squadId, completion, membershipId, options));
   if (activity.error) throw activity.error;
 }
 
