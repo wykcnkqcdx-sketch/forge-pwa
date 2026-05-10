@@ -78,7 +78,7 @@ This repository is a working prototype with:
 - Local backup export/import.
 - PIN lock and wipe support.
 
-It is not yet a production multi-tenant coaching platform. The UI and local data flows are in place, but the backend needs a richer squad/invite/role schema before real team deployment across separate devices is secure and seamless.
+It is not yet a production multi-tenant coaching platform. The UI and local data flows are in place, and the Supabase schema now includes the first squad/invite/role foundation. The next phase is wiring invite-token claiming and cloud membership hydration all the way through the member portal.
 
 ## Main Experiences
 
@@ -1170,21 +1170,32 @@ type TrainingMode = {
 
 ### Invite System
 
-Current invite links are not secure production invite tokens yet.
+The app now has secure invite-token helpers and Supabase RPCs for storing token hashes and claiming invites.
 
-They currently use:
+Current supported routes:
 
 ```text
 ?member=<member-id>
+?invite=<raw-token>
 ```
 
-This is fine for prototype routing, but production needs:
+`?member=` remains the local prototype route. `?invite=` is the production-direction route, but the app still needs the full client-side claim path that sends unsigned users to auth, calls `claim_member_invite`, and hydrates the accepted membership into the member portal.
+
+Implemented foundation:
 
 - random invite tokens
+- hashed token storage
 - expiration
-- accepted/revoked state
-- role assignment
-- backend claim flow
+- accepted/revoked/expired state
+- coach/member role assignment
+- backend claim function
+
+Next wiring:
+
+- URL invite claim handling in the app shell
+- sign-in before claim
+- cloud assignment hydration after claim
+- local coach member linking after invite acceptance
 
 ### Email Sending
 
@@ -1199,19 +1210,27 @@ It does not:
 
 ### Multi-Device Team Sharing
 
-The UI is ready for team sharing, but the backend is not complete.
+The UI is ready for team sharing, and the first squad-level Supabase schema exists.
 
-Current Supabase sync is owner-private. A real team deployment needs a squad-level schema where:
+Current status:
 
-- coaches own squads
-- members belong to squads
-- assignments are shared
-- completions are member-owned
-- aggregate progress can be read by squad members
+- coaches can own squads
+- users can belong to squads through memberships
+- invites can create member memberships
+- assignments and assignment exercises have squad/member targets
+- completions can be associated with squads and assignments
+- Team Pulse can be computed from cloud completion rows
+
+Remaining work:
+
+- client-side invite claim flow
+- membership-to-local-member reconciliation
+- member-owned completion writes with `membership_id`
+- polished cloud activity feed with privacy enforcement
 
 ### Role Pinning
 
-The app does not yet pin roles into Supabase auth metadata.
+Roles now exist on `squad_memberships`, but the app does not yet pin roles into Supabase auth metadata.
 
 Production should ensure:
 
@@ -1243,9 +1262,9 @@ Production should compute weekly team progress from completion rows.
 
 ## Recommended Backend Roadmap
 
-### Tables
+### Current Foundation
 
-Recommended next tables:
+The schema already includes:
 
 ```sql
 squads
@@ -1257,6 +1276,23 @@ workout_completions
 team_activity
 member_privacy_settings
 ```
+
+The active next phase is no longer table discovery. It is client integration: claim invite tokens, reconcile memberships, deliver assignments to the member portal, and write completions back as squad-scoped rows.
+
+### Next Phase Checklist
+
+- Parse `?invite=<token>` in `App.tsx`.
+- If the user is signed out, persist the invite token and show `AuthScreen`.
+- After sign-in, call `claim_member_invite`.
+- Fetch memberships and assignments through `fetchCloudMemberAssignments`.
+- Attach accepted cloud memberships back to coach-side local members when the coach syncs.
+- Include `membership_id` when writing workout completions.
+- Apply Ghost Mode when rendering `team_activity` for other members.
+- Add tests for invite token hashing, claimable state, membership hydration, and completion row mapping.
+
+### Tables
+
+Existing table intent:
 
 ### squads
 
@@ -1550,13 +1586,13 @@ http://127.0.0.1:8080
 
 Near-term focus:
 
-1. Real invite-token flow.
-2. Member role pinning.
-3. Squad-scoped Supabase schema.
-4. Assignment/completion tables.
-5. Coach view of member notes and completion history.
-6. Team Pulse from backend aggregates.
-7. Safer Ghost Mode enforcement.
+1. Client-side invite-token claim flow.
+2. Sign-in handoff for pending invites.
+3. Cloud membership hydration in the member portal.
+4. Coach-side reconciliation of local members to accepted cloud memberships.
+5. Member-owned completion writes with squad, assignment, and membership IDs.
+6. Team activity privacy enforcement for Ghost Mode.
+7. Focused tests around invite and squad-cloud utilities.
 
 Longer-term ideas:
 
@@ -1585,7 +1621,7 @@ FORGE is a tactical fitness PWA prototype that already covers:
 - local backup
 - optional cloud sync
 
-The current architecture is intentionally simple and local-first. The next major leap is backend identity: real squads, invite tokens, role-pinned member accounts, and row-level security that makes the coach/member boundary real beyond the UI.
+The current architecture is intentionally local-first, with a new cloud squad foundation beside it. The next major leap is client-side onboarding: turn invite URLs into claimed memberships, hydrate assigned work from Supabase, and write member completions back into the squad timeline.
 
 The product loop to protect is:
 

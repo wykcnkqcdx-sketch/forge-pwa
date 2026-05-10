@@ -990,7 +990,7 @@ export function InstructorScreen({
       <Card>
         <Text style={styles.cardTitle}>Product Focus</Text>
         <Text style={styles.cloudCopy}>
-          FORGE is now organised around ruck readiness, training completion, squad accountability, and field utility.
+          FORGE is moving from local squad tracking into cloud member onboarding and assignment delivery.
         </Text>
         <View style={styles.schemaGrid}>
           {['squads', 'squad_memberships', 'member_invites', 'assignments', 'assignment_exercises', 'workout_completions', 'team_activity', 'member_privacy_settings'].map((table) => (
@@ -1000,7 +1000,7 @@ export function InstructorScreen({
           ))}
         </View>
         <Text style={styles.inviteHelp}>
-          Backend priority: random invite tokens with expiry and accepted/revoked state, role claim flow, row-level security, and Team Pulse computed from completion rows.
+          Next phase: claim invite links in-app, hydrate accepted memberships from Supabase, write member completions with squad context, and enforce Ghost Mode in team activity.
         </Text>
       </Card>
 
