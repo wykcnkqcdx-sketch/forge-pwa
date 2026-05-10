@@ -54,6 +54,18 @@ const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
 const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
 const assignmentCategories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const coachNudgeTemplates = {
+  recovery: {
+    label: 'Recovery Walk',
+    note: 'Recovery priority today: easy walk only, nasal-breathing pace, stop if pain climbs. Log how it felt.',
+    exerciseIds: ['zone-2-run', 'mobility-reset', 'calf-ankle-rock'],
+  },
+  mobility: {
+    label: 'Mobility Reset',
+    note: 'Mobility priority today: move slowly, avoid painful range, and note any area that still feels restricted.',
+    exerciseIds: ['mobility-reset', 'hip-airplane', 'thoracic-rotation', 'calf-ankle-rock'],
+  },
+} as const;
 
 function createUuid() {
   if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
@@ -64,6 +76,17 @@ function createUuid() {
     const nibble = char === 'x' ? value : (value & 0x3) | 0x8;
     return nibble.toString(16);
   });
+}
+
+function inferAssignmentType(title: string): TrainingSession['type'] {
+  const normalized = title.toLowerCase();
+  if (normalized.includes('ruck')) return 'Ruck';
+  if (normalized.includes('run')) return 'Run';
+  if (normalized.includes('cardio')) return 'Cardio';
+  if (normalized.includes('strength')) return 'Strength';
+  if (normalized.includes('resistance')) return 'Resistance';
+  if (normalized.includes('mobility') || normalized.includes('recovery')) return 'Mobility';
+  return 'Workout';
 }
 
 function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean) {
@@ -133,6 +156,13 @@ export function buildAssignedExerciseBlock(
     },
     status: 'assigned',
   };
+}
+
+function buildExerciseBlocksFromIds(exerciseIds: string[]) {
+  return exerciseIds
+    .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
+    .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
+    .map((exercise, index) => buildAssignedExerciseBlock(exercise, index === 0));
 }
 
 export function InstructorScreen({
@@ -591,11 +621,28 @@ export function InstructorScreen({
 
   function handleAssignmentTemplateChange(nextLabel: string) {
     setAssignmentLabel(nextLabel);
+    const nudge = Object.values(coachNudgeTemplates).find((template) => template.label === nextLabel);
+    if (nudge) {
+      setAssignmentNote(nudge.note);
+      setStagedAssignmentExercises(buildExerciseBlocksFromIds([...nudge.exerciseIds]));
+      return;
+    }
     const mode = trainingModes.find((item) => item.title === nextLabel);
     setStagedAssignmentExercises(mode?.defaultExerciseIds
       .map((id) => exerciseLibrary.find((exercise) => exercise.id === id))
       .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
       .map((exercise) => buildAssignedExerciseBlock(exercise, mode.coachPinnedExerciseIds?.includes(exercise.id) ?? false)) ?? []);
+  }
+
+  function loadCoachNudge(kind: keyof typeof coachNudgeTemplates, memberId: string) {
+    const template = coachNudgeTemplates[kind];
+    setAssignmentScope('member');
+    setAssignmentMemberId(memberId);
+    setAssignmentLabel(template.label);
+    setAssignmentNote(template.note);
+    setStagedAssignmentExercises(buildExerciseBlocksFromIds([...template.exerciseIds]));
+    setAssignmentFeedback(`${template.label} nudge loaded. Review and assign when ready.`);
+    setAssignmentOpen(true);
   }
 
   function toggleAssignmentExercise(exerciseId: string) {
@@ -641,6 +688,7 @@ export function InstructorScreen({
     }
 
     const assignmentMode = selectedAssignmentMode;
+    const assignmentType = assignmentMode?.type ?? inferAssignmentType(assignmentLabel);
     const chosenExerciseIds = activeAssignmentExerciseIds;
     const chosenExercises = activeAssignmentExercises;
 
@@ -658,7 +706,7 @@ export function InstructorScreen({
         assignmentSession: {
           id: createUuid(),
           title: assignmentLabel,
-          type: assignmentMode?.type ?? 'Workout',
+          type: assignmentType,
           status: 'assigned',
           assignedAt: new Date().toISOString(),
           coachNote: assignmentNote.trim() || undefined,
