@@ -45,6 +45,17 @@ function scoreTone(value: number) {
   return colours.red;
 }
 
+function inferAssignmentType(title?: string): TrainingSession['type'] {
+  const normalized = title?.toLowerCase() ?? '';
+  if (normalized.includes('ruck')) return 'Ruck';
+  if (normalized.includes('run')) return 'Run';
+  if (normalized.includes('cardio')) return 'Cardio';
+  if (normalized.includes('strength')) return 'Strength';
+  if (normalized.includes('resistance')) return 'Resistance';
+  if (normalized.includes('mobility') || normalized.includes('recovery')) return 'Mobility';
+  return 'Workout';
+}
+
 function formatActivityTime(value?: string) {
   if (!value) return 'This week';
   const date = new Date(value);
@@ -80,6 +91,22 @@ export function MemberScreen({
   const displayName = member?.gymName || member?.name || 'Athlete';
   const assignmentSession = member?.assignmentSession;
   const assignmentMode = trainingModes.find((mode) => mode.title === member?.assignment);
+  const assignmentTitle = assignmentSession?.title ?? member?.assignment ?? 'No active assignment';
+  const assignmentType = assignmentSession?.type ?? assignmentMode?.type ?? inferAssignmentType(assignmentTitle);
+  const isRecoveryPriority = assignmentType === 'Mobility' || assignmentTitle.toLowerCase().includes('recovery') || (member?.readiness ?? 100) < 60;
+  const priorityLabel = assignmentSession?.status === 'completed'
+    ? 'COMPLETED'
+    : isRecoveryPriority
+      ? 'RECOVERY PRIORITY'
+      : 'TODAY\'S PRIORITY';
+  const priorityTone = assignmentSession?.status === 'completed'
+    ? colours.green
+    : isRecoveryPriority
+      ? colours.amber
+      : colours.cyan;
+  const priorityCopy = isRecoveryPriority
+    ? 'Keep this controlled. Finish fresher than you started and note any pain change for your coach.'
+    : 'Complete the assigned work, log effort honestly, and keep notes short.';
   const pinnedExerciseIds = assignmentSession?.exercises.filter((exercise) => exercise.coachPinned).map((exercise) => exercise.exerciseId)
     ?? member?.pinnedExerciseIds
     ?? assignmentMode?.coachPinnedExerciseIds
@@ -94,8 +121,13 @@ export function MemberScreen({
         .filter((exercise): exercise is NonNullable<typeof exercise> => Boolean(exercise))
         .slice(0, 8)
       : [];
-  const plannedVolume = Math.max(120, assignedExercises.length * 60 + (assignmentMode?.key === 'cardio' ? 180 : 0));
-  const defaultAssignedDuration = assignmentMode?.type === 'Cardio' ? 30 : assignmentMode?.type === 'Mobility' ? 20 : 45;
+  const prioritySteps = isRecoveryPriority
+    ? assignmentTitle.toLowerCase().includes('recovery')
+      ? ['Easy walk 20-30 min', 'Nasal-breathing pace', 'Stop if pain climbs']
+      : ['Mobility reset', 'Move slowly', 'Avoid painful range']
+    : assignedExercises.slice(0, 3).map((exercise) => exercise.name);
+  const plannedVolume = Math.max(assignmentType === 'Mobility' ? 60 : 120, assignedExercises.length * 60 + (assignmentType === 'Cardio' || assignmentType === 'Run' ? 180 : 0));
+  const defaultAssignedDuration = assignmentType === 'Cardio' || assignmentType === 'Run' ? 30 : assignmentType === 'Mobility' ? 20 : 45;
   const cloudTone = cloudStatus === 'synced'
     ? colours.green
     : cloudStatus === 'syncing'
@@ -235,8 +267,8 @@ export function MemberScreen({
       groupId: member.groupId,
       assignmentId: assignmentSession?.id,
       completionType: 'assigned',
-      sessionKind: assignmentMode?.type ?? 'Workout',
-      assignment: assignmentSession?.title ?? member.assignment ?? 'Assigned Workout',
+      sessionKind: assignmentType,
+      assignment: assignmentTitle === 'No active assignment' ? 'Assigned Workout' : assignmentTitle,
       effort,
       durationMinutes: parsedDuration,
       note: workoutNote.trim() || undefined,
@@ -389,13 +421,25 @@ export function MemberScreen({
       <Card hot>
         <View style={styles.todayTop}>
           <View style={styles.todayCopy}>
-            <Text style={styles.todayLabel}>Today</Text>
-            <Text style={styles.todayTitle}>{assignmentSession?.title ?? member.assignment ?? 'No active assignment'}</Text>
+            <View style={[styles.priorityBadge, { borderColor: `${priorityTone}55`, backgroundColor: `${priorityTone}18` }]}>
+              <Text style={[styles.priorityBadgeText, { color: priorityTone }]}>{priorityLabel}</Text>
+            </View>
+            <Text style={styles.todayTitle}>{assignmentTitle}</Text>
             {assignmentSession?.coachNote ? <Text style={styles.todayNote}>Coach note: {assignmentSession.coachNote}</Text> : null}
+            <Text style={styles.todayNote}>{priorityCopy}</Text>
           </View>
           <Text style={[styles.todayReadiness, { color: readinessTone }]}>{member.readiness}</Text>
         </View>
         <ProgressBar value={member.readiness} colour={readinessTone} />
+        {prioritySteps.length ? (
+          <View style={styles.priorityStepRow}>
+            {prioritySteps.map((step) => (
+              <View key={step} style={styles.priorityStep}>
+                <Text style={styles.priorityStepText}>{step}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
         <View style={styles.memberActionGrid}>
           {(['Too Easy', 'About Right', 'Too Hard'] as const).map((label) => (
             <Pressable
@@ -482,7 +526,7 @@ export function MemberScreen({
 
       <Card>
         <Text style={styles.cardTitle}>Current Workout</Text>
-        <Text style={styles.assignmentTitle}>{assignmentSession?.title ?? member.assignment ?? 'No active assignment'}</Text>
+        <Text style={styles.assignmentTitle}>{assignmentTitle}</Text>
         {assignmentSession?.status ? <Text style={styles.assignmentStatus}>Status: {assignmentSession.status}</Text> : null}
         {assignmentSession?.coachNote ? <Text style={styles.assignmentNote}>Coach note: {assignmentSession.coachNote}</Text> : null}
         {assignedExercises.length ? (
@@ -528,7 +572,11 @@ export function MemberScreen({
             ))}
           </View>
         ) : (
-          <Text style={styles.body}>Your coach has not attached a detailed block yet.</Text>
+          <Text style={styles.body}>
+            {isRecoveryPriority
+              ? 'Keep this as an easy recovery priority. Follow the notes above and log how it felt.'
+              : 'Your coach has not attached a detailed block yet.'}
+          </Text>
         )}
         <View style={styles.quickLogField}>
           <Text style={styles.fieldLabel}>Time completed</Text>
@@ -770,6 +818,18 @@ const styles = StyleSheet.create({
     ...typography.label,
     color: colours.cyan,
   },
+  priorityBadge: {
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    marginBottom: 8,
+  },
+  priorityBadgeText: {
+    ...typography.caption,
+    fontWeight: '900',
+  },
   todayTitle: {
     color: colours.text,
     fontSize: 26,
@@ -786,6 +846,25 @@ const styles = StyleSheet.create({
   todayReadiness: {
     fontSize: 42,
     lineHeight: 46,
+    fontWeight: '900',
+  },
+  priorityStepRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: responsiveSpacing('sm'),
+    marginTop: responsiveSpacing('md'),
+  },
+  priorityStep: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  priorityStepText: {
+    ...typography.caption,
+    color: colours.textSoft,
     fontWeight: '900',
   },
   memberActionGrid: {
