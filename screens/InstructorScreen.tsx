@@ -515,6 +515,68 @@ export function InstructorScreen({
     );
   }
 
+  async function createSecureInviteForMember(member: Pick<SquadMember, 'id' | 'name' | 'gymName' | 'email' | 'groupId'>, context: 'added' | 'resent' = 'resent') {
+    const trimmedEmail = member.email?.trim().toLowerCase() ?? '';
+    const inviteSubject = 'Join FORGE Tactical Fitness';
+    const displayName = member.gymName || member.name;
+    const inviteToken = generateInviteToken();
+    const tokenHash = await hashInviteToken(inviteToken);
+    const inviteUrl = buildSecureInviteUrl(appInviteUrl, inviteToken);
+    const expiresAt = inviteExpiry();
+    let inviteStorageNote = `Token hash ${tokenHash.slice(0, 12)}... is ready for member_invites storage.`;
+
+    const inviteSquadId = cloudSquadId ?? (uuidPattern.test(member.groupId) ? member.groupId : null);
+    if (cloudEnabled && supabase && inviteSquadId) {
+      const { error } = await supabase.rpc('create_member_invite', {
+        p_squad_id: inviteSquadId,
+        p_token_hash: tokenHash,
+        p_email: trimmedEmail || null,
+        p_display_name: member.name,
+        p_gym_name: displayName,
+        p_role: 'member',
+        p_expires_at: expiresAt,
+      });
+
+      if (error) {
+        console.error('Failed to create secure invite row', error);
+        inviteStorageNote = `Invite created, but Supabase invite storage failed: ${error.message}`;
+      } else {
+        inviteStorageNote = 'Secure invite token stored in Supabase.';
+      }
+    }
+
+    if (context === 'resent') {
+      onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
+    }
+
+    const inviteBody = `You've been invited to FORGE Tactical Fitness.\n\nOpen your secure FORGE member portal invite here:\n${inviteUrl}\n\nThis invite expires on ${new Date(expiresAt).toLocaleDateString()}.\n\nCoach note: ${inviteStorageNote}`;
+
+    if (!trimmedEmail) {
+      showAlert('Secure invite created', `${displayName} does not have an email saved. Send them this link:\n\n${inviteUrl}`);
+      return inviteUrl;
+    }
+
+    const subject = encodeURIComponent(inviteSubject);
+    const body = encodeURIComponent(inviteBody);
+    const mailtoUrl = `mailto:${trimmedEmail}?subject=${subject}&body=${body}`;
+
+    if (Platform.OS === 'web') {
+      window.location.href = mailtoUrl;
+      window.alert(`${displayName} was ${context === 'added' ? 'added' : 'queued for a new invite'}. Your email app should open with the invite draft. If it does not, send them this link: ${inviteUrl}`);
+      return inviteUrl;
+    }
+
+    Linking.openURL(mailtoUrl)
+      .then(() => {
+        showAlert(context === 'added' ? 'Member invited' : 'Invite ready', `${displayName} ${context === 'added' ? 'was added and an invite draft was opened' : 'has a fresh invite draft'}.`);
+      })
+      .catch(() => {
+        showAlert('Invite link ready', `Copy this invite link and send it to ${trimmedEmail}:\n\n${inviteUrl}`);
+      });
+
+    return inviteUrl;
+  }
+
   async function addMember() {
     const trimmedName = newMemberName.trim();
     const trimmedGymName = newMemberGymName.trim();
@@ -530,37 +592,8 @@ export function InstructorScreen({
     }
 
     const memberId = `member-${Date.now()}`;
-    const inviteSubject = 'Join FORGE Tactical Fitness';
     const displayName = trimmedGymName || trimmedName;
-    const inviteToken = generateInviteToken();
-    const tokenHash = await hashInviteToken(inviteToken);
-    const inviteUrl = buildSecureInviteUrl(appInviteUrl, inviteToken);
-    const expiresAt = inviteExpiry();
-    let inviteStorageNote = `Token hash ${tokenHash.slice(0, 12)}... is ready for member_invites storage.`;
-
-    const inviteSquadId = cloudSquadId ?? (uuidPattern.test(selectedGroupId) ? selectedGroupId : null);
-    if (cloudEnabled && supabase && inviteSquadId) {
-      const { error } = await supabase.rpc('create_member_invite', {
-        p_squad_id: inviteSquadId,
-        p_token_hash: tokenHash,
-        p_email: trimmedEmail || null,
-        p_display_name: trimmedName,
-        p_gym_name: displayName,
-        p_role: 'member',
-        p_expires_at: expiresAt,
-      });
-
-      if (error) {
-        console.error('Failed to create secure invite row', error);
-        inviteStorageNote = `Invite email created, but Supabase invite storage failed: ${error.message}`;
-      } else {
-        inviteStorageNote = 'Secure invite token stored in Supabase.';
-      }
-    }
-
-    const inviteBody = `You've been invited to FORGE Tactical Fitness.\n\nOpen your secure FORGE member portal invite here:\n${inviteUrl}\n\nThis invite expires on ${new Date(expiresAt).toLocaleDateString()}.\n\nCoach note: ${inviteStorageNote}`;
-
-    onAddMember({
+    const nextMember: SquadMember = {
       id: memberId,
       groupId: selectedGroupId,
       name: trimmedName,
@@ -575,30 +608,16 @@ export function InstructorScreen({
       streakDays: 0,
       weeklyVolume: 0,
       hypeCount: 0,
-    });
+    };
+
+    onAddMember(nextMember);
 
     setNewMemberName('');
     setNewMemberGymName('');
     setNewMemberEmail('');
 
     if (trimmedEmail) {
-      const subject = encodeURIComponent(inviteSubject);
-      const body = encodeURIComponent(inviteBody);
-      const mailtoUrl = `mailto:${trimmedEmail}?subject=${subject}&body=${body}`;
-
-      if (Platform.OS === 'web') {
-        window.location.href = mailtoUrl;
-        window.alert(`${displayName} was added. Your email app should open with the invite draft. If it does not, send them this link: ${inviteUrl}`);
-        return;
-      }
-
-      Linking.openURL(mailtoUrl)
-        .then(() => {
-          showAlert('Member invited', `${displayName} was added and an invite draft was opened.`);
-        })
-        .catch(() => {
-          showAlert('Member added', `${displayName} was added. Copy the invite link and send it to ${trimmedEmail}.`);
-        });
+      await createSecureInviteForMember(nextMember, 'added');
     } else {
       showAlert('Member added', `${displayName} is now tracked manually in this squad.`);
     }
