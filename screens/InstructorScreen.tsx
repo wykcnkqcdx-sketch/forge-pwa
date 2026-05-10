@@ -79,6 +79,19 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
   return { label: 'Manual/local target', detail: 'Create a secure invite before assigning across devices.', tone: colours.textSoft };
 }
 
+type AssignmentScope = 'member' | 'group' | 'squad';
+
+function assignmentScopeState(targets: SquadMember[], scope: AssignmentScope, cloudEnabled: boolean) {
+  if (scope === 'member') return assignmentTargetState(targets[0] ?? null, cloudEnabled);
+  if (!targets.length) return { label: 'No targets', detail: 'No members match this assignment scope.', tone: colours.muted };
+  const ready = targets.filter((member) => member.cloudMembershipId).length;
+  const label = scope === 'group' ? 'Group assignment' : 'Whole squad assignment';
+  if (!cloudEnabled) return { label, detail: `${targets.length} local target${targets.length === 1 ? '' : 's'}. Cloud delivery is unavailable.`, tone: colours.muted };
+  if (ready === targets.length) return { label, detail: `${ready}/${targets.length} members are cloud-ready.`, tone: colours.green };
+  if (ready > 0) return { label, detail: `${ready}/${targets.length} members are cloud-ready. Others will stay local until invites are accepted and synced.`, tone: colours.amber };
+  return { label, detail: `${targets.length} local or pending target${targets.length === 1 ? '' : 's'}. Send invites and sync before cloud delivery.`, tone: colours.textSoft };
+}
+
 export function parseDose(dose: string) {
   const setsRepsMatch = dose.match(/(\d+)\s*x\s*(\d+)/i);
   if (setsRepsMatch) {
@@ -159,6 +172,7 @@ export function InstructorScreen({
   const [newGroupFocus, setNewGroupFocus] = useState('');
   const [selectedGroupId, setSelectedGroupId] = useState(groups[0]?.id ?? 'alpha');
   const [assignmentOpen, setAssignmentOpen] = useState(false);
+  const [assignmentScope, setAssignmentScope] = useState<AssignmentScope>('member');
   const [assignmentMemberId, setAssignmentMemberId] = useState('');
   const [assignmentGroupId, setAssignmentGroupId] = useState(groups[0]?.id ?? 'alpha');
   const [assignmentLabel, setAssignmentLabel] = useState(assignmentTemplates[0]);
@@ -216,7 +230,12 @@ export function InstructorScreen({
   const selectedAssignmentMember = members.find((member) => member.id === assignmentMemberId) ?? null;
   const selectedAssignmentGroup = groups.find((group) => group.id === assignmentGroupId) ?? null;
   const selectedAssignmentMode = trainingModes.find((mode) => mode.title === assignmentLabel) ?? null;
-  const selectedTargetState = assignmentTargetState(selectedAssignmentMember ?? members[0] ?? null, cloudEnabled);
+  const assignmentTargets = useMemo(() => {
+    if (assignmentScope === 'squad') return members;
+    if (assignmentScope === 'group') return members.filter((member) => member.groupId === assignmentGroupId);
+    return [selectedAssignmentMember ?? members[0]].filter((member): member is SquadMember => Boolean(member));
+  }, [assignmentGroupId, assignmentScope, members, selectedAssignmentMember]);
+  const selectedTargetState = assignmentScopeState(assignmentTargets, assignmentScope, cloudEnabled);
   const suggestedAssignmentExercises = useMemo(() => {
     if (!selectedAssignmentMode) return [];
     return selectedAssignmentMode.defaultExerciseIds
@@ -481,42 +500,51 @@ export function InstructorScreen({
       return;
     }
 
-    const member = selectedAssignmentMember ?? members[0];
     const group = selectedAssignmentGroup ?? groups[0];
-    if (!member || !group) {
-      showAlert('Pick a group', 'Create or select a group before applying an assignment.');
+    const targets = assignmentTargets;
+    if (!targets.length || !group) {
+      showAlert('Pick a target', 'Choose a member, group, or squad before applying an assignment.');
       return;
     }
 
     const assignmentMode = selectedAssignmentMode;
     const chosenExerciseIds = activeAssignmentExerciseIds;
     const chosenExercises = activeAssignmentExercises;
-    const assignmentSession = {
-      id: createUuid(),
-      title: assignmentLabel,
-      type: assignmentMode?.type ?? 'Workout',
-      status: 'assigned' as const,
-      assignedAt: new Date().toISOString(),
-      coachNote: assignmentNote.trim() || undefined,
-      exercises: chosenExercises.map((exercise) => ({
-        ...exercise,
-        coachPinned: assignmentMode?.coachPinnedExerciseIds?.includes(exercise.exerciseId) ?? exercise.coachPinned ?? false,
-        status: 'assigned' as const,
-      })),
-    };
 
-    onUpdateMember(member.id, {
-      groupId: group.id,
-      assignment: assignmentLabel,
-      pinnedExerciseIds: assignmentMode?.coachPinnedExerciseIds?.filter((id) => chosenExerciseIds.includes(id))
-        ?? chosenExerciseIds.slice(0, 2),
-      assignmentSession,
+    targets.forEach((target) => {
+      const targetGroupId = assignmentScope === 'group'
+        ? group.id
+        : assignmentScope === 'squad'
+          ? target.groupId
+          : group.id;
+      onUpdateMember(target.id, {
+        groupId: targetGroupId,
+        assignment: assignmentLabel,
+        pinnedExerciseIds: assignmentMode?.coachPinnedExerciseIds?.filter((id) => chosenExerciseIds.includes(id))
+          ?? chosenExerciseIds.slice(0, 2),
+        assignmentSession: {
+          id: createUuid(),
+          title: assignmentLabel,
+          type: assignmentMode?.type ?? 'Workout',
+          status: 'assigned',
+          assignedAt: new Date().toISOString(),
+          coachNote: assignmentNote.trim() || undefined,
+          exercises: chosenExercises.map((exercise) => ({
+            ...exercise,
+            coachPinned: assignmentMode?.coachPinnedExerciseIds?.includes(exercise.exerciseId) ?? exercise.coachPinned ?? false,
+            status: 'assigned',
+          })),
+        },
+      });
     });
-    const targetState = assignmentTargetState(member, cloudEnabled);
-    const message = member.cloudMembershipId
-      ? `${member.name} is now assigned to ${assignmentLabel} in ${group.name}. Cloud target ready.`
-      : `${member.name} is now assigned to ${assignmentLabel} in ${group.name}. ${targetState.label}: ${targetState.detail}`;
-    setAssignmentMemberId(member.id);
+    const cloudReadyCount = targets.filter((target) => target.cloudMembershipId).length;
+    const scopeLabel = assignmentScope === 'member'
+      ? targets[0].name
+      : assignmentScope === 'group'
+        ? group.name
+        : 'whole squad';
+    const message = `${assignmentLabel} assigned to ${scopeLabel}: ${targets.length} target${targets.length === 1 ? '' : 's'}, ${cloudReadyCount} cloud-ready.`;
+    setAssignmentMemberId(targets[0].id);
     setAssignmentGroupId(group.id);
     setAssignmentFeedback(message);
     setAssignmentOpen(false);
@@ -959,7 +987,28 @@ export function InstructorScreen({
 
         {assignmentOpen ? (
           <View style={styles.assignmentPanel}>
-            <Text style={styles.assignmentLabel}>Select member</Text>
+            <Text style={styles.assignmentLabel}>Assignment scope</Text>
+            <View style={styles.assignmentWrap}>
+              {([
+                ['member', 'One member'],
+                ['group', 'Group'],
+                ['squad', 'Whole squad'],
+              ] as const).map(([scope, label]) => {
+                const active = scope === assignmentScope;
+                return (
+                  <Pressable
+                    key={scope}
+                    style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                    onPress={() => setAssignmentScope(scope)}
+                  >
+                    <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {assignmentScope === 'member' ? <Text style={styles.assignmentLabel}>Select member</Text> : null}
+            {assignmentScope === 'member' ? (
             <View style={styles.assignmentWrap}>
               {members.length ? members.map((member) => {
                 const active = member.id === assignmentMemberId;
@@ -978,25 +1027,33 @@ export function InstructorScreen({
                 );
               }) : <Text style={styles.emptyAssignmentText}>Add a member first.</Text>}
             </View>
+            ) : null}
+
+            {assignmentScope !== 'squad' ? <Text style={styles.assignmentLabel}>{assignmentScope === 'group' ? 'Assign selected group' : 'Assign under group'}</Text> : null}
+            {assignmentScope !== 'squad' ? (
+              <View style={styles.assignmentWrap}>
+                {groups.map((group) => {
+                  const active = group.id === assignmentGroupId;
+                  const targetCount = members.filter((member) => member.groupId === group.id).length;
+                  return (
+                    <Pressable
+                      key={group.id}
+                      style={[styles.assignmentPill, active && styles.assignmentPillActive]}
+                      onPress={() => setAssignmentGroupId(group.id)}
+                    >
+                      <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{group.name}</Text>
+                      {assignmentScope === 'group' ? (
+                        <Text style={[styles.assignmentPillMeta, active && styles.assignmentPillTextActive]}>{targetCount} targets</Text>
+                      ) : null}
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : null}
+
             <View style={[styles.assignmentTargetNotice, { borderColor: `${selectedTargetState.tone}50`, backgroundColor: `${selectedTargetState.tone}12` }]}>
               <Text style={[styles.assignmentTargetTitle, { color: selectedTargetState.tone }]}>{selectedTargetState.label}</Text>
               <Text style={styles.assignmentTargetDetail}>{selectedTargetState.detail}</Text>
-            </View>
-
-            <Text style={styles.assignmentLabel}>Assign to group</Text>
-            <View style={styles.assignmentWrap}>
-              {groups.map((group) => {
-                const active = group.id === assignmentGroupId;
-                return (
-                  <Pressable
-                    key={group.id}
-                    style={[styles.assignmentPill, active && styles.assignmentPillActive]}
-                    onPress={() => setAssignmentGroupId(group.id)}
-                  >
-                    <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{group.name}</Text>
-                  </Pressable>
-                );
-              })}
             </View>
 
             <Text style={styles.assignmentLabel}>Training block</Text>
@@ -1134,7 +1191,11 @@ export function InstructorScreen({
 
             <View style={styles.assignmentSummary}>
               <Text style={styles.assignmentSummaryText}>
-                {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} {'->'} {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel} / {activeAssignmentExerciseIds.length} exercises
+                {assignmentScope === 'member'
+                  ? selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'
+                  : assignmentScope === 'group'
+                    ? selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'
+                    : 'Whole squad'} / {assignmentLabel} / {activeAssignmentExerciseIds.length} exercises / {assignmentTargets.length} targets
               </Text>
               <Text style={[styles.assignmentSummaryMeta, { color: selectedTargetState.tone }]}>{selectedTargetState.label}</Text>
             </View>
