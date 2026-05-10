@@ -297,6 +297,50 @@ export function InstructorScreen({
     const manual = members.filter((member) => !member.cloudMembershipId && (!member.inviteStatus || member.inviteStatus === 'Manual')).length;
     return { targetReady, invited, acceptedNeedsSync, manual };
   }, [members]);
+  const assignmentHistory = useMemo(() => {
+    const grouped = new Map<string, {
+      key: string;
+      title: string;
+      assignedAt: string;
+      targetNames: string[];
+      targetCount: number;
+      cloudReadyCount: number;
+      completedCount: number;
+      exerciseCount: number;
+    }>();
+
+    members.forEach((member) => {
+      const session = member.assignmentSession;
+      if (!session) return;
+      const key = `${session.title}-${session.assignedAt.slice(0, 16)}`;
+      const existing = grouped.get(key) ?? {
+        key,
+        title: session.title,
+        assignedAt: session.assignedAt,
+        targetNames: [],
+        targetCount: 0,
+        cloudReadyCount: 0,
+        completedCount: 0,
+        exerciseCount: session.exercises.length,
+      };
+      const completed = session.status === 'completed' || workoutCompletions.some((completion) => (
+        completion.memberId === member.id
+        && (completion.assignmentId === session.id || completion.assignment === session.title)
+        && new Date(completion.completedAt).getTime() >= new Date(session.assignedAt).getTime()
+      ));
+
+      existing.targetNames.push(member.gymName || member.name);
+      existing.targetCount += 1;
+      existing.cloudReadyCount += member.cloudMembershipId ? 1 : 0;
+      existing.completedCount += completed ? 1 : 0;
+      existing.exerciseCount = Math.max(existing.exerciseCount, session.exercises.length);
+      grouped.set(key, existing);
+    });
+
+    return Array.from(grouped.values())
+      .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())
+      .slice(0, 5);
+  }, [members, workoutCompletions]);
 
   function createGroup() {
     const trimmedName = newGroupName.trim();
@@ -620,6 +664,39 @@ export function InstructorScreen({
           <Text style={styles.assignmentQuickText}>{groups.length} groups</Text>
           <Text style={styles.assignmentQuickText}>{programmeTemplates.length} templates</Text>
         </View>
+      </Card>
+
+      <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Assignment History</Text>
+          <Text style={styles.muted}>{assignmentHistory.length ? `latest ${assignmentHistory.length}` : 'empty'}</Text>
+        </View>
+        {assignmentHistory.length ? assignmentHistory.map((assignment) => {
+          const completionPercent = assignment.targetCount
+            ? Math.round((assignment.completedCount / assignment.targetCount) * 100)
+            : 0;
+          return (
+            <View key={assignment.key} style={styles.assignmentHistoryRow}>
+              <View style={styles.memberCopy}>
+                <Text style={styles.memberName}>{assignment.title}</Text>
+                <Text style={styles.muted}>
+                  {assignment.targetCount} target{assignment.targetCount === 1 ? '' : 's'} - {assignment.exerciseCount} exercises - {assignment.cloudReadyCount} cloud-ready
+                </Text>
+                <Text style={styles.assignmentHistoryTargets}>
+                  {assignment.targetNames.slice(0, 4).join(', ')}{assignment.targetNames.length > 4 ? ` +${assignment.targetNames.length - 4}` : ''}
+                </Text>
+              </View>
+              <View style={styles.assignmentHistoryScore}>
+                <Text style={[styles.assignmentHistoryPercent, { color: completionPercent >= 75 ? colours.green : completionPercent >= 40 ? colours.amber : colours.red }]}>
+                  {completionPercent}%
+                </Text>
+                <Text style={styles.scoreMeta}>DONE</Text>
+              </View>
+            </View>
+          );
+        }) : (
+          <Text style={styles.inviteHelp}>Assignments you deploy will appear here with target count, completion count, and cloud readiness.</Text>
+        )}
       </Card>
 
       <Card>
@@ -1298,6 +1375,19 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     backgroundColor: colours.layer1,
   },
+  assignmentHistoryRow: {
+    minHeight: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    paddingVertical: 10,
+  },
+  assignmentHistoryTargets: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },
+  assignmentHistoryScore: { alignItems: 'flex-end' },
+  assignmentHistoryPercent: { fontSize: 24, lineHeight: 28, fontWeight: '900' },
   cloudActions: {
     flexDirection: 'row',
     alignItems: 'center',
