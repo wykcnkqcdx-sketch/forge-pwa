@@ -4,7 +4,7 @@ import * as Haptics from 'expo-haptics';
 import { PanResponder, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
-import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../data/domain';
+import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog, AssignmentDeployment } from '../data/domain';
 import { initialSessions, programmeTemplates as initialProgrammeTemplates, squadMembers, trainingGroups } from '../data/mockData';
 import { clearActiveRoute } from '../lib/ruckRouteStore';
 import { secureDestroyLocalData } from '../lib/secureStorage';
@@ -47,6 +47,7 @@ type AppContextType = {
   programmeTemplates: ProgrammeTemplate[];
   readinessLogs: ReadinessLog[];
   workoutCompletions: WorkoutCompletion[];
+  assignmentDeployments: AssignmentDeployment[];
   mealEntries: MealEntry[];
   injuryLogs: InjuryLog[];
   googleSheetsEndpoint: string;
@@ -104,10 +105,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   const store = useLocalStore();
   const {
-    sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions,
+    sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, assignmentDeployments,
     mealEntries, injuryLogs,
     googleSheetsEndpoint, isReady, hasSeenOnboarding, savedPin,
-    setSessions, setMembers, setGroups, setProgrammeTemplates, setReadinessLogs, setWorkoutCompletions,
+    setSessions, setMembers, setGroups, setProgrammeTemplates, setReadinessLogs, setWorkoutCompletions, setAssignmentDeployments,
     setMealEntries, setInjuryLogs,
     setGoogleSheetsEndpoint, setHasSeenOnboarding
   } = store;
@@ -128,13 +129,14 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       setProgrammeTemplates([]);
       setReadinessLogs([]);
       setWorkoutCompletions([]);
+      setAssignmentDeployments([]);
       setMealEntries([]);
       setInjuryLogs([]);
       setGoogleSheetsEndpoint('');
       store.setSavedPin(null);
       await Promise.all([
         cloud.resetCloudForWipe(),
-        secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:meal_entries', 'forge:injury_logs', 'forge:google_sheets_endpoint', 'forge:pin']),
+        secureDestroyLocalData(['forge:sessions', 'forge:members', 'forge:groups', 'forge:programme_templates', 'forge:readiness_logs', 'forge:workout_completions', 'forge:assignment_deployments', 'forge:meal_entries', 'forge:injury_logs', 'forge:google_sheets_endpoint', 'forge:pin']),
         clearActiveRoute(),
       ]).catch((error) => console.error('Failed to clear local app data', error));
       setPendingSyncCount(0);
@@ -360,6 +362,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     }
   }
 
+  function addAssignmentDeployment(deployment: AssignmentDeployment) {
+    setAssignmentDeployments((current) => [deployment, ...current.filter((item) => item.id !== deployment.id)].slice(0, 50));
+  }
+
   function addGroup(group: TrainingGroup) {
     setGroups((curr) => [...curr, group]);
   }
@@ -407,6 +413,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       setProgrammeTemplates(initialProgrammeTemplates);
       setReadinessLogs([]);
       setWorkoutCompletions([]);
+      setAssignmentDeployments([]);
     } else {
       setSessions(initialSessions);
       setMembers(squadMembers);
@@ -414,6 +421,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       setProgrammeTemplates(initialProgrammeTemplates);
       setReadinessLogs([]);
       setWorkoutCompletions([]);
+      setAssignmentDeployments([]);
     }
     setHasSeenOnboarding(true);
   }
@@ -447,7 +455,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   function exportData() {
     if (typeof document === 'undefined') { Alert.alert('Export unavailable', 'Data export is available in the web app.'); return; }
-    const backup: ForgeBackup = { version: 1, exportedAt: new Date().toISOString(), sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, googleSheetsEndpoint };
+    const backup: ForgeBackup = { version: 1, exportedAt: new Date().toISOString(), sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, assignmentDeployments, googleSheetsEndpoint };
     const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -480,6 +488,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
           if (!Array.isArray(parsed) && Array.isArray(parsed.programmeTemplates)) setProgrammeTemplates(parsed.programmeTemplates);
           if (parsed.readinessLogs) setReadinessLogs(parsed.readinessLogs);
           if (parsed.workoutCompletions) setWorkoutCompletions(parsed.workoutCompletions);
+          if (parsed.assignmentDeployments) setAssignmentDeployments(parsed.assignmentDeployments);
           if (!Array.isArray(parsed) && typeof parsed.googleSheetsEndpoint === 'string') setGoogleSheetsEndpoint(parsed.googleSheetsEndpoint);
           Alert.alert('Import complete', `${imported.length} sessions restored${importedMembers ? ` and ${importedMembers.length} members restored` : ''}.`);
         } catch (error) {
@@ -510,6 +519,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     deleteMember,
     updateMember,
     completeWorkout,
+    addAssignmentDeployment,
     addGroup,
     addProgrammeTemplate,
     deleteProgrammeTemplate,
@@ -551,7 +561,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   const contextValue: AppContextType = {
     // Store data
-    sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions,
+    sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, assignmentDeployments,
     mealEntries, injuryLogs,
     googleSheetsEndpoint, isReady, hasSeenOnboarding, savedPin,
 

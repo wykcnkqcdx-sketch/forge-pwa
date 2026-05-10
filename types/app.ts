@@ -1,5 +1,5 @@
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
-import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../data/domain';
+import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog, AssignmentDeployment } from '../data/domain';
 
 export type Tab = 'home' | 'ruck' | 'train' | 'squad' | 'fieldGuide' | 'fuel' | 'analytics' | 'settings' | 'readiness';
 export type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
@@ -21,6 +21,7 @@ export type ForgeBackup = {
   programmeTemplates?: ProgrammeTemplate[];
   readinessLogs?: ReadinessLog[];
   workoutCompletions?: WorkoutCompletion[];
+  assignmentDeployments?: AssignmentDeployment[];
   googleSheetsEndpoint?: string;
 };
 
@@ -41,6 +42,7 @@ export type AppActions = {
   deleteMember: (id: string) => void;
   updateMember: (id: string, updates: Partial<SquadMember>) => void;
   completeWorkout: (completion: WorkoutCompletion) => void;
+  addAssignmentDeployment: (deployment: AssignmentDeployment) => void;
   addGroup: (group: TrainingGroup) => void;
   addProgrammeTemplate: (template: ProgrammeTemplate) => void;
   deleteProgrammeTemplate: (id: string) => void;
@@ -57,4 +59,4 @@ export type AppActions = {
 
 // Re-export types from other modules for convenience
 export type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
-export type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog } from '../data/domain';
+export type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog, AssignmentDeployment } from '../data/domain';

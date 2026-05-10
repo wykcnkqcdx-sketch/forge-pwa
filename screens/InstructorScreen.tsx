@@ -7,7 +7,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { buildCoachGuidance } from '../lib/aiGuidance';
 import { colours } from '../theme';
 import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, ProgrammeTemplate, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
-import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import type { AssignmentDeployment, ReadinessLog, WorkoutCompletion } from '../data/domain';
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { buildSecureInviteUrl, generateInviteToken, hashInviteToken, inviteExpiry } from '../lib/inviteTokens';
 import { supabase } from '../lib/supabase';
@@ -23,6 +23,7 @@ interface InstructorScreenProps {
   programmeTemplates: ProgrammeTemplate[];
   readinessLogs: ReadinessLog[];
   workoutCompletions: WorkoutCompletion[];
+  assignmentDeployments?: AssignmentDeployment[];
   onSetPin: () => void;
   onWipe: () => void;
   onExport: () => void;
@@ -30,6 +31,7 @@ interface InstructorScreenProps {
   onAddMember: (member: SquadMember) => void;
   onDeleteMember: (id: string) => void;
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
+  onAddAssignmentDeployment?: (deployment: AssignmentDeployment) => void;
   onAddGroup: (group: TrainingGroup) => void;
   onAddProgrammeTemplate: (template: ProgrammeTemplate) => void;
   onDeleteProgrammeTemplate: (id: string) => void;
@@ -141,6 +143,7 @@ export function InstructorScreen({
   programmeTemplates,
   readinessLogs,
   workoutCompletions,
+  assignmentDeployments = [],
   onSetPin,
   onWipe,
   onExport,
@@ -148,6 +151,7 @@ export function InstructorScreen({
   onAddMember,
   onDeleteMember,
   onUpdateMember,
+  onAddAssignmentDeployment,
   onAddGroup,
   onAddProgrammeTemplate,
   onDeleteProgrammeTemplate,
@@ -297,7 +301,7 @@ export function InstructorScreen({
     const manual = members.filter((member) => !member.cloudMembershipId && (!member.inviteStatus || member.inviteStatus === 'Manual')).length;
     return { targetReady, invited, acceptedNeedsSync, manual };
   }, [members]);
-  const assignmentHistory = useMemo(() => {
+  const fallbackAssignmentHistory = useMemo(() => {
     const grouped = new Map<string, {
       key: string;
       title: string;
@@ -341,6 +345,27 @@ export function InstructorScreen({
       .sort((a, b) => new Date(b.assignedAt).getTime() - new Date(a.assignedAt).getTime())
       .slice(0, 5);
   }, [members, workoutCompletions]);
+  const assignmentHistory = useMemo(() => {
+    if (!assignmentDeployments.length) return fallbackAssignmentHistory;
+    return assignmentDeployments.slice(0, 5).map((deployment) => {
+      const completedCount = deployment.targetMemberIds.filter((memberId) => workoutCompletions.some((completion) => (
+        completion.memberId === memberId
+        && completion.assignment === deployment.title
+        && new Date(completion.completedAt).getTime() >= new Date(deployment.assignedAt).getTime()
+      ))).length;
+
+      return {
+        key: deployment.id,
+        title: deployment.title,
+        assignedAt: deployment.assignedAt,
+        targetNames: deployment.targetNames,
+        targetCount: deployment.targetMemberIds.length,
+        cloudReadyCount: deployment.cloudReadyMemberIds.length,
+        completedCount,
+        exerciseCount: deployment.exerciseCount,
+      };
+    });
+  }, [assignmentDeployments, fallbackAssignmentHistory, workoutCompletions]);
 
   function createGroup() {
     const trimmedName = newGroupName.trim();
@@ -588,6 +613,19 @@ export function InstructorScreen({
         ? group.name
         : 'whole squad';
     const message = `${assignmentLabel} assigned to ${scopeLabel}: ${targets.length} target${targets.length === 1 ? '' : 's'}, ${cloudReadyCount} cloud-ready.`;
+    onAddAssignmentDeployment?.({
+      id: createUuid(),
+      title: assignmentLabel,
+      scope: assignmentScope,
+      groupId: assignmentScope === 'squad' ? undefined : group.id,
+      groupName: assignmentScope === 'squad' ? undefined : group.name,
+      targetMemberIds: targets.map((target) => target.id),
+      targetNames: targets.map((target) => target.gymName || target.name),
+      cloudReadyMemberIds: targets.filter((target) => target.cloudMembershipId).map((target) => target.id),
+      exerciseCount: chosenExercises.length,
+      assignedAt: new Date().toISOString(),
+      coachNote: assignmentNote.trim() || undefined,
+    });
     setAssignmentMemberId(targets[0].id);
     setAssignmentGroupId(group.id);
     setAssignmentFeedback(message);

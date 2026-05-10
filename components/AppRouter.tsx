@@ -24,7 +24,7 @@ import { isSupabaseConfigured } from '../lib/supabase';
 export function AppRouter() {
   const {
     // Store data
-    sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions,
+    sessions, members, groups, programmeTemplates, readinessLogs, workoutCompletions, assignmentDeployments,
     mealEntries, injuryLogs,
     googleSheetsEndpoint, isReady, hasSeenOnboarding, savedPin,
 
@@ -76,6 +76,7 @@ export function AppRouter() {
             programmeTemplates={programmeTemplates}
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
+            assignmentDeployments={assignmentDeployments}
             onSetPin={pin.handleSetPin}
             onWipe={pin.handleManualWipe}
             onExport={actions.exportData}
@@ -83,6 +84,7 @@ export function AppRouter() {
             onAddMember={actions.addMember}
             onDeleteMember={actions.deleteMember}
             onUpdateMember={actions.updateMember}
+            onAddAssignmentDeployment={actions.addAssignmentDeployment}
             onAddGroup={actions.addGroup}
             onAddProgrammeTemplate={actions.addProgrammeTemplate}
             onDeleteProgrammeTemplate={actions.deleteProgrammeTemplate}
@@ -150,6 +152,7 @@ export function AppRouter() {
             programmeTemplates={programmeTemplates}
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
+            assignmentDeployments={assignmentDeployments}
             onSetPin={pin.handleSetPin}
             onWipe={pin.handleManualWipe}
             onExport={actions.exportData}
@@ -157,6 +160,7 @@ export function AppRouter() {
             onAddMember={actions.addMember}
             onDeleteMember={actions.deleteMember}
             onUpdateMember={actions.updateMember}
+            onAddAssignmentDeployment={actions.addAssignmentDeployment}
             onAddGroup={actions.addGroup}
             onAddProgrammeTemplate={actions.addProgrammeTemplate}
             onDeleteProgrammeTemplate={actions.deleteProgrammeTemplate}
@@ -239,6 +243,7 @@ export function AppRouter() {
             onAddMember={actions.addMember}
             onDeleteMember={actions.deleteMember}
             onUpdateMember={actions.updateMember}
+            onAddAssignmentDeployment={actions.addAssignmentDeployment}
             onAddGroup={actions.addGroup}
             onAddProgrammeTemplate={actions.addProgrammeTemplate}
             onDeleteProgrammeTemplate={actions.deleteProgrammeTemplate}

@@ -136,3 +136,17 @@ export type WorkoutCompletion = {
   completedAt: string;
   updatedAt?: string;
 };
+
+export type AssignmentDeployment = {
+  id: string;
+  title: string;
+  scope: 'member' | 'group' | 'squad';
+  groupId?: string;
+  groupName?: string;
+  targetMemberIds: string[];
+  targetNames: string[];
+  cloudReadyMemberIds: string[];
+  exerciseCount: number;
+  assignedAt: string;
+  coachNote?: string;
+};
