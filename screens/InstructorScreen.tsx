@@ -185,6 +185,7 @@ export function InstructorScreen({
   const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
   const [selectedDeploymentKey, setSelectedDeploymentKey] = useState<string | null>(null);
+  const [selectedReviewMemberId, setSelectedReviewMemberId] = useState<string | null>(null);
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -733,24 +734,100 @@ export function InstructorScreen({
           <Text style={styles.muted}>{membersNeedingReview.length || 'none'}</Text>
         </View>
         {membersNeedingReview.length ? membersNeedingReview.map((entry) => (
-          <View key={`review-${entry.member.id}`} style={styles.reviewRow}>
-            <View style={styles.memberCopy}>
-              <Text style={styles.memberName}>{entry.member.gymName || entry.member.name}</Text>
-              <Text style={styles.muted}>Ready {entry.member.readiness} - Comply {entry.member.compliance}% - Load {entry.member.load}</Text>
-              <View style={styles.reviewTags}>
-                {entry.reasons.slice(0, 4).map((reason) => (
-                  <View key={`${entry.member.id}-${reason.label}`} style={[styles.reviewTag, { borderColor: `${reason.tone}55`, backgroundColor: `${reason.tone}18` }]}>
-                    <Text style={[styles.reviewTagText, { color: reason.tone }]}>{reason.label}</Text>
-                  </View>
-                ))}
+          <View key={`review-${entry.member.id}`}>
+            <Pressable
+              style={styles.reviewRow}
+              onPress={() => setSelectedReviewMemberId((current) => current === entry.member.id ? null : entry.member.id)}
+            >
+              <View style={styles.memberCopy}>
+                <Text style={styles.memberName}>{entry.member.gymName || entry.member.name}</Text>
+                <Text style={styles.muted}>Ready {entry.member.readiness} - Comply {entry.member.compliance}% - Load {entry.member.load}</Text>
+                <View style={styles.reviewTags}>
+                  {entry.reasons.slice(0, 4).map((reason) => (
+                    <View key={`${entry.member.id}-${reason.label}`} style={[styles.reviewTag, { borderColor: `${reason.tone}55`, backgroundColor: `${reason.tone}18` }]}>
+                      <Text style={[styles.reviewTagText, { color: reason.tone }]}>{reason.label}</Text>
+                    </View>
+                  ))}
+                </View>
+                {entry.latestCompletion?.note ? (
+                  <Text style={styles.assignmentHistoryFeedback}>{entry.latestCompletion.note}</Text>
+                ) : null}
               </View>
-              {entry.latestCompletion?.note ? (
-                <Text style={styles.assignmentHistoryFeedback}>{entry.latestCompletion.note}</Text>
-              ) : null}
-            </View>
-            <Text style={[styles.reviewRisk, { color: entry.member.risk === 'High' ? colours.red : entry.member.risk === 'Medium' ? colours.amber : colours.cyan }]}>
-              {entry.pendingAssignments.length ? `${entry.pendingAssignments.length} PEND` : entry.member.risk}
-            </Text>
+              <Text style={[styles.reviewRisk, { color: entry.member.risk === 'High' ? colours.red : entry.member.risk === 'Medium' ? colours.amber : colours.cyan }]}>
+                {entry.pendingAssignments.length ? `${entry.pendingAssignments.length} PEND` : entry.member.risk}
+              </Text>
+            </Pressable>
+            {selectedReviewMemberId === entry.member.id ? (
+              <View style={styles.reviewDetailPanel}>
+                <View style={styles.reviewDetailGrid}>
+                  <View style={styles.reviewDetailStat}>
+                    <Text style={styles.scoreMeta}>READINESS</Text>
+                    <Text style={[styles.reviewDetailValue, { color: entry.member.readiness >= 70 ? colours.green : entry.member.readiness >= 55 ? colours.amber : colours.red }]}>
+                      {entry.member.readiness}
+                    </Text>
+                  </View>
+                  <View style={styles.reviewDetailStat}>
+                    <Text style={styles.scoreMeta}>COMPLIANCE</Text>
+                    <Text style={[styles.reviewDetailValue, { color: entry.member.compliance >= 75 ? colours.green : colours.amber }]}>
+                      {entry.member.compliance}%
+                    </Text>
+                  </View>
+                  <View style={styles.reviewDetailStat}>
+                    <Text style={styles.scoreMeta}>LOAD</Text>
+                    <Text style={[styles.reviewDetailValue, { color: entry.member.load > 85 ? colours.red : colours.text }]}>
+                      {entry.member.load}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.reviewDetailLine}>
+                  Latest completion: {entry.latestCompletion ? `${entry.latestCompletion.assignment} - ${entry.latestCompletion.effort}` : 'No completion logged yet'}
+                </Text>
+                <Text style={styles.reviewDetailLine}>
+                  Readiness note: {entry.latestReadiness ? `Pain ${entry.latestReadiness.pain ?? 0}/5${entry.latestReadiness.painArea ? ` - ${entry.latestReadiness.painArea}` : ''}` : 'No readiness check yet'}
+                </Text>
+                {entry.pendingAssignments.length ? (
+                  <View style={styles.reviewPendingList}>
+                    {entry.pendingAssignments.slice(0, 3).map((deployment) => (
+                      <Text key={`${entry.member.id}-${deployment.id}`} style={styles.reviewDetailLine}>Pending: {deployment.title}</Text>
+                    ))}
+                  </View>
+                ) : null}
+                <View style={styles.reviewActionRow}>
+                  <Pressable
+                    style={styles.reviewActionButton}
+                    onPress={() => {
+                      setAssignmentScope('member');
+                      setAssignmentMemberId(entry.member.id);
+                      setAssignmentLabel('Recovery Walk');
+                      setAssignmentOpen(true);
+                    }}
+                  >
+                    <Text style={styles.reviewActionText}>Recovery</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.reviewActionButton}
+                    onPress={() => {
+                      setAssignmentScope('member');
+                      setAssignmentMemberId(entry.member.id);
+                      setAssignmentLabel('Mobility Reset');
+                      setAssignmentOpen(true);
+                    }}
+                  >
+                    <Text style={styles.reviewActionText}>Mobility</Text>
+                  </Pressable>
+                  <Pressable
+                    style={styles.reviewActionButton}
+                    onPress={() => {
+                      setAssignmentScope('member');
+                      setAssignmentMemberId(entry.member.id);
+                      setAssignmentOpen(true);
+                    }}
+                  >
+                    <Text style={styles.reviewActionText}>Assign</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
           </View>
         )) : (
           <Text style={styles.inviteHelp}>No member is currently flagged for readiness, compliance, pain risk, pending work, hard feedback, or excessive load.</Text>
@@ -1519,6 +1596,37 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
   },
   reviewTagText: { fontSize: 10, fontWeight: '900' },
+  reviewDetailPanel: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    padding: 12,
+    marginBottom: 10,
+    gap: 10,
+  },
+  reviewDetailGrid: { flexDirection: 'row', gap: 8 },
+  reviewDetailStat: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.16)',
+  },
+  reviewDetailValue: { fontSize: 22, lineHeight: 26, fontWeight: '900', marginTop: 4 },
+  reviewDetailLine: { color: colours.textSoft, fontSize: 12, fontWeight: '700' },
+  reviewPendingList: { gap: 4 },
+  reviewActionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  reviewActionButton: {
+    borderWidth: 1,
+    borderColor: `${colours.cyan}45`,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: colours.cyanDim,
+  },
+  reviewActionText: { color: colours.cyan, fontSize: 11, fontWeight: '900' },
   assignmentQuickStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
   assignmentQuickText: {
     borderWidth: 1,
