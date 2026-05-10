@@ -15,6 +15,7 @@ import type { CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
+import { groupInviteLifecycle } from '../utils/inviteLifecycle';
 
 interface InstructorScreenProps {
   pinEnabled: boolean;
@@ -367,6 +368,7 @@ export function InstructorScreen({
     const manual = members.filter((member) => !member.cloudMembershipId && (!member.inviteStatus || member.inviteStatus === 'Manual')).length;
     return { targetReady, invited, acceptedNeedsSync, manual };
   }, [members]);
+  const inviteLifecycleGroups = useMemo(() => groupInviteLifecycle(members), [members]);
   const fallbackAssignmentHistory = useMemo(() => {
     const grouped = new Map<string, {
       key: string;
@@ -1053,6 +1055,44 @@ export function InstructorScreen({
       </Card>
 
       <Card>
+        <View style={styles.cardHeader}>
+          <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Invite Operations</Text>
+          <Text style={styles.muted}>{members.length} roster</Text>
+        </View>
+        {inviteLifecycleGroups.map((group) => (
+          <View key={group.key} style={styles.inviteOpsSection}>
+            <View style={styles.inviteOpsHeader}>
+              <Text style={styles.inviteOpsTitle}>{group.label}</Text>
+              <Text style={styles.inviteOpsCount}>{group.members.length}</Text>
+            </View>
+            <Text style={styles.inviteOpsAction}>{group.action}</Text>
+            {group.members.length ? group.members.slice(0, 4).map((member) => (
+              <View key={`${group.key}-${member.id}`} style={styles.inviteOpsRow}>
+                <View style={styles.memberCopy}>
+                  <Text style={styles.memberName}>{member.gymName || member.name}</Text>
+                  <Text style={styles.muted}>{member.email ?? 'No email'}{member.cloudMembershipId ? ` - ${member.cloudMembershipId.slice(0, 8)}...` : ''}</Text>
+                </View>
+                {group.key === 'acceptedNeedsSync' ? (
+                  <Pressable style={styles.inviteOpsButton} onPress={onCloudSync}>
+                    <Text style={styles.inviteOpsButtonText}>Sync</Text>
+                  </Pressable>
+                ) : group.key === 'invited' || group.key === 'manual' ? (
+                  <Text style={styles.inviteOpsHint}>New invite</Text>
+                ) : (
+                  <Text style={styles.inviteOpsReady}>Ready</Text>
+                )}
+              </View>
+            )) : (
+              <Text style={styles.inviteOpsEmpty}>No members in this state.</Text>
+            )}
+            {group.members.length > 4 ? (
+              <Text style={styles.inviteOpsEmpty}>+{group.members.length - 4} more</Text>
+            ) : null}
+          </View>
+        ))}
+      </Card>
+
+      <Card>
         <Text style={styles.cardTitle}>Security & Backup</Text>
         <View style={styles.actionGrid}>
           <Pressable onPress={onSetPin} style={[styles.actionButton, { borderColor: `${colours.amber}40`, backgroundColor: colours.amberDim }]}>
@@ -1657,6 +1697,41 @@ const styles = StyleSheet.create({
   },
   lifecycleNumber: { fontSize: 26, lineHeight: 30, fontWeight: '900' },
   lifecycleLabel: { color: colours.textSoft, fontSize: 11, fontWeight: '900', marginTop: 4 },
+  inviteOpsSection: {
+    borderTopWidth: 1,
+    borderColor: colours.borderSoft,
+    paddingVertical: 10,
+    gap: 6,
+  },
+  inviteOpsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 },
+  inviteOpsTitle: { color: colours.text, fontSize: 13, fontWeight: '900' },
+  inviteOpsCount: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
+  inviteOpsAction: { color: colours.textSoft, fontSize: 11, fontWeight: '700', lineHeight: 16 },
+  inviteOpsRow: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  inviteOpsButton: {
+    borderWidth: 1,
+    borderColor: `${colours.cyan}55`,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: colours.cyanDim,
+  },
+  inviteOpsButtonText: { color: colours.cyan, fontSize: 11, fontWeight: '900' },
+  inviteOpsHint: { color: colours.amber, fontSize: 11, fontWeight: '900' },
+  inviteOpsReady: { color: colours.green, fontSize: 11, fontWeight: '900' },
+  inviteOpsEmpty: { color: colours.muted, fontSize: 11, fontWeight: '800' },
   reviewRow: {
     minHeight: 56,
     flexDirection: 'row',
