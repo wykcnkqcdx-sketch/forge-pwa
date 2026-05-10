@@ -557,6 +557,16 @@ const AssignmentDeploymentMetadataSchema = z.object({
   coachNote: z.string().nullable().optional(),
 });
 
+const CloudDeploymentCompletionSchema = z.object({
+  id: z.string(),
+  member_id: z.string(),
+  member_name: z.string(),
+  assignment: z.string(),
+  effort: z.enum(['Too Easy', 'About Right', 'Too Hard']),
+  note: z.string().nullable(),
+  completed_at: z.string(),
+});
+
 export async function fetchCloudAssignmentDeployments(squadId: string): Promise<AssignmentDeployment[]> {
   const client = ensureSupabase();
   const response = await client
@@ -569,20 +579,61 @@ export async function fetchCloudAssignmentDeployments(squadId: string): Promise<
 
   if (response.error) throw response.error;
 
-  return z.array(RemoteTeamActivitySchema).parse(response.data).map((activity) => {
+  const activities = z.array(RemoteTeamActivitySchema).parse(response.data);
+  if (!activities.length) return [];
+  const oldestActivityAt = activities.reduce((oldest, activity) => (
+    new Date(activity.created_at).getTime() < new Date(oldest).getTime() ? activity.created_at : oldest
+  ), activities[0].created_at);
+  const completionResponse = await client
+    .from('workout_completions')
+    .select('id, member_id, member_name, assignment, effort, note, completed_at')
+    .eq('squad_id', squadId)
+    .gte('completed_at', oldestActivityAt);
+
+  if (completionResponse.error) throw completionResponse.error;
+  const completions = z.array(CloudDeploymentCompletionSchema).parse(completionResponse.data);
+
+  return activities.map((activity) => {
     const metadata = AssignmentDeploymentMetadataSchema.safeParse(activity.metadata ?? {}).data;
+    const title = activity.title.replace(/\s+deployed$/, '');
+    const assignedAt = metadata?.assignedAt ?? activity.created_at;
+    const targetMemberIds = metadata?.targetMemberIds ?? [];
+    const matchingCompletions = completions
+      .filter((completion) => (
+        targetMemberIds.includes(completion.member_id)
+        && completion.assignment === title
+        && new Date(completion.completed_at).getTime() >= new Date(assignedAt).getTime()
+      ))
+      .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime());
+    const completedMemberIds = [...new Set(matchingCompletions.map((completion) => completion.member_id))];
+    const latest = matchingCompletions.find((completion) => completion.note?.trim()) ?? matchingCompletions[0];
+
     return {
       id: metadata?.deploymentId ?? activity.id,
-      title: activity.title.replace(/\s+deployed$/, ''),
+      title,
       scope: metadata?.scope ?? 'member',
       groupId: metadata?.groupId ?? undefined,
       groupName: metadata?.groupName ?? undefined,
-      targetMemberIds: metadata?.targetMemberIds ?? [],
+      targetMemberIds,
       targetNames: metadata?.targetNames ?? [],
       cloudReadyMemberIds: metadata?.cloudReadyMemberIds ?? [],
       exerciseCount: metadata?.exerciseCount ?? 0,
-      assignedAt: metadata?.assignedAt ?? activity.created_at,
+      assignedAt,
       coachNote: metadata?.coachNote ?? undefined,
+      completedMemberIds,
+      effortCounts: {
+        tooEasy: matchingCompletions.filter((completion) => completion.effort === 'Too Easy').length,
+        aboutRight: matchingCompletions.filter((completion) => completion.effort === 'About Right').length,
+        tooHard: matchingCompletions.filter((completion) => completion.effort === 'Too Hard').length,
+      },
+      latestFeedback: latest
+        ? {
+          memberName: latest.member_name,
+          effort: latest.effort,
+          note: latest.note ?? undefined,
+          completedAt: latest.completed_at,
+        }
+        : undefined,
     };
   });
 }

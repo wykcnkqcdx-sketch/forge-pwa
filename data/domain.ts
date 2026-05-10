@@ -149,4 +149,16 @@ export type AssignmentDeployment = {
   exerciseCount: number;
   assignedAt: string;
   coachNote?: string;
+  completedMemberIds?: string[];
+  effortCounts?: {
+    tooEasy: number;
+    aboutRight: number;
+    tooHard: number;
+  };
+  latestFeedback?: {
+    memberName: string;
+    effort: 'Too Easy' | 'About Right' | 'Too Hard';
+    note?: string;
+    completedAt: string;
+  };
 };

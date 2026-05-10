@@ -311,6 +311,8 @@ export function InstructorScreen({
       cloudReadyCount: number;
       completedCount: number;
       exerciseCount: number;
+      effortCounts?: AssignmentDeployment['effortCounts'];
+      latestFeedback?: AssignmentDeployment['latestFeedback'];
     }>();
 
     members.forEach((member) => {
@@ -348,11 +350,11 @@ export function InstructorScreen({
   const assignmentHistory = useMemo(() => {
     if (!assignmentDeployments.length) return fallbackAssignmentHistory;
     return assignmentDeployments.slice(0, 5).map((deployment) => {
-      const completedCount = deployment.targetMemberIds.filter((memberId) => workoutCompletions.some((completion) => (
-        completion.memberId === memberId
-        && completion.assignment === deployment.title
-        && new Date(completion.completedAt).getTime() >= new Date(deployment.assignedAt).getTime()
-      ))).length;
+      const completedCount = deployment.completedMemberIds?.length ?? deployment.targetMemberIds.filter((memberId) => workoutCompletions.some((completion) => (
+          completion.memberId === memberId
+          && completion.assignment === deployment.title
+          && new Date(completion.completedAt).getTime() >= new Date(deployment.assignedAt).getTime()
+        ))).length;
 
       return {
         key: deployment.id,
@@ -363,6 +365,8 @@ export function InstructorScreen({
         cloudReadyCount: deployment.cloudReadyMemberIds.length,
         completedCount,
         exerciseCount: deployment.exerciseCount,
+        effortCounts: deployment.effortCounts,
+        latestFeedback: deployment.latestFeedback,
       };
     });
   }, [assignmentDeployments, fallbackAssignmentHistory, workoutCompletions]);
@@ -723,6 +727,16 @@ export function InstructorScreen({
                 <Text style={styles.assignmentHistoryTargets}>
                   {assignment.targetNames.slice(0, 4).join(', ')}{assignment.targetNames.length > 4 ? ` +${assignment.targetNames.length - 4}` : ''}
                 </Text>
+                {assignment.effortCounts ? (
+                  <Text style={styles.assignmentHistoryTargets}>
+                    Easy {assignment.effortCounts.tooEasy} / Right {assignment.effortCounts.aboutRight} / Hard {assignment.effortCounts.tooHard}
+                  </Text>
+                ) : null}
+                {assignment.latestFeedback ? (
+                  <Text style={styles.assignmentHistoryFeedback}>
+                    {assignment.latestFeedback.memberName}: {assignment.latestFeedback.note || assignment.latestFeedback.effort}
+                  </Text>
+                ) : null}
               </View>
               <View style={styles.assignmentHistoryScore}>
                 <Text style={[styles.assignmentHistoryPercent, { color: completionPercent >= 75 ? colours.green : completionPercent >= 40 ? colours.amber : colours.red }]}>
@@ -1424,6 +1438,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   assignmentHistoryTargets: { color: colours.textSoft, fontSize: 11, fontWeight: '700', marginTop: 3 },
+  assignmentHistoryFeedback: { color: colours.amber, fontSize: 11, fontWeight: '800', marginTop: 3 },
   assignmentHistoryScore: { alignItems: 'flex-end' },
   assignmentHistoryPercent: { fontSize: 24, lineHeight: 28, fontWeight: '900' },
   cloudActions: {
