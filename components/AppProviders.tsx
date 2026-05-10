@@ -15,7 +15,7 @@ import { useToast } from '../hooks/useToast';
 import { useLocalStore } from '../hooks/useLocalStore';
 import { useCloudSync } from '../hooks/useCloudSync';
 import { usePinLock } from '../hooks/usePinLock';
-import { syncSquadAssignment, syncSquadWorkoutCompletion } from '../lib/squadCloud';
+import { syncAssignmentDeploymentActivity, syncSquadAssignment, syncSquadWorkoutCompletion } from '../lib/squadCloud';
 import type { AppNavigation, AppActions, Tab, MemberTab, PendingMemberInvite, ForgeBackup } from '../types/app';
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -115,8 +115,8 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   const [pendingSyncCount, setPendingSyncCount] = useState(0);
   const cloud = useCloudSync({
-    sessions, members, workoutCompletions, readinessLogs,
-    setSessions, setMembers, setWorkoutCompletions, setReadinessLogs,
+    sessions, members, workoutCompletions, assignmentDeployments, readinessLogs,
+    setSessions, setMembers, setWorkoutCompletions, setAssignmentDeployments, setReadinessLogs,
     setPendingSyncCount, showToast, isReady, googleSheetsEndpoint,
   });
 
@@ -364,6 +364,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
   function addAssignmentDeployment(deployment: AssignmentDeployment) {
     setAssignmentDeployments((current) => [deployment, ...current.filter((item) => item.id !== deployment.id)].slice(0, 50));
+    if (cloud.cloudSquadId) {
+      syncAssignmentDeploymentActivity(cloud.cloudSquadId, deployment)
+        .catch((error) => console.error('Failed to sync assignment deployment activity', error));
+    }
   }
 
   function addGroup(group: TrainingGroup) {

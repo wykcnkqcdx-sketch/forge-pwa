@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { AssignedExerciseBlock, MemberAssignment, SquadMember } from '../data/mockData';
-import type { WorkoutCompletion } from '../data/domain';
+import type { AssignmentDeployment, WorkoutCompletion } from '../data/domain';
 import { supabase } from './supabase';
 
 export const RemoteSquadSchema = z.object({
@@ -355,6 +355,34 @@ export async function syncSquadWorkoutCompletion(squadId: string, userId: string
   if (activity.error) throw activity.error;
 }
 
+export async function syncAssignmentDeploymentActivity(squadId: string, deployment: AssignmentDeployment) {
+  const client = ensureSupabase();
+  const response = await client
+    .from('team_activity')
+    .insert({
+      squad_id: squadId,
+      actor_membership_id: null,
+      activity_type: 'assignment_created',
+      title: `${deployment.title} deployed`,
+      body: `${deployment.targetMemberIds.length} target${deployment.targetMemberIds.length === 1 ? '' : 's'}, ${deployment.cloudReadyMemberIds.length} cloud-ready.`,
+      metadata: {
+        deploymentId: deployment.id,
+        scope: deployment.scope,
+        groupId: deployment.groupId ?? null,
+        groupName: deployment.groupName ?? null,
+        targetMemberIds: deployment.targetMemberIds,
+        targetNames: deployment.targetNames,
+        cloudReadyMemberIds: deployment.cloudReadyMemberIds,
+        exerciseCount: deployment.exerciseCount,
+        assignedAt: deployment.assignedAt,
+        coachNote: deployment.coachNote ?? null,
+      },
+      created_at: deployment.assignedAt,
+    });
+
+  if (response.error) throw response.error;
+}
+
 export async function fetchCloudTeamPulse(squadId: string, memberCount = 0): Promise<CloudTeamPulse> {
   const client = ensureSupabase();
   const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -514,4 +542,47 @@ export async function fetchCloudSquadMembershipTargets(squadId: string): Promise
 
   if (response.error) throw response.error;
   return z.array(RemoteSquadMembershipSchema).parse(response.data);
+}
+
+const AssignmentDeploymentMetadataSchema = z.object({
+  deploymentId: z.string().optional(),
+  scope: z.enum(['member', 'group', 'squad']).optional(),
+  groupId: z.string().nullable().optional(),
+  groupName: z.string().nullable().optional(),
+  targetMemberIds: z.array(z.string()).optional(),
+  targetNames: z.array(z.string()).optional(),
+  cloudReadyMemberIds: z.array(z.string()).optional(),
+  exerciseCount: z.number().optional(),
+  assignedAt: z.string().optional(),
+  coachNote: z.string().nullable().optional(),
+});
+
+export async function fetchCloudAssignmentDeployments(squadId: string): Promise<AssignmentDeployment[]> {
+  const client = ensureSupabase();
+  const response = await client
+    .from('team_activity')
+    .select('*')
+    .eq('squad_id', squadId)
+    .eq('activity_type', 'assignment_created')
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  if (response.error) throw response.error;
+
+  return z.array(RemoteTeamActivitySchema).parse(response.data).map((activity) => {
+    const metadata = AssignmentDeploymentMetadataSchema.safeParse(activity.metadata ?? {}).data;
+    return {
+      id: metadata?.deploymentId ?? activity.id,
+      title: activity.title.replace(/\s+deployed$/, ''),
+      scope: metadata?.scope ?? 'member',
+      groupId: metadata?.groupId ?? undefined,
+      groupName: metadata?.groupName ?? undefined,
+      targetMemberIds: metadata?.targetMemberIds ?? [],
+      targetNames: metadata?.targetNames ?? [],
+      cloudReadyMemberIds: metadata?.cloudReadyMemberIds ?? [],
+      exerciseCount: metadata?.exerciseCount ?? 0,
+      assignedAt: metadata?.assignedAt ?? activity.created_at,
+      coachNote: metadata?.coachNote ?? undefined,
+    };
+  });
 }
