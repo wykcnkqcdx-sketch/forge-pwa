@@ -119,6 +119,17 @@ export type CloudTeamPulse = {
   updatedAt: string;
 };
 
+export type CloudTeamActivity = {
+  id: string;
+  squadId: string;
+  actorMembershipId: string | null;
+  type: RemoteTeamActivityRow['activity_type'];
+  title: string;
+  body?: string;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+};
+
 export type SquadCloudSnapshot = {
   squads: RemoteSquadRow[];
   memberships: RemoteSquadMembershipRow[];
@@ -225,6 +236,19 @@ export function buildInviteUrl(appBaseUrl: string, rawToken: string) {
 
 export function isInviteClaimable(invite: Pick<RemoteMemberInviteRow, 'status' | 'expires_at'>, now = new Date()) {
   return invite.status === 'pending' && new Date(invite.expires_at).getTime() > now.getTime();
+}
+
+export function fromRemoteTeamActivity(row: RemoteTeamActivityRow): CloudTeamActivity {
+  return {
+    id: row.id,
+    squadId: row.squad_id,
+    actorMembershipId: row.actor_membership_id,
+    type: row.activity_type,
+    title: row.title,
+    body: row.body ?? undefined,
+    metadata: row.metadata ?? {},
+    createdAt: row.created_at,
+  };
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -454,6 +478,19 @@ export async function fetchCloudTeamPulse(squadId: string, memberCount = 0): Pro
     completionRate,
     updatedAt: new Date().toISOString(),
   };
+}
+
+export async function fetchCloudTeamActivity(squadId: string, limit = 30): Promise<CloudTeamActivity[]> {
+  const client = ensureSupabase();
+  const response = await client
+    .from('team_activity')
+    .select('*')
+    .eq('squad_id', squadId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (response.error) throw response.error;
+  return z.array(RemoteTeamActivitySchema).parse(response.data).map(fromRemoteTeamActivity);
 }
 
 function fromRemoteMemberAssignment(assignment: RemoteAssignmentRow, exercises: RemoteAssignmentExerciseRow[]): MemberAssignment {

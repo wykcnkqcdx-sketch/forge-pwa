@@ -10,12 +10,14 @@ import { responsiveSpacing, statusColors } from '../utils/styling';
 import { exerciseLibrary, SquadMember, TrainingGroup, TrainingSession, trainingModes } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
 import { addDaysToDateKey, isSameLocalDate, toLocalDateKey } from '../utils/date';
+import type { CloudTeamActivity } from '../lib/squadCloud';
 
 type Props = {
   member: SquadMember | null;
   members: SquadMember[];
   groups: TrainingGroup[];
   workoutCompletions?: WorkoutCompletion[];
+  cloudTeamActivity?: CloudTeamActivity[];
   onUpdateMember: (id: string, updates: Partial<SquadMember>) => void;
   onCompleteWorkout: (completion: WorkoutCompletion) => void;
   onAddSession: (session: TrainingSession) => void;
@@ -68,6 +70,7 @@ export function MemberScreen({
   members,
   groups,
   workoutCompletions = [],
+  cloudTeamActivity = [],
   onUpdateMember,
   onCompleteWorkout,
   onAddSession,
@@ -189,6 +192,13 @@ export function MemberScreen({
       .filter(c => visibleIds.has(c.memberId) && isSameLocalDate(c.completedAt, selectedDateStr))
       .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
   }, [workoutCompletions, teamMembers, members, member?.id, selectedDateStr]);
+
+  const displayedCloudActivity = useMemo(() => (
+    cloudTeamActivity
+      .filter((activity) => isSameLocalDate(activity.createdAt, selectedDateStr))
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 8)
+  ), [cloudTeamActivity, selectedDateStr]);
 
   useEffect(() => {
     if (!member?.assignmentSession) return;
@@ -750,7 +760,15 @@ export function MemberScreen({
             <Ionicons name="chevron-forward" size={20} color={colours.cyan} />
           </Pressable>
         </View>
-        {displayedCompletions.length ? displayedCompletions.map((completion) => {
+        {displayedCloudActivity.length ? displayedCloudActivity.map((activity) => (
+          <View key={activity.id} style={styles.activityRow}>
+            <View style={styles.activityCopy}>
+              <Text style={styles.activityTitle}>{activity.title}</Text>
+              <Text style={styles.activityMeta}>{formatActivityTime(activity.createdAt)} - Cloud activity</Text>
+              {activity.body ? <Text style={styles.activityMeta}>{activity.body}</Text> : null}
+            </View>
+          </View>
+        )) : displayedCompletions.length ? displayedCompletions.map((completion) => {
           const completionMember = members.find(m => m.id === completion.memberId);
           if (!completionMember) return null;
           const isSelf = completionMember.id === member.id;

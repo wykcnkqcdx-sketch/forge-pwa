@@ -9,6 +9,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { colours, radius, touchTarget, typography } from '../theme';
 import type { SquadMember, TrainingGroup, TrainingSession, ProgrammeTemplate } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
+import type { CloudTeamActivity } from '../lib/squadCloud';
 
 type InstructorProps = React.ComponentProps<typeof InstructorScreen>;
 
@@ -16,6 +17,7 @@ type Props = InstructorProps & {
   onCompleteWorkout: (completion: WorkoutCompletion) => void;
   onAddSession: (session: TrainingSession) => void;
   initialMode?: 'coach' | 'member';
+  cloudTeamActivity?: CloudTeamActivity[];
 };
 
 function ModeSwitch({ mode, onModeChange }: { mode: 'coach' | 'member'; onModeChange: (mode: 'coach' | 'member') => void }) {
@@ -140,6 +142,7 @@ export function SquadScreen(props: Props) {
           members={props.members}
           groups={props.groups}
           workoutCompletions={props.workoutCompletions}
+          cloudTeamActivity={props.cloudTeamActivity}
           onUpdateMember={props.onUpdateMember}
           onCompleteWorkout={props.onCompleteWorkout}
           onAddSession={props.onAddSession}

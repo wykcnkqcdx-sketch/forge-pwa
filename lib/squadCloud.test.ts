@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { toRemoteTeamActivity } from './squadCloud';
+import { fromRemoteTeamActivity, toRemoteTeamActivity } from './squadCloud';
 import type { WorkoutCompletion } from '../data/domain';
 
 vi.mock('./supabase', () => ({
@@ -39,5 +39,31 @@ describe('toRemoteTeamActivity', () => {
     expect(activity.title).toBe('A teammate completed Ruck Intervals');
     expect(activity.body).toBeNull();
     expect(activity.metadata?.ghostMode).toBe(true);
+  });
+});
+
+describe('fromRemoteTeamActivity', () => {
+  it('maps remote rows into member-portal activity items', () => {
+    const activity = fromRemoteTeamActivity({
+      id: 'activity-1',
+      squad_id: 'squad-1',
+      actor_membership_id: 'membership-1',
+      activity_type: 'workout_completed',
+      title: 'A teammate completed Ruck Intervals',
+      body: null,
+      metadata: { ghostMode: true, volume: 300 },
+      created_at: '2026-05-10T10:00:00.000Z',
+    });
+
+    expect(activity).toEqual({
+      id: 'activity-1',
+      squadId: 'squad-1',
+      actorMembershipId: 'membership-1',
+      type: 'workout_completed',
+      title: 'A teammate completed Ruck Intervals',
+      body: undefined,
+      metadata: { ghostMode: true, volume: 300 },
+      createdAt: '2026-05-10T10:00:00.000Z',
+    });
   });
 });

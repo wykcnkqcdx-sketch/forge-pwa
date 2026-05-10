@@ -252,6 +252,7 @@ export function AppRouter() {
             cloudEmail={cloud.cloudSession?.user.email ?? null}
             cloudSquadId={cloud.cloudSquadId}
             cloudTeamPulse={cloud.cloudTeamPulse}
+            cloudTeamActivity={cloud.cloudTeamActivity}
             pendingSyncCount={pendingSyncCount}
             onCloudSync={cloud.syncCloudNow}
             onCloudSignOut={cloud.signOutCloud}
