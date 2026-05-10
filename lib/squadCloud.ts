@@ -130,6 +130,20 @@ export type CloudTeamActivity = {
   createdAt: string;
 };
 
+export type CloudInvite = {
+  id: string;
+  squadId: string;
+  email?: string;
+  displayName?: string;
+  gymName?: string;
+  role: RemoteMemberInviteRow['role'];
+  status: RemoteMemberInviteRow['status'];
+  expiresAt: string;
+  acceptedAt?: string;
+  revokedAt?: string;
+  createdAt: string;
+};
+
 export type SquadCloudSnapshot = {
   squads: RemoteSquadRow[];
   memberships: RemoteSquadMembershipRow[];
@@ -247,6 +261,22 @@ export function fromRemoteTeamActivity(row: RemoteTeamActivityRow): CloudTeamAct
     title: row.title,
     body: row.body ?? undefined,
     metadata: row.metadata ?? {},
+    createdAt: row.created_at,
+  };
+}
+
+export function fromRemoteMemberInvite(row: RemoteMemberInviteRow): CloudInvite {
+  return {
+    id: row.id,
+    squadId: row.squad_id,
+    email: row.email ?? undefined,
+    displayName: row.display_name ?? undefined,
+    gymName: row.gym_name ?? undefined,
+    role: row.role,
+    status: row.status,
+    expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at ?? undefined,
+    revokedAt: row.revoked_at ?? undefined,
     createdAt: row.created_at,
   };
 }
@@ -491,6 +521,19 @@ export async function fetchCloudTeamActivity(squadId: string, limit = 30): Promi
 
   if (response.error) throw response.error;
   return z.array(RemoteTeamActivitySchema).parse(response.data).map(fromRemoteTeamActivity);
+}
+
+export async function fetchCloudInvites(squadId: string, limit = 50): Promise<CloudInvite[]> {
+  const client = ensureSupabase();
+  const response = await client
+    .from('member_invites')
+    .select('*')
+    .eq('squad_id', squadId)
+    .order('created_at', { ascending: false })
+    .limit(limit);
+
+  if (response.error) throw response.error;
+  return z.array(RemoteMemberInviteSchema).parse(response.data).map(fromRemoteMemberInvite);
 }
 
 function fromRemoteMemberAssignment(assignment: RemoteAssignmentRow, exercises: RemoteAssignmentExerciseRow[]): MemberAssignment {

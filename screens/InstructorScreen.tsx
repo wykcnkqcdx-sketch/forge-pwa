@@ -11,7 +11,7 @@ import type { AssignmentDeployment, ReadinessLog, WorkoutCompletion } from '../d
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { buildSecureInviteUrl, generateInviteToken, hashInviteToken, inviteExpiry } from '../lib/inviteTokens';
 import { supabase } from '../lib/supabase';
-import type { CloudTeamPulse } from '../lib/squadCloud';
+import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
@@ -42,6 +42,7 @@ interface InstructorScreenProps {
   cloudEmail: string | null;
   cloudSquadId?: string | null;
   cloudTeamPulse?: CloudTeamPulse | null;
+  cloudInvites?: CloudInvite[];
   pendingSyncCount?: number;
   onCloudSync: () => void;
   onCloudSignOut: () => void;
@@ -192,6 +193,7 @@ export function InstructorScreen({
   cloudEmail,
   cloudSquadId,
   cloudTeamPulse,
+  cloudInvites = [],
   pendingSyncCount = 0,
   onCloudSync,
   onCloudSignOut,
@@ -369,6 +371,12 @@ export function InstructorScreen({
     return { targetReady, invited, acceptedNeedsSync, manual };
   }, [members]);
   const inviteLifecycleGroups = useMemo(() => groupInviteLifecycle(members), [members]);
+  const cloudInviteCounts = useMemo(() => ({
+    pending: cloudInvites.filter((invite) => invite.status === 'pending').length,
+    accepted: cloudInvites.filter((invite) => invite.status === 'accepted').length,
+    expired: cloudInvites.filter((invite) => invite.status === 'expired').length,
+    revoked: cloudInvites.filter((invite) => invite.status === 'revoked').length,
+  }), [cloudInvites]);
   const fallbackAssignmentHistory = useMemo(() => {
     const grouped = new Map<string, {
       key: string;
