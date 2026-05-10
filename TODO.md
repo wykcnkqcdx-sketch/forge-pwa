@@ -17,7 +17,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 
 1. Done: claim invite tokens from the app URL instead of only showing the local fallback.
 2. Done: require or route to Supabase sign-in before `claim_member_invite`.
-3. Hydrate accepted memberships into the member portal from cloud assignments.
+3. Done: hydrate accepted memberships into the member portal from cloud assignments.
 4. Link local coach members to accepted `cloudMembershipId` records during Sync Now.
 5. Done: write member workout completions with `squad_id`, `assignment_id`, and `membership_id`.
 6. Enforce Ghost Mode in cloud team activity display.
@@ -30,6 +30,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Squad completion sync writes `membership_id` and uses it as the team activity actor.
 - Cloud invite placeholder members no longer receive a fake default assignment while cloud assignment hydration catches up.
 - Invite URLs now hold a pending token, show auth before first-run onboarding when signed out, clear the token after claim, and mark onboarding complete for accepted members.
+- Accepted invites now immediately fetch cloud member assignments and upsert the hydrated member into local state, with a no-assignment fallback if assignment sync is delayed.
 
 ## Verification
 

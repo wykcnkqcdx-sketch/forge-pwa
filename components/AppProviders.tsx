@@ -15,7 +15,7 @@ import { useToast } from '../hooks/useToast';
 import { useLocalStore } from '../hooks/useLocalStore';
 import { useCloudSync } from '../hooks/useCloudSync';
 import { usePinLock } from '../hooks/usePinLock';
-import { syncAssignmentDeploymentActivity, syncSquadAssignment, syncSquadWorkoutCompletion } from '../lib/squadCloud';
+import { fetchCloudMemberAssignments, syncAssignmentDeploymentActivity, syncSquadAssignment, syncSquadWorkoutCompletion } from '../lib/squadCloud';
 import type { AppNavigation, AppActions, Tab, MemberTab, PendingMemberInvite, ForgeBackup } from '../types/app';
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -77,6 +77,15 @@ function updateDeploymentCompletion(deployment: AssignmentDeployment, completion
       }
       : deployment.latestFeedback,
   };
+}
+
+function upsertMemberById(current: SquadMember[], member: SquadMember) {
+  const existingIndex = current.findIndex((item) => item.id === member.id);
+  if (existingIndex < 0) return [member, ...current];
+
+  const next = [...current];
+  next[existingIndex] = { ...next[existingIndex], ...member };
+  return next;
 }
 
 const COACH_SELF: SquadMember = {
@@ -266,6 +275,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const inviteClaimUserId = cloud.cloudSession.user.id;
       claimedInviteTokenRef.current = inviteToken;
       void (async () => {
         try {
@@ -279,13 +289,41 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
             email?: string | null;
           } | null;
           if (membership?.id) {
-            setActiveMemberId(membership.id);
-            setPendingMemberInvite({
+            const fallbackMember: SquadMember = {
               id: membership.id,
+              cloudMembershipId: membership.id,
               groupId: membership.squad_id ?? trainingGroups[0]?.id ?? 'alpha',
               name: membership.display_name ?? 'Squad Member',
               gymName: membership.gym_name ?? membership.display_name ?? 'Athlete',
               email: membership.email ?? undefined,
+              readiness: 72,
+              compliance: 0,
+              risk: 'Low',
+              load: 65,
+              inviteStatus: 'Joined',
+              ghostMode: false,
+              streakDays: 0,
+              weeklyVolume: 0,
+              hypeCount: 0,
+              updatedAt: new Date().toISOString(),
+            };
+            let hydratedMember = fallbackMember;
+            try {
+              const assignedMembers = await fetchCloudMemberAssignments(inviteClaimUserId);
+              hydratedMember = assignedMembers.find((member) => member.id === membership.id) ?? fallbackMember;
+            } catch (assignmentError) {
+              console.error('Failed to hydrate claimed invite assignment', assignmentError);
+              showToast('Invite accepted. Assigned work will sync shortly.');
+            }
+            setMembers((current) => upsertMemberById(current, hydratedMember));
+            setActiveMemberId(hydratedMember.id);
+            setActiveMemberTab('portal');
+            setPendingMemberInvite({
+              id: hydratedMember.id,
+              groupId: hydratedMember.groupId,
+              name: hydratedMember.name,
+              gymName: hydratedMember.gymName ?? hydratedMember.name,
+              email: hydratedMember.email,
             });
           }
           setPendingInviteToken(null);
