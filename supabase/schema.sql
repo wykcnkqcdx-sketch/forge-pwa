@@ -86,6 +86,7 @@ alter table public.readiness_logs enable row level security;
 
 alter table public.squad_members
 add column if not exists gym_name text,
+add column if not exists cloud_membership_id uuid references public.squad_memberships(id) on delete set null,
 add column if not exists pinned_exercise_ids jsonb,
 add column if not exists ghost_mode boolean default false,
 add column if not exists streak_days integer default 0,

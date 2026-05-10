@@ -293,6 +293,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     setMembers((current) => [
       {
         id: pendingMemberInvite.id,
+        cloudMembershipId: pendingMemberInvite.id,
         groupId: pendingMemberInvite.groupId,
         name: pendingMemberInvite.name,
         gymName: pendingMemberInvite.gymName,

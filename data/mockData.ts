@@ -8,6 +8,7 @@ export type SquadMember = {
   name: string;
   gymName?: string;
   email?: string;
+  cloudMembershipId?: string;
   groupId: string;
   readiness: number;
   compliance: number;

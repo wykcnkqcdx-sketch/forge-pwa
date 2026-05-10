@@ -42,6 +42,7 @@ const RemoteMemberSchema = z.object({
   name: z.string(),
   gym_name: z.string().nullable(),
   email: z.string().nullable(),
+  cloud_membership_id: z.string().nullable(),
   group_id: z.string(),
   readiness: z.number(),
   compliance: z.number(),
@@ -291,6 +292,7 @@ function toRemoteMember(userId: string, member: SquadMember): RemoteSquadMemberR
     name: member.name,
     gym_name: member.gymName ?? null,
     email: member.email ?? null,
+    cloud_membership_id: member.cloudMembershipId ?? null,
     group_id: member.groupId,
     readiness: member.readiness,
     compliance: member.compliance,
@@ -323,6 +325,7 @@ function toRemoteMemberUpdates(updates: Partial<SquadMember>) {
   if (updates.name !== undefined) row.name = updates.name;
   if (updates.gymName !== undefined) row.gym_name = updates.gymName ?? null;
   if (updates.email !== undefined) row.email = updates.email ?? null;
+  if (updates.cloudMembershipId !== undefined) row.cloud_membership_id = updates.cloudMembershipId ?? null;
   if (updates.groupId !== undefined) row.group_id = updates.groupId;
   if (updates.readiness !== undefined) row.readiness = updates.readiness;
   if (updates.compliance !== undefined) row.compliance = updates.compliance;
@@ -415,6 +418,7 @@ function fromRemoteMember(row: RemoteSquadMemberRow): SquadMember {
     name: row.name,
     gymName: row.gym_name ?? undefined,
     email: row.email ?? undefined,
+    cloudMembershipId: row.cloud_membership_id ?? undefined,
     groupId: row.group_id,
     readiness: row.readiness,
     compliance: row.compliance,

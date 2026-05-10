@@ -287,12 +287,13 @@ export async function syncSquadAssignment(squadId: string, assignedBy: string, m
   const memberships = await membershipQuery;
   if (memberships.error) throw memberships.error;
   const parsedMemberships = z.array(RemoteSquadMembershipSchema).parse(memberships.data);
-  const assignee = parsedMemberships.find((item) => (
-    (member.email && item.email?.toLowerCase() === member.email.toLowerCase())
+  const assignee = parsedMemberships.find((item) => item.id === member.cloudMembershipId)
+    ?? parsedMemberships.find((item) => (
+      (member.email && item.email?.toLowerCase() === member.email.toLowerCase())
     || item.id === member.id
     || item.display_name.toLowerCase() === member.name.toLowerCase()
     || item.gym_name?.toLowerCase() === member.gymName?.toLowerCase()
-  ));
+    ));
   const assignment = {
     ...toRemoteAssignment(squadId, assignedBy, member.assignmentSession, assignee?.id ?? null),
     group_id: member.groupId,
@@ -480,6 +481,7 @@ export async function fetchCloudMemberAssignments(userId: string): Promise<Squad
 
     return {
       id: membership.id,
+      cloudMembershipId: membership.id,
       groupId: assignment?.group_id ?? membership.squad_id,
       name: membership.display_name,
       gymName: membership.gym_name ?? membership.display_name,
@@ -499,4 +501,17 @@ export async function fetchCloudMemberAssignments(userId: string): Promise<Squad
       updatedAt: assignment?.updated_at ?? membership.updated_at,
     };
   });
+}
+
+export async function fetchCloudSquadMembershipTargets(squadId: string): Promise<RemoteSquadMembershipRow[]> {
+  const client = ensureSupabase();
+  const response = await client
+    .from('squad_memberships')
+    .select('*')
+    .eq('squad_id', squadId)
+    .eq('status', 'active')
+    .order('created_at', { ascending: true });
+
+  if (response.error) throw response.error;
+  return z.array(RemoteSquadMembershipSchema).parse(response.data);
 }

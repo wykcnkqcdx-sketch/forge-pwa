@@ -6,7 +6,7 @@ import { fetchCloudSnapshot, pushCloudMutation, pushCloudSnapshot } from '../lib
 import { buildGoogleSheetsPayload, exportToGoogleSheets } from '../lib/googleSheets';
 import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from '../lib/offlineQueue';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
-import { ensureDefaultCloudSquad, fetchCloudMemberAssignments, fetchCloudTeamPulse, type CloudTeamPulse } from '../lib/squadCloud';
+import { ensureDefaultCloudSquad, fetchCloudMemberAssignments, fetchCloudSquadMembershipTargets, fetchCloudTeamPulse, type CloudTeamPulse } from '../lib/squadCloud';
 
 type CloudMutation = Parameters<typeof enqueueOfflineMutation>[0];
 
@@ -103,6 +103,22 @@ export function useCloudSync({
     });
   }, [setMembers]);
 
+  const refreshCloudMembershipTargets = useCallback(async (squadId?: string | null) => {
+    if (!squadId) return;
+    const targets = await fetchCloudSquadMembershipTargets(squadId);
+    if (targets.length === 0) return;
+    setMembers((current) => current.map((member) => {
+      if (member.cloudMembershipId) return member;
+      const target = targets.find((item) => (
+        (member.email && item.email?.toLowerCase() === member.email.toLowerCase())
+        || item.id === member.id
+        || item.display_name.toLowerCase() === member.name.toLowerCase()
+        || item.gym_name?.toLowerCase() === member.gymName?.toLowerCase()
+      ));
+      return target ? { ...member, cloudMembershipId: target.id, inviteStatus: 'Joined' } : member;
+    }));
+  }, [setMembers]);
+
   const flushOfflineMutations = useCallback(async (userId: string) => {
     const replayed = await replayOfflineQueue((mutation, createdAt) => pushCloudMutation(userId, mutation, createdAt));
     await refreshPendingSyncCount();
@@ -197,6 +213,7 @@ export function useCloudSync({
           if (!cancelled) {
             setCloudSquadId(squad.id);
             await refreshCloudTeamPulse(squad.id);
+            await refreshCloudMembershipTargets(squad.id);
             await refreshCloudMemberAssignments(userId);
           }
           cloudHydrated.current = true;
@@ -215,7 +232,7 @@ export function useCloudSync({
     hydrateCloud();
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloudSession?.user?.id, isReady, flushOfflineMutations, refreshCloudMemberAssignments, refreshCloudTeamPulse]);
+  }, [cloudSession?.user?.id, isReady, flushOfflineMutations, refreshCloudMemberAssignments, refreshCloudMembershipTargets, refreshCloudTeamPulse]);
 
   // Debounced push on data change
   useEffect(() => {
@@ -233,6 +250,7 @@ export function useCloudSync({
         const replayed = await flushOfflineMutations(userId);
         if (replayed > 0) await refreshCloudSnapshot(userId);
         await refreshCloudTeamPulse(cloudSquadId);
+        await refreshCloudMembershipTargets(cloudSquadId);
         await refreshCloudMemberAssignments(userId);
         setCloudStatus('synced');
       } catch (error) {
@@ -243,7 +261,7 @@ export function useCloudSync({
     }, 400);
 
     return () => clearTimeout(timer);
-  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, cloudSquadId, isReady, flushOfflineMutations, isBrowserOffline, refreshCloudMemberAssignments, refreshCloudSnapshot, refreshCloudTeamPulse]);
+  }, [sessions, members, workoutCompletions, readinessLogs, cloudSession?.user?.id, cloudSquadId, isReady, flushOfflineMutations, isBrowserOffline, refreshCloudMemberAssignments, refreshCloudMembershipTargets, refreshCloudSnapshot, refreshCloudTeamPulse]);
 
   // Realtime subscription + online/focus handlers
   useEffect(() => {
@@ -256,6 +274,7 @@ export function useCloudSync({
         setCloudStatus('syncing');
         await refreshCloudSnapshot(userId);
         await refreshCloudTeamPulse(cloudSquadId);
+        await refreshCloudMembershipTargets(cloudSquadId);
         await refreshCloudMemberAssignments(userId);
       } catch (error) {
         console.error('Failed to refresh realtime snapshot', error);
@@ -284,6 +303,7 @@ export function useCloudSync({
           await flushOfflineMutations(userId);
           await refreshCloudSnapshot(userId);
           await refreshCloudTeamPulse(cloudSquadId);
+          await refreshCloudMembershipTargets(cloudSquadId);
           await refreshCloudMemberAssignments(userId);
         } catch (error) {
           console.error('Failed to sync after reconnect', error);
@@ -303,7 +323,7 @@ export function useCloudSync({
       document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
       client.removeChannel(channel);
     };
-  }, [cloudSession?.user?.id, cloudSquadId, isReady, flushOfflineMutations, refreshCloudMemberAssignments, refreshCloudSnapshot, refreshCloudTeamPulse]);
+  }, [cloudSession?.user?.id, cloudSquadId, isReady, flushOfflineMutations, refreshCloudMemberAssignments, refreshCloudMembershipTargets, refreshCloudSnapshot, refreshCloudTeamPulse]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !cloudSquadId || !isReady) return;
@@ -391,6 +411,7 @@ export function useCloudSync({
       await flushOfflineMutations(userId);
       await refreshCloudSnapshot(userId);
       await refreshCloudTeamPulse(cloudSquadId);
+      await refreshCloudMembershipTargets(cloudSquadId);
       await refreshCloudMemberAssignments(userId);
     } catch (error) {
       console.error('Manual cloud sync failed', error);
