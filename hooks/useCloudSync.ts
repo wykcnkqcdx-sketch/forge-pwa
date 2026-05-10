@@ -7,6 +7,7 @@ import { buildGoogleSheetsPayload, exportToGoogleSheets } from '../lib/googleShe
 import { clearOfflineQueue, enqueueOfflineMutation, getPendingOfflineMutationCount, replayOfflineQueue } from '../lib/offlineQueue';
 import { isSupabaseConfigured, supabase } from '../lib/supabase';
 import { ensureDefaultCloudSquad, fetchCloudAssignmentDeployments, fetchCloudMemberAssignments, fetchCloudSquadMembershipTargets, fetchCloudTeamPulse, type CloudTeamPulse } from '../lib/squadCloud';
+import type { RemoteSquadMembershipRow } from '../lib/squadCloud';
 
 type CloudMutation = Parameters<typeof enqueueOfflineMutation>[0];
 
@@ -33,6 +34,46 @@ type Props = {
   isReady: boolean;
   googleSheetsEndpoint: string;
 };
+
+function normalizeRosterKey(value?: string | null) {
+  return value?.trim().toLowerCase() ?? '';
+}
+
+function membershipMatchesMember(member: SquadMember, target: RemoteSquadMembershipRow) {
+  const memberEmail = normalizeRosterKey(member.email);
+  const targetEmail = normalizeRosterKey(target.email);
+  if (memberEmail && targetEmail) return memberEmail === targetEmail;
+
+  if (target.id === member.id) return true;
+
+  const memberGymName = normalizeRosterKey(member.gymName);
+  const targetGymName = normalizeRosterKey(target.gym_name);
+  if (memberGymName && targetGymName && memberGymName === targetGymName) return true;
+
+  return normalizeRosterKey(member.name) === normalizeRosterKey(target.display_name);
+}
+
+export function reconcileCloudMembershipTargets(
+  current: SquadMember[],
+  targets: RemoteSquadMembershipRow[],
+  now = new Date().toISOString(),
+) {
+  const memberTargets = targets.filter((target) => target.role === 'member' && target.status === 'active');
+
+  return current.map((member) => {
+    if (member.cloudMembershipId) return member;
+    const target = memberTargets.find((item) => membershipMatchesMember(member, item));
+    if (!target) return member;
+
+    return {
+      ...member,
+      cloudMembershipId: target.id,
+      inviteStatus: 'Joined' as const,
+      groupId: member.groupId || target.squad_id,
+      updatedAt: now,
+    };
+  });
+}
 
 export function useCloudSync({
   sessions, members, workoutCompletions, assignmentDeployments, readinessLogs,
@@ -122,16 +163,7 @@ export function useCloudSync({
     if (!squadId) return;
     const targets = await fetchCloudSquadMembershipTargets(squadId);
     if (targets.length === 0) return;
-    setMembers((current) => current.map((member) => {
-      if (member.cloudMembershipId) return member;
-      const target = targets.find((item) => (
-        (member.email && item.email?.toLowerCase() === member.email.toLowerCase())
-        || item.id === member.id
-        || item.display_name.toLowerCase() === member.name.toLowerCase()
-        || item.gym_name?.toLowerCase() === member.gymName?.toLowerCase()
-      ));
-      return target ? { ...member, cloudMembershipId: target.id, inviteStatus: 'Joined' } : member;
-    }));
+    setMembers((current) => reconcileCloudMembershipTargets(current, targets));
   }, [setMembers]);
 
   const flushOfflineMutations = useCallback(async (userId: string) => {

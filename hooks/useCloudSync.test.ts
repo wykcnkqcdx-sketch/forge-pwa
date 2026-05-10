@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
-import { useCloudSync } from './useCloudSync';
+import { reconcileCloudMembershipTargets, useCloudSync } from './useCloudSync';
+import type { RemoteSquadMembershipRow } from '../lib/squadCloud';
 
 // ── Module mocks ──────────────────────────────────────────────────────────────
 
@@ -61,6 +62,21 @@ const makeProps = (overrides: Partial<Parameters<typeof useCloudSync>[0]> = {}) 
   showToast: vi.fn(),
   isReady: true,
   googleSheetsEndpoint: '',
+  ...overrides,
+});
+
+const makeMembership = (overrides: Partial<RemoteSquadMembershipRow>): RemoteSquadMembershipRow => ({
+  id: 'membership-1',
+  squad_id: 'squad-1',
+  user_id: 'user-1',
+  display_name: 'Pte Doyle',
+  gym_name: 'Doyle',
+  email: 'doyle@example.com',
+  role: 'member',
+  status: 'active',
+  joined_at: '2026-05-01T08:00:00.000Z',
+  created_at: '2026-05-01T08:00:00.000Z',
+  updated_at: '2026-05-01T08:00:00.000Z',
   ...overrides,
 });
 
@@ -185,5 +201,51 @@ describe('pending sync count', () => {
     await waitFor(() => {
       expect(setPendingSyncCount).toHaveBeenCalledWith(3);
     });
+  });
+});
+
+describe('reconcileCloudMembershipTargets', () => {
+  it('links a local roster member to an accepted cloud membership by email', () => {
+    const [member] = reconcileCloudMembershipTargets([
+      {
+        id: 'local-1',
+        name: 'Pte Doyle',
+        gymName: 'Doyle',
+        email: 'doyle@example.com',
+        groupId: 'alpha',
+        readiness: 60,
+        compliance: 70,
+        risk: 'Low',
+        load: 50,
+        inviteStatus: 'Invited',
+      },
+    ], [makeMembership({ id: 'cloud-membership-1' })], '2026-05-10T10:00:00.000Z');
+
+    expect(member.cloudMembershipId).toBe('cloud-membership-1');
+    expect(member.inviteStatus).toBe('Joined');
+    expect(member.updatedAt).toBe('2026-05-10T10:00:00.000Z');
+  });
+
+  it('does not link coach memberships as member targets', () => {
+    const [member] = reconcileCloudMembershipTargets([
+      {
+        id: 'local-1',
+        name: 'Coach',
+        email: 'coach@example.com',
+        groupId: 'alpha',
+        readiness: 80,
+        compliance: 100,
+        risk: 'Low',
+        load: 0,
+      },
+    ], [makeMembership({
+      id: 'owner-membership-1',
+      display_name: 'Coach',
+      email: 'coach@example.com',
+      role: 'owner',
+    })], '2026-05-10T10:00:00.000Z');
+
+    expect(member.cloudMembershipId).toBeUndefined();
+    expect(member.inviteStatus).toBeUndefined();
   });
 });
