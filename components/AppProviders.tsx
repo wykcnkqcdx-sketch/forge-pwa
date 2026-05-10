@@ -34,6 +34,51 @@ const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionic
   { id: 'readiness', label: 'Ready', icon: 'body-outline',       iconActive: 'body' },
 ];
 
+function deploymentMatchesCompletion(deployment: AssignmentDeployment, completion: WorkoutCompletion) {
+  if (!deployment.targetMemberIds.includes(completion.memberId)) return false;
+  if (deployment.title !== completion.assignment) return false;
+  return new Date(completion.completedAt).getTime() >= new Date(deployment.assignedAt).getTime();
+}
+
+function updateDeploymentCompletion(deployment: AssignmentDeployment, completion: WorkoutCompletion): AssignmentDeployment {
+  if (!deploymentMatchesCompletion(deployment, completion)) return deployment;
+
+  const completedMemberIds = deployment.completedMemberIds?.includes(completion.memberId)
+    ? deployment.completedMemberIds
+    : [...(deployment.completedMemberIds ?? []), completion.memberId];
+  const alreadyCounted = deployment.completedMemberIds?.includes(completion.memberId) ?? false;
+  const effortCounts = {
+    tooEasy: deployment.effortCounts?.tooEasy ?? 0,
+    aboutRight: deployment.effortCounts?.aboutRight ?? 0,
+    tooHard: deployment.effortCounts?.tooHard ?? 0,
+  };
+
+  if (!alreadyCounted) {
+    if (completion.effort === 'Too Easy') effortCounts.tooEasy += 1;
+    if (completion.effort === 'About Right') effortCounts.aboutRight += 1;
+    if (completion.effort === 'Too Hard') effortCounts.tooHard += 1;
+  }
+
+  const previousFeedbackAt = deployment.latestFeedback?.completedAt
+    ? new Date(deployment.latestFeedback.completedAt).getTime()
+    : 0;
+  const completionAt = new Date(completion.completedAt).getTime();
+
+  return {
+    ...deployment,
+    completedMemberIds,
+    effortCounts,
+    latestFeedback: completionAt >= previousFeedbackAt
+      ? {
+        memberName: completion.memberName,
+        effort: completion.effort,
+        note: completion.note,
+        completedAt: completion.completedAt,
+      }
+      : deployment.latestFeedback,
+  };
+}
+
 const COACH_SELF: SquadMember = {
   id: 'coach-self', name: 'Coach', groupId: 'self',
   readiness: 80, compliance: 100, risk: 'Low', load: 0,
@@ -355,6 +400,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   function completeWorkout(completion: WorkoutCompletion) {
     const stamped = { ...completion, updatedAt: new Date().toISOString() };
     setWorkoutCompletions((current) => [stamped, ...current]);
+    setAssignmentDeployments((current) => current.map((deployment) => updateDeploymentCompletion(deployment, stamped)));
     enqueueCloudMutation({ type: 'upsert_workout_completion', payload: stamped });
     if (cloud.cloudSquadId && cloud.cloudSession?.user.id) {
       syncSquadWorkoutCompletion(cloud.cloudSquadId, cloud.cloudSession.user.id, stamped)

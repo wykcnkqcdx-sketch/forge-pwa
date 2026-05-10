@@ -635,6 +635,10 @@ export function InstructorScreen({
   }
 
   function loadCoachNudge(kind: keyof typeof coachNudgeTemplates, memberId: string) {
+    if (!memberId) {
+      showAlert('Pick a member', 'Add or select a member before loading a coach nudge.');
+      return;
+    }
     const template = coachNudgeTemplates[kind];
     setAssignmentScope('member');
     setAssignmentMemberId(memberId);
@@ -843,23 +847,13 @@ export function InstructorScreen({
                 <View style={styles.reviewActionRow}>
                   <Pressable
                     style={styles.reviewActionButton}
-                    onPress={() => {
-                      setAssignmentScope('member');
-                      setAssignmentMemberId(entry.member.id);
-                      setAssignmentLabel('Recovery Walk');
-                      setAssignmentOpen(true);
-                    }}
+                    onPress={() => loadCoachNudge('recovery', entry.member.id)}
                   >
                     <Text style={styles.reviewActionText}>Recovery</Text>
                   </Pressable>
                   <Pressable
                     style={styles.reviewActionButton}
-                    onPress={() => {
-                      setAssignmentScope('member');
-                      setAssignmentMemberId(entry.member.id);
-                      setAssignmentLabel('Mobility Reset');
-                      setAssignmentOpen(true);
-                    }}
+                    onPress={() => loadCoachNudge('mobility', entry.member.id)}
                   >
                     <Text style={styles.reviewActionText}>Mobility</Text>
                   </Pressable>
@@ -1407,6 +1401,18 @@ export function InstructorScreen({
             </View>
 
             <Text style={styles.assignmentLabel}>Training block</Text>
+            <View style={styles.coachNudgeRow}>
+              <Text style={styles.coachNudgeLabel}>Coach nudges</Text>
+              {Object.entries(coachNudgeTemplates).map(([key, template]) => (
+                <Pressable
+                  key={key}
+                  style={styles.coachNudgeButton}
+                  onPress={() => loadCoachNudge(key as keyof typeof coachNudgeTemplates, assignmentTargets[0]?.id ?? members[0]?.id ?? '')}
+                >
+                  <Text style={styles.coachNudgeText}>{template.label}</Text>
+                </Pressable>
+              ))}
+            </View>
             <View style={styles.assignmentWrap}>
               {assignmentTemplates.map((item) => {
                 const active = item === assignmentLabel;
@@ -1687,6 +1693,28 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     backgroundColor: colours.layer1,
   },
+  coachNudgeRow: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.035)',
+    padding: 10,
+    marginBottom: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 8,
+  },
+  coachNudgeLabel: { color: colours.textSoft, fontSize: 11, fontWeight: '900', marginRight: 2 },
+  coachNudgeButton: {
+    borderWidth: 1,
+    borderColor: `${colours.amber}45`,
+    borderRadius: 999,
+    backgroundColor: `${colours.amber}12`,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+  },
+  coachNudgeText: { color: colours.amber, fontSize: 11, fontWeight: '900' },
   assignmentHistoryRow: {
     minHeight: 64,
     flexDirection: 'row',
