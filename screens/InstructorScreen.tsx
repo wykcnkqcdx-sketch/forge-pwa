@@ -1573,6 +1573,7 @@ export function InstructorScreen({
               latestCompletion={latestCompletionByMember.get(member.id)}
               latestReadiness={latestReadinessByMember.get(member.id)}
               cloudEnabled={cloudEnabled}
+              onCloudSync={onCloudSync}
               onDelete={confirmDeleteMember}
             />
           )}

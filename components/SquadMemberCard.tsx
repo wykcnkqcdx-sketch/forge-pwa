@@ -32,30 +32,32 @@ interface Props {
   latestCompletion?: WorkoutCompletion;
   latestReadiness?: ReadinessLog;
   cloudEnabled?: boolean;
+  onCloudSync?: () => void;
   onDelete: (member: SquadMember) => void;
 }
 
-function memberLifecycle(member: SquadMember, cloudEnabled?: boolean) {
+export function memberLifecycle(member: SquadMember, cloudEnabled?: boolean) {
   if (member.cloudMembershipId) {
     return {
       label: 'Assignment Target Ready',
       detail: `Cloud target ${member.cloudMembershipId.slice(0, 8)}...`,
+      actionLabel: undefined,
       tone: colours.green,
     };
   }
   if (!cloudEnabled) {
-    return { label: 'Local Only', detail: 'Cloud targeting unavailable', tone: colours.muted };
+    return { label: 'Local Only', detail: 'Cloud targeting unavailable', actionLabel: undefined, tone: colours.muted };
   }
   if (member.inviteStatus === 'Invited') {
-    return { label: 'Invited', detail: 'Waiting for member claim', tone: colours.amber };
+    return { label: 'Invited', detail: 'Waiting for member claim', actionLabel: undefined, tone: colours.amber };
   }
   if (member.inviteStatus === 'Joined') {
-    return { label: 'Accepted', detail: 'Sync membership target', tone: colours.cyan };
+    return { label: 'Accepted', detail: 'Sync membership target', actionLabel: 'Sync Now', tone: colours.cyan };
   }
-  return { label: 'Manual', detail: 'Create secure invite for cloud assignments', tone: colours.textSoft };
+  return { label: 'Manual', detail: 'Create secure invite for cloud assignments', actionLabel: undefined, tone: colours.textSoft };
 }
 
-export function SquadMemberCard({ member, group, latestCompletion, latestReadiness, cloudEnabled, onDelete }: Props) {
+export function SquadMemberCard({ member, group, latestCompletion, latestReadiness, cloudEnabled, onCloudSync, onDelete }: Props) {
   const latestTone = latestCompletion ? completionTone(latestCompletion.completionType) : colours.borderSoft;
   const lifecycle = memberLifecycle(member, cloudEnabled);
 
@@ -104,6 +106,11 @@ export function SquadMemberCard({ member, group, latestCompletion, latestReadine
           <Pressable style={styles.deleteMemberButton} onPress={() => onDelete(member)}>
             <Text style={styles.deleteMemberText}>Delete</Text>
           </Pressable>
+          {lifecycle.actionLabel && onCloudSync ? (
+            <Pressable style={[styles.lifecycleActionButton, { borderColor: statusColors(lifecycle.tone).borderMed, backgroundColor: statusColors(lifecycle.tone).bgMed }]} onPress={onCloudSync}>
+              <Text style={[styles.lifecycleActionText, { color: lifecycle.tone }]}>{lifecycle.actionLabel}</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
       <ProgressBar value={member.readiness} />
@@ -142,6 +149,8 @@ const styles = StyleSheet.create({
   memberActions: { alignItems: 'flex-end', gap: responsiveSpacing('sm') },
   deleteMemberButton: { minHeight: 52, borderWidth: 1, borderColor: statusColors(colours.red).borderMed, borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: statusColors(colours.red).bgMed },
   deleteMemberText: { ...typography.caption, color: colours.red, fontWeight: '900' },
+  lifecycleActionButton: { minHeight: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
+  lifecycleActionText: { ...typography.caption, fontWeight: '900' },
   factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: responsiveSpacing('md') },
   factorItem: { flex: 1, minWidth: '22%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   factorLabel: { ...typography.label, color: colours.muted, marginBottom: 2 },

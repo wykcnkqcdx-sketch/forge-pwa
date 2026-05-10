@@ -28,6 +28,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Cloud `team_activity` rows are fetched through `fetchCloudTeamActivity`.
 - `useCloudSync` stores recent cloud activity and refreshes it with pulse/deployment updates.
 - The member portal activity card now prefers cloud activity for the selected day and falls back to local completions.
+- Coach roster cards now show an actionable `Sync Now` button when a member has accepted an invite but is not yet linked to a cloud assignment target.
 - Added `membershipId` to workout completions.
 - Member assigned-workout and quick-log completions now carry `cloudMembershipId`.
 - Squad completion sync writes `membership_id` and uses it as the team activity actor.
