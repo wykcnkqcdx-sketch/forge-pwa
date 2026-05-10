@@ -110,6 +110,11 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
 
 type AssignmentScope = 'member' | 'group' | 'squad';
 
+function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
+  if (invite.status === 'pending' && new Date(invite.expiresAt).getTime() <= Date.now()) return 'expired';
+  return invite.status;
+}
+
 function assignmentScopeState(targets: SquadMember[], scope: AssignmentScope, cloudEnabled: boolean) {
   if (scope === 'member') return assignmentTargetState(targets[0] ?? null, cloudEnabled);
   if (!targets.length) return { label: 'No targets', detail: 'No members match this assignment scope.', tone: colours.muted };
@@ -374,10 +379,10 @@ export function InstructorScreen({
   }, [members]);
   const inviteLifecycleGroups = useMemo(() => groupInviteLifecycle(members), [members]);
   const cloudInviteCounts = useMemo(() => ({
-    pending: cloudInvites.filter((invite) => invite.status === 'pending').length,
-    accepted: cloudInvites.filter((invite) => invite.status === 'accepted').length,
-    expired: cloudInvites.filter((invite) => invite.status === 'expired').length,
-    revoked: cloudInvites.filter((invite) => invite.status === 'revoked').length,
+    pending: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'pending').length,
+    accepted: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'accepted').length,
+    expired: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'expired').length,
+    revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
   }), [cloudInvites]);
   const fallbackAssignmentHistory = useMemo(() => {
     const grouped = new Map<string, {
@@ -525,7 +530,11 @@ export function InstructorScreen({
     );
   }
 
-  async function createSecureInviteForMember(member: Pick<SquadMember, 'id' | 'name' | 'gymName' | 'email' | 'groupId'>, context: 'added' | 'resent' = 'resent') {
+  async function createSecureInviteForMember(
+    member: Pick<SquadMember, 'name' | 'gymName' | 'email' | 'groupId'> & Partial<Pick<SquadMember, 'id'>>,
+    context: 'added' | 'resent' = 'resent',
+    refreshCloudRows = false,
+  ) {
     const trimmedEmail = member.email?.trim().toLowerCase() ?? '';
     const inviteSubject = 'Join FORGE Tactical Fitness';
     const displayName = member.gymName || member.name;
@@ -555,7 +564,7 @@ export function InstructorScreen({
       }
     }
 
-    if (context === 'resent') {
+    if (context === 'resent' && member.id) {
       onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
     }
 
@@ -563,6 +572,7 @@ export function InstructorScreen({
 
     if (!trimmedEmail) {
       showAlert('Secure invite created', `${displayName} does not have an email saved. Send them this link:\n\n${inviteUrl}`);
+      if (refreshCloudRows) onCloudSync();
       return inviteUrl;
     }
 
@@ -573,18 +583,30 @@ export function InstructorScreen({
     if (Platform.OS === 'web') {
       window.location.href = mailtoUrl;
       window.alert(`${displayName} was ${context === 'added' ? 'added' : 'queued for a new invite'}. Your email app should open with the invite draft. If it does not, send them this link: ${inviteUrl}`);
+      if (refreshCloudRows) onCloudSync();
       return inviteUrl;
     }
 
     Linking.openURL(mailtoUrl)
       .then(() => {
         showAlert(context === 'added' ? 'Member invited' : 'Invite ready', `${displayName} ${context === 'added' ? 'was added and an invite draft was opened' : 'has a fresh invite draft'}.`);
+        if (refreshCloudRows) onCloudSync();
       })
       .catch(() => {
         showAlert('Invite link ready', `Copy this invite link and send it to ${trimmedEmail}:\n\n${inviteUrl}`);
+        if (refreshCloudRows) onCloudSync();
       });
 
     return inviteUrl;
+  }
+
+  async function resendCloudInvite(invite: CloudInvite) {
+    await createSecureInviteForMember({
+      name: invite.displayName || invite.gymName || invite.email || 'FORGE Member',
+      gymName: invite.gymName,
+      email: invite.email,
+      groupId: invite.squadId,
+    }, 'resent', true);
   }
 
   function markInviteManual(member: SquadMember) {
@@ -1134,21 +1156,28 @@ export function InstructorScreen({
         </View>
         {cloudInvites.length ? (
           <View style={styles.inviteCloudList}>
-            {cloudInvites.slice(0, 3).map((invite) => (
-              <View key={invite.id} style={styles.inviteCloudRow}>
-                <View style={styles.memberCopy}>
-                  <Text style={styles.memberName}>{invite.gymName || invite.displayName || invite.email || 'Invite'}</Text>
-                  <Text style={styles.muted}>{invite.email ?? 'No email'} - expires {new Date(invite.expiresAt).toLocaleDateString()}</Text>
+            {cloudInvites.slice(0, 3).map((invite) => {
+              const displayStatus = cloudInviteDisplayStatus(invite);
+              return (
+                <View key={invite.id} style={styles.inviteCloudRow}>
+                  <View style={styles.memberCopy}>
+                    <Text style={styles.memberName}>{invite.gymName || invite.displayName || invite.email || 'Invite'}</Text>
+                    <Text style={styles.muted}>{invite.email ?? 'No email'} - expires {new Date(invite.expiresAt).toLocaleDateString()}</Text>
+                  </View>
+                  {displayStatus === 'pending' && onRevokeCloudInvite ? (
+                    <Pressable style={[styles.inviteOpsButton, styles.inviteOpsDangerButton]} onPress={() => confirmRevokeCloudInvite(invite)}>
+                      <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Revoke</Text>
+                    </Pressable>
+                  ) : displayStatus === 'expired' || displayStatus === 'revoked' ? (
+                    <Pressable style={styles.inviteOpsButton} onPress={() => { void resendCloudInvite(invite); }}>
+                      <Text style={styles.inviteOpsButtonText}>Resend</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={styles.inviteOpsReady}>{displayStatus.toUpperCase()}</Text>
+                  )}
                 </View>
-                {invite.status === 'pending' && onRevokeCloudInvite ? (
-                  <Pressable style={[styles.inviteOpsButton, styles.inviteOpsDangerButton]} onPress={() => confirmRevokeCloudInvite(invite)}>
-                    <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Revoke</Text>
-                  </Pressable>
-                ) : (
-                  <Text style={styles.inviteOpsReady}>{invite.status.toUpperCase()}</Text>
-                )}
-              </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <Text style={styles.inviteOpsEmpty}>No cloud invite rows loaded yet.</Text>

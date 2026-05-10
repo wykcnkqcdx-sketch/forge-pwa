@@ -44,6 +44,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Ghost Mode now anonymizes cloud `team_activity` rows while preserving completion rows for coach review and aggregate Team Pulse.
 - Phase tests now cover invite token helpers, cloud roster reconciliation, router auth gates, and Ghost Mode team activity.
 - Invite Operations can now revoke pending Supabase invites through a coach-only `revoke_member_invite` RPC and refresh cloud invite rows.
+- Expired and revoked cloud invite rows now expose a Resend action that creates a fresh secure invite and refreshes cloud rows.
 
 ## Verification
 
