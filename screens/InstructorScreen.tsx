@@ -64,6 +64,21 @@ function createUuid() {
   });
 }
 
+function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean) {
+  if (!member) return { label: 'No target', detail: 'Pick a member before applying this assignment.', tone: colours.muted };
+  if (member.cloudMembershipId) {
+    return {
+      label: 'Cloud-ready target',
+      detail: `Assignment will sync to member portal ${member.cloudMembershipId.slice(0, 8)}...`,
+      tone: colours.green,
+    };
+  }
+  if (!cloudEnabled) return { label: 'Local target', detail: 'Cloud is not configured, so this stays on this device.', tone: colours.muted };
+  if (member.inviteStatus === 'Invited') return { label: 'Invite pending', detail: 'Member must accept their secure invite before cloud delivery.', tone: colours.amber };
+  if (member.inviteStatus === 'Joined') return { label: 'Accepted, sync needed', detail: 'Use Sync Now to attach the cloud membership target.', tone: colours.cyan };
+  return { label: 'Manual/local target', detail: 'Create a secure invite before assigning across devices.', tone: colours.textSoft };
+}
+
 export function parseDose(dose: string) {
   const setsRepsMatch = dose.match(/(\d+)\s*x\s*(\d+)/i);
   if (setsRepsMatch) {
@@ -201,6 +216,7 @@ export function InstructorScreen({
   const selectedAssignmentMember = members.find((member) => member.id === assignmentMemberId) ?? null;
   const selectedAssignmentGroup = groups.find((group) => group.id === assignmentGroupId) ?? null;
   const selectedAssignmentMode = trainingModes.find((mode) => mode.title === assignmentLabel) ?? null;
+  const selectedTargetState = assignmentTargetState(selectedAssignmentMember ?? members[0] ?? null, cloudEnabled);
   const suggestedAssignmentExercises = useMemo(() => {
     if (!selectedAssignmentMode) return [];
     return selectedAssignmentMode.defaultExerciseIds
@@ -496,7 +512,10 @@ export function InstructorScreen({
         ?? chosenExerciseIds.slice(0, 2),
       assignmentSession,
     });
-    const message = `${member.name} is now assigned to ${assignmentLabel} in ${group.name}.`;
+    const targetState = assignmentTargetState(member, cloudEnabled);
+    const message = member.cloudMembershipId
+      ? `${member.name} is now assigned to ${assignmentLabel} in ${group.name}. Cloud target ready.`
+      : `${member.name} is now assigned to ${assignmentLabel} in ${group.name}. ${targetState.label}: ${targetState.detail}`;
     setAssignmentMemberId(member.id);
     setAssignmentGroupId(group.id);
     setAssignmentFeedback(message);
@@ -944,6 +963,7 @@ export function InstructorScreen({
             <View style={styles.assignmentWrap}>
               {members.length ? members.map((member) => {
                 const active = member.id === assignmentMemberId;
+                const targetState = assignmentTargetState(member, cloudEnabled);
                 return (
                   <Pressable
                     key={member.id}
@@ -951,9 +971,16 @@ export function InstructorScreen({
                     onPress={() => setAssignmentMemberId(member.id)}
                   >
                     <Text style={[styles.assignmentPillText, active && styles.assignmentPillTextActive]}>{member.name}</Text>
+                    <Text style={[styles.assignmentPillMeta, active && styles.assignmentPillTextActive, { color: active ? colours.cyan : targetState.tone }]}>
+                      {targetState.label}
+                    </Text>
                   </Pressable>
                 );
               }) : <Text style={styles.emptyAssignmentText}>Add a member first.</Text>}
+            </View>
+            <View style={[styles.assignmentTargetNotice, { borderColor: `${selectedTargetState.tone}50`, backgroundColor: `${selectedTargetState.tone}12` }]}>
+              <Text style={[styles.assignmentTargetTitle, { color: selectedTargetState.tone }]}>{selectedTargetState.label}</Text>
+              <Text style={styles.assignmentTargetDetail}>{selectedTargetState.detail}</Text>
             </View>
 
             <Text style={styles.assignmentLabel}>Assign to group</Text>
@@ -1109,6 +1136,7 @@ export function InstructorScreen({
               <Text style={styles.assignmentSummaryText}>
                 {selectedAssignmentMember?.name ?? members[0]?.name ?? 'No member'} {'->'} {selectedAssignmentGroup?.name ?? groups[0]?.name ?? 'No group'} / {assignmentLabel} / {activeAssignmentExerciseIds.length} exercises
               </Text>
+              <Text style={[styles.assignmentSummaryMeta, { color: selectedTargetState.tone }]}>{selectedTargetState.label}</Text>
             </View>
 
             <Pressable style={styles.applyAssignmentButton} onPress={applyAssignment}>
@@ -1446,6 +1474,15 @@ const styles = StyleSheet.create({
   },
   assignmentPillText: { color: colours.muted, fontSize: 11, fontWeight: '900' },
   assignmentPillTextActive: { color: colours.cyan },
+  assignmentPillMeta: { fontSize: 9, fontWeight: '900', marginTop: 3 },
+  assignmentTargetNotice: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 10,
+    marginBottom: 12,
+  },
+  assignmentTargetTitle: { fontSize: 12, fontWeight: '900' },
+  assignmentTargetDetail: { color: colours.textSoft, fontSize: 11, fontWeight: '700', lineHeight: 16, marginTop: 3 },
   assignmentFeedback: {
     borderWidth: 1,
     borderColor: `${colours.green}50`,
@@ -1464,6 +1501,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   assignmentSummaryText: { color: colours.textSoft, fontSize: 12, fontWeight: '900' },
+  assignmentSummaryMeta: { fontSize: 11, fontWeight: '900', marginTop: 4 },
   emptyAssignmentText: { color: colours.muted, fontSize: 12, fontWeight: '800' },
   applyAssignmentButton: {
     alignItems: 'center',
