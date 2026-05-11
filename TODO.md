@@ -65,7 +65,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 
 ## Verification
 
-- Latest full verification: `npm.cmd run typecheck` and `npm.cmd run test` passed with 20 files / 128 tests.
+- Latest full verification: `npm.cmd run typecheck` and `npm.cmd run test` passed with 22 files / 139 tests.
 - Run `npm run typecheck`.
 - Run targeted tests for invite/cloud utilities once added.
 - Manually verify:
