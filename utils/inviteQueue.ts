@@ -28,6 +28,15 @@ export function filterCloudInvites(invites: CloudInvite[], filter: CloudInviteFi
   ));
 }
 
+export function countCloudInvites(invites: CloudInvite[], now = new Date()) {
+  return {
+    pending: invites.filter((invite) => displayInviteStatus(invite, now) === 'pending').length,
+    accepted: invites.filter((invite) => displayInviteStatus(invite, now) === 'accepted').length,
+    expired: invites.filter((invite) => displayInviteStatus(invite, now) === 'expired').length,
+    revoked: invites.filter((invite) => displayInviteStatus(invite, now) === 'revoked').length,
+  };
+}
+
 export function firstStaleCloudInvite(invites: CloudInvite[], now = new Date()) {
   return invites
     .filter((invite) => isStalePendingInvite(invite, now))

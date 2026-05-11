@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CloudInvite } from '../lib/squadCloud';
-import { cloudInviteLabel, cloudInviteMatchesFilter, filterCloudInvites, firstStaleCloudInvite } from './inviteQueue';
+import { cloudInviteLabel, cloudInviteMatchesFilter, countCloudInvites, filterCloudInvites, firstStaleCloudInvite } from './inviteQueue';
 
 function invite(id: string, updates: Partial<CloudInvite> = {}): CloudInvite {
   return {
@@ -39,6 +39,23 @@ describe('invite queue helpers', () => {
     ], 'revoked', 'bravo', now);
 
     expect(filtered.map((item) => item.id)).toEqual(['bravo']);
+  });
+
+  it('counts cloud invites by display status', () => {
+    const counts = countCloudInvites([
+      invite('pending'),
+      invite('accepted', { status: 'accepted' }),
+      invite('expired-by-status', { status: 'expired' }),
+      invite('expired-by-date', { expiresAt: '2026-05-01T12:00:00.000Z' }),
+      invite('revoked', { status: 'revoked' }),
+    ], new Date('2026-05-11T12:00:00.000Z'));
+
+    expect(counts).toEqual({
+      pending: 1,
+      accepted: 1,
+      expired: 2,
+      revoked: 1,
+    });
   });
 
   it('returns the oldest stale invite', () => {

@@ -61,6 +61,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Invite Health now also offers Resend First Stale to open the email draft flow for the oldest stale pending invite.
 - Invite Health stale quick actions now include the target invite name/email in their labels.
 - Cloud invite queue label, filter, search, and oldest-stale selection rules now live in `utils/inviteQueue.ts` with focused tests.
+- Cloud invite pending/accepted/expired/revoked counts now live in `utils/inviteQueue.ts`.
 
 ## Verification
 

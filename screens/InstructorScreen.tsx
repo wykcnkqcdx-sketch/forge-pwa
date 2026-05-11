@@ -16,7 +16,7 @@ import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
 import { buildInviteHealth, displayInviteStatus } from '../utils/inviteHealth';
-import { cloudInviteLabel, filterCloudInvites, firstStaleCloudInvite, type CloudInviteFilter } from '../utils/inviteQueue';
+import { cloudInviteLabel, countCloudInvites, filterCloudInvites, firstStaleCloudInvite, type CloudInviteFilter } from '../utils/inviteQueue';
 import { groupInviteLifecycle } from '../utils/inviteLifecycle';
 
 interface InstructorScreenProps {
@@ -403,12 +403,7 @@ export function InstructorScreen({
     return { targetReady, invited, acceptedNeedsSync, manual };
   }, [members]);
   const inviteLifecycleGroups = useMemo(() => groupInviteLifecycle(members), [members]);
-  const cloudInviteCounts = useMemo(() => ({
-    pending: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'pending').length,
-    accepted: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'accepted').length,
-    expired: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'expired').length,
-    revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
-  }), [cloudInvites]);
+  const cloudInviteCounts = useMemo(() => countCloudInvites(cloudInvites), [cloudInvites]);
   const inviteHealth = useMemo(() => buildInviteHealth(members, cloudInvites), [cloudInvites, members]);
   const firstStaleInvite = useMemo(() => firstStaleCloudInvite(cloudInvites), [cloudInvites]);
   const firstStaleInviteLabel = firstStaleInvite ? cloudInviteLabel(firstStaleInvite) : '';
