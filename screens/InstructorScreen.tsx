@@ -236,6 +236,7 @@ export function InstructorScreen({
   const [selectedReviewMemberId, setSelectedReviewMemberId] = useState<string | null>(null);
   const [cloudInviteFilter, setCloudInviteFilter] = useState<CloudInviteFilter>('all');
   const [cloudInviteLimit, setCloudInviteLimit] = useState(5);
+  const [cloudInviteSearch, setCloudInviteSearch] = useState('');
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -393,9 +394,17 @@ export function InstructorScreen({
     expired: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'expired').length,
     revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
   }), [cloudInvites]);
-  const filteredCloudInvites = useMemo(() => cloudInvites.filter((invite) => (
-    cloudInviteFilter === 'all' || cloudInviteDisplayStatus(invite) === cloudInviteFilter
-  )), [cloudInviteFilter, cloudInvites]);
+  const filteredCloudInvites = useMemo(() => {
+    const query = cloudInviteSearch.trim().toLowerCase();
+    return cloudInvites.filter((invite) => {
+      const statusMatches = cloudInviteFilter === 'all' || cloudInviteDisplayStatus(invite) === cloudInviteFilter;
+      if (!statusMatches) return false;
+      if (!query) return true;
+      return [invite.email, invite.displayName, invite.gymName]
+        .filter((value): value is string => Boolean(value))
+        .some((value) => value.toLowerCase().includes(query));
+    });
+  }, [cloudInviteFilter, cloudInviteSearch, cloudInvites]);
   const visibleCloudInvites = filteredCloudInvites.slice(0, cloudInviteLimit);
   const fallbackAssignmentHistory = useMemo(() => {
     const grouped = new Map<string, {
@@ -1195,6 +1204,16 @@ export function InstructorScreen({
         </View>
         {cloudInvites.length ? (
           <View style={styles.inviteCloudList}>
+            <TextInput
+              value={cloudInviteSearch}
+              onChangeText={(value) => {
+                setCloudInviteSearch(value);
+                setCloudInviteLimit(5);
+              }}
+              placeholder="Search cloud invites"
+              placeholderTextColor={colours.muted}
+              style={styles.inviteSearchInput}
+            />
             <View style={styles.inviteFilterRow}>
               {cloudInviteFilters.map((filter) => {
                 const active = cloudInviteFilter === filter.key;
@@ -1933,6 +1952,17 @@ const styles = StyleSheet.create({
   inviteCloudValue: { fontSize: 22, lineHeight: 26, fontWeight: '900' },
   inviteCloudLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 3 },
   inviteCloudList: { gap: 6, marginBottom: 10 },
+  inviteSearchInput: {
+    minHeight: 40,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    color: colours.text,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+    fontSize: 12,
+    fontWeight: '800',
+  },
   inviteFilterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
   inviteFilterButton: {
     minHeight: 32,

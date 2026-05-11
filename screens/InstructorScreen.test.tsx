@@ -153,6 +153,18 @@ describe('InstructorScreen Invite Operations', () => {
     expect(queryByText('Revoked Invite')).toBeNull();
   });
 
+  it('searches cloud invite rows by email or name', () => {
+    const { getByPlaceholderText, getByText, queryByText } = render(<InstructorScreen {...baseProps} cloudInvites={[
+      makeInvite({ id: 'alpha', displayName: 'Alpha Invite', email: 'alpha@example.com' }),
+      makeInvite({ id: 'bravo', displayName: 'Bravo Invite', email: 'bravo@example.com' }),
+    ]} />);
+
+    fireEvent.change(getByPlaceholderText('Search cloud invites'), { target: { value: 'bravo' } });
+
+    expect(getByText('Bravo Invite')).toBeTruthy();
+    expect(queryByText('Alpha Invite')).toBeNull();
+  });
+
   it('expands the cloud invite queue in batches', () => {
     const invites = Array.from({ length: 6 }, (_, index) => makeInvite({
       id: `invite-${index}`,
