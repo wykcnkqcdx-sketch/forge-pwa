@@ -10,7 +10,7 @@ import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, Programm
 import type { AssignmentDeployment, ReadinessLog, WorkoutCompletion } from '../data/domain';
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { createCloudMemberInvite } from '../lib/cloudInvites';
-import { loadLatestInviteLink, saveLatestInviteLink, type LatestInviteLink } from '../lib/latestInviteLink';
+import { clearLatestInviteLink, loadLatestInviteLink, saveLatestInviteLink, type LatestInviteLink } from '../lib/latestInviteLink';
 import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
@@ -680,6 +680,15 @@ export function InstructorScreen({
     );
   }
 
+  async function clearLatestInviteRecovery() {
+    setLatestInviteLink(null);
+    try {
+      await clearLatestInviteLink();
+    } catch (error) {
+      console.error('Failed to clear latest invite link', error);
+    }
+  }
+
   function renderLatestInviteRow() {
     if (!latestInviteLink) return null;
     return (
@@ -688,9 +697,14 @@ export function InstructorScreen({
           <Text style={styles.memberName}>Latest invite: {latestInviteLink.label}</Text>
           <Text style={styles.muted}>Expires {new Date(latestInviteLink.expiresAt).toLocaleDateString()}</Text>
         </View>
-        <Pressable style={styles.inviteOpsButton} onPress={() => { void copyLatestInviteLink(); }}>
-          <Text style={styles.inviteOpsButtonText}>Copy Again</Text>
-        </Pressable>
+        <View style={styles.inviteOpsActions}>
+          <Pressable style={styles.inviteOpsButton} onPress={() => { void copyLatestInviteLink(); }}>
+            <Text style={styles.inviteOpsButtonText}>Copy Again</Text>
+          </Pressable>
+          <Pressable style={[styles.inviteOpsButton, styles.inviteOpsDangerButton]} onPress={() => { void clearLatestInviteRecovery(); }}>
+            <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Clear</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }

@@ -6,6 +6,7 @@ import type { CloudInvite } from '../lib/squadCloud';
 
 const mocks = vi.hoisted(() => ({
   createCloudMemberInvite: vi.fn(),
+  clearLatestInviteLink: vi.fn(),
   loadLatestInviteLink: vi.fn(),
   saveLatestInviteLink: vi.fn(),
   showAlert: vi.fn(),
@@ -67,6 +68,7 @@ vi.mock('../lib/cloudInvites', () => ({
 }));
 
 vi.mock('../lib/latestInviteLink', () => ({
+  clearLatestInviteLink: (...args: unknown[]) => mocks.clearLatestInviteLink(...args),
   loadLatestInviteLink: (...args: unknown[]) => mocks.loadLatestInviteLink(...args),
   saveLatestInviteLink: (...args: unknown[]) => mocks.saveLatestInviteLink(...args),
 }));
@@ -136,6 +138,7 @@ describe('InstructorScreen Invite Operations', () => {
     });
     mocks.loadLatestInviteLink.mockResolvedValue(null);
     mocks.saveLatestInviteLink.mockResolvedValue(undefined);
+    mocks.clearLatestInviteLink.mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -312,5 +315,22 @@ describe('InstructorScreen Invite Operations', () => {
     const { getByText } = render(<InstructorScreen {...baseProps} />);
 
     await waitFor(() => expect(getByText('Latest invite: Stored')).toBeTruthy());
+  });
+
+  it('clears the persisted latest invite recovery row', async () => {
+    mocks.loadLatestInviteLink.mockResolvedValueOnce({
+      url: 'https://forge.test/?invite=stored-token',
+      label: 'Stored',
+      expiresAt: '2026-05-24T12:00:00.000Z',
+      createdAt: '2026-05-11T12:00:00.000Z',
+    });
+
+    const { getByText, queryByText } = render(<InstructorScreen {...baseProps} />);
+    await waitFor(() => expect(getByText('Latest invite: Stored')).toBeTruthy());
+
+    fireEvent.click(getByText('Clear'));
+
+    await waitFor(() => expect(mocks.clearLatestInviteLink).toHaveBeenCalled());
+    expect(queryByText('Latest invite: Stored')).toBeNull();
   });
 });

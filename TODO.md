@@ -53,6 +53,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Invite Operations now keeps the latest generated invite link available for a quick Copy Again recovery action.
 - Latest invite recovery row rendering is now centralized inside `InstructorScreen` to avoid duplicated Invite Operations JSX.
 - Latest generated invite links are now persisted locally with expiry-aware loading and malformed-data cleanup.
+- Latest invite recovery rows now include a Clear action that removes the persisted link.
 
 ## Verification
 
