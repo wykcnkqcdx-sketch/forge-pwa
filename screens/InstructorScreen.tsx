@@ -410,6 +410,10 @@ export function InstructorScreen({
     revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
   }), [cloudInvites]);
   const inviteHealth = useMemo(() => buildInviteHealth(members, cloudInvites), [cloudInvites, members]);
+  function setCloudInviteQueueFilter(filter: CloudInviteFilter) {
+    setCloudInviteFilter(filter);
+    setCloudInviteLimit(5);
+  }
   const filteredCloudInvites = useMemo(() => {
     const query = cloudInviteSearch.trim().toLowerCase();
     return cloudInvites.filter((invite) => {
@@ -1262,11 +1266,21 @@ export function InstructorScreen({
             <Text style={styles.inviteHealthLabel}>Need action</Text>
           </View>
           <View style={styles.inviteHealthStats}>
-            <Text style={styles.inviteHealthStat}>Stale {inviteHealth.stalePending}</Text>
-            <Text style={styles.inviteHealthStat}>Expired {inviteHealth.expired}</Text>
-            <Text style={styles.inviteHealthStat}>Revoked {inviteHealth.revoked}</Text>
-            <Text style={styles.inviteHealthStat}>Accepted {inviteHealth.acceptedNeedsSync}</Text>
-            <Text style={styles.inviteHealthStat}>Ready {inviteHealth.targetReady}</Text>
+            <Pressable style={styles.inviteHealthChip} onPress={() => setCloudInviteQueueFilter('pending')}>
+              <Text style={styles.inviteHealthStat}>Stale {inviteHealth.stalePending}</Text>
+            </Pressable>
+            <Pressable style={styles.inviteHealthChip} onPress={() => setCloudInviteQueueFilter('expired')}>
+              <Text style={styles.inviteHealthStat}>Expired {inviteHealth.expired}</Text>
+            </Pressable>
+            <Pressable style={styles.inviteHealthChip} onPress={() => setCloudInviteQueueFilter('revoked')}>
+              <Text style={styles.inviteHealthStat}>Revoked {inviteHealth.revoked}</Text>
+            </Pressable>
+            <Pressable style={styles.inviteHealthChip} onPress={() => setCloudInviteQueueFilter('accepted')}>
+              <Text style={styles.inviteHealthStat}>Accepted {inviteHealth.acceptedNeedsSync}</Text>
+            </Pressable>
+            <View style={styles.inviteHealthChip}>
+              <Text style={styles.inviteHealthStat}>Ready {inviteHealth.targetReady}</Text>
+            </View>
           </View>
         </View>
         <View style={styles.inviteCloudGrid}>
@@ -1305,8 +1319,7 @@ export function InstructorScreen({
                 const active = cloudInviteFilter === filter.key;
                 return (
                   <Pressable key={filter.key} style={[styles.inviteFilterButton, active && styles.inviteFilterButtonActive]} onPress={() => {
-                    setCloudInviteFilter(filter.key);
-                    setCloudInviteLimit(5);
+                    setCloudInviteQueueFilter(filter.key);
                   }}>
                     <Text style={[styles.inviteFilterText, active && styles.inviteFilterTextActive]}>{filter.label}</Text>
                   </Pressable>
@@ -2044,10 +2057,7 @@ const styles = StyleSheet.create({
   inviteHealthNumber: { fontSize: 28, lineHeight: 32, fontWeight: '900' },
   inviteHealthLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 2 },
   inviteHealthStats: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  inviteHealthStat: {
-    color: colours.textSoft,
-    fontSize: 10,
-    fontWeight: '900',
+  inviteHealthChip: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 8,
@@ -2055,6 +2065,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     backgroundColor: 'rgba(0,0,0,0.12)',
   },
+  inviteHealthStat: { color: colours.textSoft, fontSize: 10, fontWeight: '900' },
   inviteCloudTile: {
     flex: 1,
     minWidth: 96,

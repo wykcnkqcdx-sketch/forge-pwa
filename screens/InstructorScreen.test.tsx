@@ -201,6 +201,28 @@ describe('InstructorScreen Invite Operations', () => {
     expect(getByText('Ready 1')).toBeTruthy();
   });
 
+  it('uses invite health chips to filter the cloud invite queue', () => {
+    const { getByText, queryByText } = render(<InstructorScreen
+      {...baseProps}
+      cloudInvites={[
+        makeInvite({ id: 'pending', displayName: 'Pending Invite', status: 'pending' }),
+        makeInvite({ id: 'revoked', displayName: 'Revoked Invite', status: 'revoked' }),
+        makeInvite({ id: 'expired', displayName: 'Expired Invite', status: 'pending', expiresAt: '2026-05-01T12:00:00.000Z' }),
+      ]}
+    />);
+
+    fireEvent.click(getByText('Expired 1'));
+
+    expect(getByText('Expired Invite')).toBeTruthy();
+    expect(queryByText('Pending Invite')).toBeNull();
+    expect(queryByText('Revoked Invite')).toBeNull();
+
+    fireEvent.click(getByText('Revoked 1'));
+
+    expect(getByText('Revoked Invite')).toBeTruthy();
+    expect(queryByText('Expired Invite')).toBeNull();
+  });
+
   it('searches cloud invite rows by email or name', () => {
     const { getByPlaceholderText, getByText, queryByText } = render(<InstructorScreen {...baseProps} cloudInvites={[
       makeInvite({ id: 'alpha', displayName: 'Alpha Invite', email: 'alpha@example.com' }),
