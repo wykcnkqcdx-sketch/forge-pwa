@@ -5,7 +5,7 @@ import { InstructorScreen } from './InstructorScreen';
 import type { CloudInvite } from '../lib/squadCloud';
 
 const mocks = vi.hoisted(() => ({
-  rpc: vi.fn().mockResolvedValue({ error: null }),
+  createCloudMemberInvite: vi.fn(),
   showConfirm: vi.fn((_title: string, _message: string, onConfirm: () => void, _confirmLabel?: string) => onConfirm()),
 }));
 
@@ -59,15 +59,8 @@ vi.mock('../lib/dialogs', () => ({
   showConfirm: (...args: unknown[]) => mocks.showConfirm(...args as [string, string, () => void, string?]),
 }));
 
-vi.mock('../lib/supabase', () => ({
-  supabase: { rpc: mocks.rpc },
-}));
-
-vi.mock('../lib/inviteTokens', () => ({
-  buildSecureInviteUrl: (_base: string, token: string) => `https://forge.test/?invite=${token}`,
-  generateInviteToken: vi.fn(() => 'fresh-token'),
-  hashInviteToken: vi.fn(async () => 'fresh-token-hash'),
-  inviteExpiry: vi.fn(() => '2026-05-24T12:00:00.000Z'),
+vi.mock('../lib/cloudInvites', () => ({
+  createCloudMemberInvite: (...args: unknown[]) => mocks.createCloudMemberInvite(...args),
 }));
 
 function makeInvite(overrides: Partial<CloudInvite>): CloudInvite {
@@ -126,6 +119,13 @@ const baseProps: React.ComponentProps<typeof InstructorScreen> = {
 describe('InstructorScreen Invite Operations', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.createCloudMemberInvite.mockResolvedValue({
+      inviteUrl: 'https://forge.test/?invite=fresh-token',
+      expiresAt: '2026-05-24T12:00:00.000Z',
+      trimmedEmail: 'member@example.com',
+      displayName: 'Member',
+      storageNote: 'Secure invite token stored in Supabase.',
+    });
   });
 
   afterEach(() => {
@@ -192,10 +192,11 @@ describe('InstructorScreen Invite Operations', () => {
 
     fireEvent.click(getByText('Resend'));
 
-    await waitFor(() => expect(mocks.rpc).toHaveBeenCalledWith('create_member_invite', expect.objectContaining({
-      p_squad_id: '11111111-1111-4111-8111-111111111111',
-      p_token_hash: 'fresh-token-hash',
-      p_display_name: 'Revoked Resend',
+    await waitFor(() => expect(mocks.createCloudMemberInvite).toHaveBeenCalledWith(expect.objectContaining({
+      appBaseUrl: 'https://wykcnkqcdx-sketch.github.io/forge-pwa/',
+      cloudEnabled: true,
+      cloudSquadId: '11111111-1111-4111-8111-111111111111',
+      member: expect.objectContaining({ name: 'Revoked Resend' }),
     })));
     await waitFor(() => expect(onCloudSync).toHaveBeenCalled());
   });

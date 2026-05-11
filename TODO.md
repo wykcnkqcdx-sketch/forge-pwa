@@ -47,6 +47,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Expired and revoked cloud invite rows now expose a Resend action that creates a fresh secure invite and refreshes cloud rows.
 - Cloud invite rows now support status filters and incremental expansion so coaches can triage more than the latest few invites.
 - Invite Operations UI tests now cover cloud invite filtering, incremental expansion, revoke confirmation, and resend token creation.
+- Secure invite creation now lives in `lib/cloudInvites.ts`, with tests covering Supabase RPC payloads and storage-failure fallback.
 
 ## Verification
 

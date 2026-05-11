@@ -9,8 +9,7 @@ import { colours } from '../theme';
 import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, ProgrammeTemplate, SquadMember, TrainingGroup, trainingModes, TrainingSession, wearableConnections } from '../data/mockData';
 import type { AssignmentDeployment, ReadinessLog, WorkoutCompletion } from '../data/domain';
 import { showAlert, showConfirm } from '../lib/dialogs';
-import { buildSecureInviteUrl, generateInviteToken, hashInviteToken, inviteExpiry } from '../lib/inviteTokens';
-import { supabase } from '../lib/supabase';
+import { createCloudMemberInvite } from '../lib/cloudInvites';
 import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
@@ -57,7 +56,6 @@ interface InstructorScreenProps {
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
 const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
 const assignmentCategories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
-const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const coachNudgeTemplates = {
   recovery: {
     label: 'Recovery Walk',
@@ -550,40 +548,19 @@ export function InstructorScreen({
     context: 'added' | 'resent' = 'resent',
     refreshCloudRows = false,
   ) {
-    const trimmedEmail = member.email?.trim().toLowerCase() ?? '';
     const inviteSubject = 'Join FORGE Tactical Fitness';
-    const displayName = member.gymName || member.name;
-    const inviteToken = generateInviteToken();
-    const tokenHash = await hashInviteToken(inviteToken);
-    const inviteUrl = buildSecureInviteUrl(appInviteUrl, inviteToken);
-    const expiresAt = inviteExpiry();
-    let inviteStorageNote = `Token hash ${tokenHash.slice(0, 12)}... is ready for member_invites storage.`;
-
-    const inviteSquadId = cloudSquadId ?? (uuidPattern.test(member.groupId) ? member.groupId : null);
-    if (cloudEnabled && supabase && inviteSquadId) {
-      const { error } = await supabase.rpc('create_member_invite', {
-        p_squad_id: inviteSquadId,
-        p_token_hash: tokenHash,
-        p_email: trimmedEmail || null,
-        p_display_name: member.name,
-        p_gym_name: displayName,
-        p_role: 'member',
-        p_expires_at: expiresAt,
-      });
-
-      if (error) {
-        console.error('Failed to create secure invite row', error);
-        inviteStorageNote = `Invite created, but Supabase invite storage failed: ${error.message}`;
-      } else {
-        inviteStorageNote = 'Secure invite token stored in Supabase.';
-      }
-    }
+    const { inviteUrl, expiresAt, trimmedEmail, displayName, storageNote } = await createCloudMemberInvite({
+      appBaseUrl: appInviteUrl,
+      cloudEnabled,
+      cloudSquadId,
+      member,
+    });
 
     if (context === 'resent' && member.id) {
       onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
     }
 
-    const inviteBody = `You've been invited to FORGE Tactical Fitness.\n\nOpen your secure FORGE member portal invite here:\n${inviteUrl}\n\nThis invite expires on ${new Date(expiresAt).toLocaleDateString()}.\n\nCoach note: ${inviteStorageNote}`;
+    const inviteBody = `You've been invited to FORGE Tactical Fitness.\n\nOpen your secure FORGE member portal invite here:\n${inviteUrl}\n\nThis invite expires on ${new Date(expiresAt).toLocaleDateString()}.\n\nCoach note: ${storageNote}`;
 
     if (!trimmedEmail) {
       showAlert('Secure invite created', `${displayName} does not have an email saved. Send them this link:\n\n${inviteUrl}`);
