@@ -64,6 +64,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Cloud invite pending/accepted/expired/revoked counts now live in `utils/inviteQueue.ts`.
 - Assignment History now has a Delivery Health summary for cloud delivered, local only, completed, pending, and delivery percentage.
 - Delivery Health Local and Pending chips now open the first assignment needing local delivery or completion attention.
+- Delivery Health focus mode now prioritizes local-only or pending target rows and labels the expanded assignment detail panel.
 
 ## Verification
 

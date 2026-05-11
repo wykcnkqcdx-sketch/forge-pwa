@@ -479,9 +479,14 @@ describe('InstructorScreen Assignment History', () => {
 
     fireEvent.click(getAllByText((_content, element) => element?.textContent === 'Local 1')[0]);
 
+    expect(getByText('Focused: Local-only targets')).toBeTruthy();
     expect(getAllByText('Doyle').length).toBeGreaterThan(0);
     expect(getAllByText('Walsh').length).toBeGreaterThan(0);
     expect(getByText((_content, element) => element?.textContent === 'Local only - Pending')).toBeTruthy();
+    const detailRows = getAllByText((_content, element) => (
+      element?.textContent === 'Local only - Pending' || element?.textContent === 'Cloud delivered - Completed'
+    ));
+    expect(detailRows[0].textContent).toBe('Local only - Pending');
   });
 
   it('opens the first pending assignment from delivery health', () => {
@@ -492,7 +497,12 @@ describe('InstructorScreen Assignment History', () => {
 
     fireEvent.click(getAllByText((_content, element) => element?.textContent === 'Pending 1')[0]);
 
+    expect(getByText('Focused: Pending targets')).toBeTruthy();
     expect(getByText((_content, element) => element?.textContent === 'Cloud delivered - Completed')).toBeTruthy();
     expect(getByText((_content, element) => element?.textContent === 'Local only - Pending')).toBeTruthy();
+    const detailRows = getAllByText((_content, element) => (
+      element?.textContent === 'Local only - Pending' || element?.textContent === 'Cloud delivered - Completed'
+    ));
+    expect(detailRows[0].textContent).toBe('Local only - Pending');
   });
 });

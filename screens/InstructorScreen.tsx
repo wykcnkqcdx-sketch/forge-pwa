@@ -110,6 +110,7 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
 }
 
 type AssignmentScope = 'member' | 'group' | 'squad';
+type DeliveryFocus = 'localOnly' | 'pending' | null;
 
 function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
   return displayInviteStatus(invite, new Date());
@@ -235,6 +236,7 @@ export function InstructorScreen({
   const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
   const [assignmentCategory, setAssignmentCategory] = useState<'All' | ExerciseCategory>('All');
   const [selectedDeploymentKey, setSelectedDeploymentKey] = useState<string | null>(null);
+  const [deliveryFocus, setDeliveryFocus] = useState<DeliveryFocus>(null);
   const [selectedReviewMemberId, setSelectedReviewMemberId] = useState<string | null>(null);
   const [cloudInviteFilter, setCloudInviteFilter] = useState<CloudInviteFilter>('all');
   const [cloudInviteLimit, setCloudInviteLimit] = useState(5);
@@ -522,8 +524,15 @@ export function InstructorScreen({
   const selectedDeployment = assignmentHistory.find((assignment) => assignment.key === selectedDeploymentKey) ?? null;
   const selectedDeploymentTargets = useMemo(() => {
     if (!selectedDeployment) return [];
-    return selectedDeployment.deliveryRows ?? [];
-  }, [selectedDeployment]);
+    const rows = selectedDeployment.deliveryRows ?? [];
+    if (deliveryFocus === 'localOnly') {
+      return [...rows].sort((a, b) => Number(b.deliveryLabel === 'Local only') - Number(a.deliveryLabel === 'Local only'));
+    }
+    if (deliveryFocus === 'pending') {
+      return [...rows].sort((a, b) => Number(b.completionLabel === 'Pending') - Number(a.completionLabel === 'Pending'));
+    }
+    return rows;
+  }, [deliveryFocus, selectedDeployment]);
   const deliveryToneColor = (tone: string) => tone === 'success' ? colours.green : colours.amber;
 
   function createGroup() {
@@ -1125,7 +1134,10 @@ export function InstructorScreen({
               <Pressable
                 style={styles.deliveryHealthChip}
                 onPress={() => {
-                  if (firstLocalOnlyAssignment) setSelectedDeploymentKey(firstLocalOnlyAssignment.key);
+                  if (firstLocalOnlyAssignment) {
+                    setDeliveryFocus('localOnly');
+                    setSelectedDeploymentKey(firstLocalOnlyAssignment.key);
+                  }
                 }}
               >
                 <Text style={styles.deliveryHealthStat}>Local {assignmentDeliveryHealth.localOnly}</Text>
@@ -1134,7 +1146,10 @@ export function InstructorScreen({
               <Pressable
                 style={styles.deliveryHealthChip}
                 onPress={() => {
-                  if (firstPendingAssignment) setSelectedDeploymentKey(firstPendingAssignment.key);
+                  if (firstPendingAssignment) {
+                    setDeliveryFocus('pending');
+                    setSelectedDeploymentKey(firstPendingAssignment.key);
+                  }
                 }}
               >
                 <Text style={styles.deliveryHealthStat}>Pending {assignmentDeliveryHealth.pending}</Text>
@@ -1151,7 +1166,10 @@ export function InstructorScreen({
             <View key={assignment.key}>
               <Pressable
                 style={styles.assignmentHistoryRow}
-                onPress={() => setSelectedDeploymentKey((current) => current === assignment.key ? null : assignment.key)}
+                onPress={() => {
+                  setDeliveryFocus(null);
+                  setSelectedDeploymentKey((current) => current === assignment.key ? null : assignment.key);
+                }}
               >
                 <View style={styles.memberCopy}>
                   <Text style={styles.memberName}>{assignment.title}</Text>
@@ -1184,6 +1202,11 @@ export function InstructorScreen({
               </Pressable>
               {selectedDeploymentKey === assignment.key ? (
                 <View style={styles.deploymentDetailPanel}>
+                  {deliveryFocus ? (
+                    <Text style={styles.deploymentFocusLabel}>
+                      Focused: {deliveryFocus === 'localOnly' ? 'Local-only targets' : 'Pending targets'}
+                    </Text>
+                  ) : null}
                   {selectedDeploymentTargets.map((target) => (
                     <View key={target.key} style={styles.deploymentTargetRow}>
                       <View style={styles.memberCopy}>
@@ -2346,6 +2369,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     marginBottom: 10,
   },
+  deploymentFocusLabel: { color: colours.cyan, fontSize: 11, fontWeight: '900', paddingTop: 4 },
   deploymentTargetRow: {
     minHeight: 48,
     flexDirection: 'row',
