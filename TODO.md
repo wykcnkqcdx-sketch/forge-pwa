@@ -62,6 +62,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Invite Health stale quick actions now include the target invite name/email in their labels.
 - Cloud invite queue label, filter, search, and oldest-stale selection rules now live in `utils/inviteQueue.ts` with focused tests.
 - Cloud invite pending/accepted/expired/revoked counts now live in `utils/inviteQueue.ts`.
+- Assignment History now has a Delivery Health summary for cloud delivered, local only, completed, pending, and delivery percentage.
 
 ## Verification
 

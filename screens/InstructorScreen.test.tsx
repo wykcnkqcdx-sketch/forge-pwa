@@ -183,7 +183,7 @@ describe('InstructorScreen Invite Operations', () => {
       cloudMembershipId: 'membership-1',
     };
 
-    const { getByText } = render(<InstructorScreen
+    const { getAllByText, getByText } = render(<InstructorScreen
       {...baseProps}
       members={[acceptedMember, readyMember]}
       cloudInvites={[
@@ -232,7 +232,7 @@ describe('InstructorScreen Invite Operations', () => {
   });
 
   it('copies a fresh link for the oldest stale invite from invite health', async () => {
-    const { getByText } = render(<InstructorScreen
+    const { getAllByText, getByText } = render(<InstructorScreen
       {...baseProps}
       cloudInvites={[
         makeInvite({ id: 'newer-stale', displayName: 'Newer Stale', email: 'newer@example.com', createdAt: '2026-05-02T12:00:00.000Z' }),
@@ -440,5 +440,34 @@ describe('InstructorScreen Invite Operations', () => {
 
     await waitFor(() => expect(mocks.clearLatestInviteLink).toHaveBeenCalled());
     expect(queryByText('Latest invite: Stored')).toBeNull();
+  });
+});
+
+describe('InstructorScreen Assignment History', () => {
+  it('shows assignment delivery health across recent deployments', () => {
+    const { getAllByText, getByText } = render(<InstructorScreen
+      {...baseProps}
+      assignmentDeployments={[
+        {
+          id: 'deployment-1',
+          title: 'Ruck Intervals',
+          scope: 'squad',
+          targetMemberIds: ['member-1', 'member-2'],
+          targetNames: ['Doyle', 'Walsh'],
+          cloudReadyMemberIds: ['member-1'],
+          completedMemberIds: ['member-1'],
+          exerciseCount: 3,
+          assignedAt: '2026-05-10T10:00:00.000Z',
+        },
+      ]}
+    />);
+
+    expect(getByText('2')).toBeTruthy();
+    expect(getAllByText('Need action').length).toBeGreaterThan(0);
+    expect(getByText((_content, element) => element?.textContent === 'Cloud 1')).toBeTruthy();
+    expect(getByText((_content, element) => element?.textContent === 'Local 1')).toBeTruthy();
+    expect(getByText((_content, element) => element?.textContent === 'Done 1')).toBeTruthy();
+    expect(getByText((_content, element) => element?.textContent === 'Pending 1')).toBeTruthy();
+    expect(getByText((_content, element) => element?.textContent === 'Delivery 50%')).toBeTruthy();
   });
 });

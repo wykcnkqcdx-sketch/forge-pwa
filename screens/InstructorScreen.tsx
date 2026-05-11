@@ -14,7 +14,7 @@ import { clearLatestInviteLink, loadLatestInviteLink, saveLatestInviteLink, type
 import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
-import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
+import { buildAssignmentDeliveryHealth, buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
 import { buildInviteHealth, displayInviteStatus } from '../utils/inviteHealth';
 import { cloudInviteLabel, countCloudInvites, filterCloudInvites, firstStaleCloudInvite, type CloudInviteFilter } from '../utils/inviteQueue';
 import { groupInviteLifecycle } from '../utils/inviteLifecycle';
@@ -516,6 +516,7 @@ export function InstructorScreen({
       };
     });
   }, [assignmentDeployments, fallbackAssignmentHistory, members, workoutCompletions]);
+  const assignmentDeliveryHealth = useMemo(() => buildAssignmentDeliveryHealth(assignmentHistory), [assignmentHistory]);
   const selectedDeployment = assignmentHistory.find((assignment) => assignment.key === selectedDeploymentKey) ?? null;
   const selectedDeploymentTargets = useMemo(() => {
     if (!selectedDeployment) return [];
@@ -1109,6 +1110,23 @@ export function InstructorScreen({
           <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Assignment History</Text>
           <Text style={styles.muted}>{assignmentHistory.length ? `latest ${assignmentHistory.length}` : 'empty'}</Text>
         </View>
+        {assignmentHistory.length ? (
+          <View style={styles.deliveryHealthRow}>
+            <View style={styles.deliveryHealthMain}>
+              <Text style={[styles.deliveryHealthNumber, { color: assignmentDeliveryHealth.needsAction ? colours.amber : colours.green }]}>
+                {assignmentDeliveryHealth.needsAction}
+              </Text>
+              <Text style={styles.deliveryHealthLabel}>Need action</Text>
+            </View>
+            <View style={styles.deliveryHealthStats}>
+              <Text style={styles.deliveryHealthStat}>Cloud {assignmentDeliveryHealth.cloudDelivered}</Text>
+              <Text style={styles.deliveryHealthStat}>Local {assignmentDeliveryHealth.localOnly}</Text>
+              <Text style={styles.deliveryHealthStat}>Done {assignmentDeliveryHealth.completed}</Text>
+              <Text style={styles.deliveryHealthStat}>Pending {assignmentDeliveryHealth.pending}</Text>
+              <Text style={styles.deliveryHealthStat}>Delivery {assignmentDeliveryHealth.deliveryPercent}%</Text>
+            </View>
+          </View>
+        ) : null}
         {assignmentHistory.length ? assignmentHistory.map((assignment) => {
           const completionPercent = assignment.targetCount
             ? Math.round((assignment.completedCount / assignment.targetCount) * 100)
@@ -2088,6 +2106,32 @@ const styles = StyleSheet.create({
   inviteCloudValue: { fontSize: 22, lineHeight: 26, fontWeight: '900' },
   inviteCloudLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 3 },
   inviteCloudList: { gap: 6, marginBottom: 10 },
+  deliveryHealthRow: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  deliveryHealthMain: { minWidth: 82 },
+  deliveryHealthNumber: { fontSize: 28, lineHeight: 32, fontWeight: '900' },
+  deliveryHealthLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 2 },
+  deliveryHealthStats: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  deliveryHealthStat: {
+    color: colours.textSoft,
+    fontSize: 10,
+    fontWeight: '900',
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
   latestInviteRow: {
     minHeight: 42,
     flexDirection: 'row',

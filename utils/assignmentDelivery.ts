@@ -56,3 +56,29 @@ export function buildAssignmentDeliveryRows(input: {
     completedCount: rows.filter((row) => row.completionLabel === 'Completed').length,
   };
 }
+
+export function buildAssignmentDeliveryHealth(assignments: Array<{
+  targetCount: number;
+  cloudReadyCount: number;
+  localOnlyCount?: number;
+  completedCount: number;
+}>) {
+  const totalTargets = assignments.reduce((total, assignment) => total + assignment.targetCount, 0);
+  const cloudDelivered = assignments.reduce((total, assignment) => total + assignment.cloudReadyCount, 0);
+  const localOnly = assignments.reduce((total, assignment) => (
+    total + (assignment.localOnlyCount ?? Math.max(0, assignment.targetCount - assignment.cloudReadyCount))
+  ), 0);
+  const completed = assignments.reduce((total, assignment) => total + assignment.completedCount, 0);
+  const pending = Math.max(0, totalTargets - completed);
+
+  return {
+    totalTargets,
+    cloudDelivered,
+    localOnly,
+    completed,
+    pending,
+    deliveryPercent: totalTargets ? Math.round((cloudDelivered / totalTargets) * 100) : 0,
+    completionPercent: totalTargets ? Math.round((completed / totalTargets) * 100) : 0,
+    needsAction: localOnly + pending,
+  };
+}

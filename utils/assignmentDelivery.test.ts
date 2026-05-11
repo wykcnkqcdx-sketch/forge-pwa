@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAssignmentDeliveryRows } from './assignmentDelivery';
+import { buildAssignmentDeliveryHealth, buildAssignmentDeliveryRows } from './assignmentDelivery';
 import type { SquadMember } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
 
@@ -64,5 +64,25 @@ describe('buildAssignmentDeliveryRows', () => {
       ['Walsh', 'Local only', 'Pending'],
     ]);
     expect(delivery.rows[0].note).toBe('Good pace.');
+  });
+});
+
+describe('buildAssignmentDeliveryHealth', () => {
+  it('summarizes assignment delivery and completion health', () => {
+    const health = buildAssignmentDeliveryHealth([
+      { targetCount: 3, cloudReadyCount: 2, localOnlyCount: 1, completedCount: 1 },
+      { targetCount: 2, cloudReadyCount: 1, completedCount: 2 },
+    ]);
+
+    expect(health).toEqual({
+      totalTargets: 5,
+      cloudDelivered: 3,
+      localOnly: 2,
+      completed: 3,
+      pending: 2,
+      deliveryPercent: 60,
+      completionPercent: 60,
+      needsAction: 4,
+    });
   });
 });
