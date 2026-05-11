@@ -1,95 +1,95 @@
-// ── FORGE Tactical Design System ─────────────────────────────
-// Military-grade, dark, disciplined, premium.
-// All existing exports preserved for backward compatibility.
+// ── FORGE Field Glass Design System ───────────────────────────
+// Tactical field dashboard: dark, rugged, precise, disciplined.
+// Primary accent: sand/gold. Secondary: olive. Red = risk only.
 
 import { StyleSheet } from 'react-native';
 
 export const colours = {
   // ── Core Backgrounds ──────────────────────────────────────────
-  background:   '#0B0F0C',
-  surface:      '#111711',
-  panel:        'rgba(17, 23, 17, 0.96)',
-  panelSoft:    '#111711',
-  panelHot:     'rgba(143, 166, 59, 0.07)',
+  background:   '#0B0F0E',  // almost black-green
+  surface:      '#121A18',  // deep tactical slate
+  panel:        '#18211E',  // dark field card
+  panelSoft:    '#18211E',
+  panelHot:     'rgba(198, 161, 91, 0.07)',
   glass:        'rgba(255, 255, 255, 0.045)',
   glassWarm:    'rgba(255, 255, 255, 0.028)',
 
-  // ── Primary Accent — Armoury Green ────────────────────────────
-  cyan:         '#8FA63B',   // legacy name kept; actually armoury olive-green
-  cyanGlow:     'rgba(143, 166, 59, 0.22)',
-  cyanDim:      'rgba(143, 166, 59, 0.10)',
+  // ── Primary Accent — Sand/Gold ────────────────────────────────
+  cyan:         '#C6A15B',  // legacy name kept; Field Glass primary = sand/gold
+  cyanGlow:     'rgba(198, 161, 91, 0.22)',
+  cyanDim:      'rgba(198, 161, 91, 0.10)',
+
+  // ── Secondary Accent — Olive ──────────────────────────────────
+  violet:       '#6F7F52',  // tactical olive secondary
+  violetDim:    'rgba(111, 127, 82, 0.10)',
+
+  // ── Sand (same as primary, preserved as named token) ─────────
+  sand:         '#C6A15B',
+  sandDim:      'rgba(198, 161, 91, 0.10)',
 
   // ── Status: Readiness Green ────────────────────────────────────
-  green:        '#A7C957',
-  greenGlow:    'rgba(167, 201, 87, 0.20)',
-  greenDim:     'rgba(167, 201, 87, 0.09)',
+  green:        '#4CAF50',  // completion / safe / GO
+  greenGlow:    'rgba(76, 175, 80, 0.20)',
+  greenDim:     'rgba(76, 175, 80, 0.09)',
 
   // ── Status: Warning Amber ──────────────────────────────────────
-  amber:        '#D7A84B',
-  amberGlow:    'rgba(215, 168, 75, 0.18)',
-  amberDim:     'rgba(215, 168, 75, 0.08)',
+  amber:        '#D89B3D',
+  amberGlow:    'rgba(216, 155, 61, 0.18)',
+  amberDim:     'rgba(216, 155, 61, 0.08)',
 
-  // ── Status: Critical Red ───────────────────────────────────────
-  red:          '#E05F4F',
-  redGlow:      'rgba(224, 95, 79, 0.18)',
-  redDim:       'rgba(224, 95, 79, 0.08)',
-
-  // ── Accent: Sage/Violet ────────────────────────────────────────
-  violet:       '#8E9F7A',
-  violetDim:    'rgba(142, 159, 122, 0.10)',
-
-  // ── Accent: Sand ──────────────────────────────────────────────
-  sand:         '#C2B280',
-  sandDim:      'rgba(194, 178, 128, 0.10)',
+  // ── Status: Risk Red ───────────────────────────────────────────
+  red:          '#D9534F',  // injury / overload / missed check-in only
+  redGlow:      'rgba(217, 83, 79, 0.18)',
+  redDim:       'rgba(217, 83, 79, 0.08)',
 
   // ── Text ──────────────────────────────────────────────────────
-  text:         '#F0F2E8',
-  textSoft:     'rgba(240, 242, 232, 0.82)',
-  muted:        'rgba(213, 218, 196, 0.58)',
-  soft:         'rgba(213, 218, 196, 0.36)',
+  text:         '#F2F0E8',  // warm off-white
+  textSoft:     'rgba(242, 240, 232, 0.82)',
+  muted:        'rgba(169, 176, 168, 0.85)',
+  soft:         'rgba(169, 176, 168, 0.45)',
 
   // ── Borders ───────────────────────────────────────────────────
-  border:       'rgba(143, 166, 59, 0.18)',
-  borderSoft:   'rgba(240, 242, 232, 0.08)',
-  borderHot:    'rgba(143, 166, 59, 0.38)',
+  border:       '#2B3A34',  // muted green-grey solid
+  borderSoft:   'rgba(242, 240, 232, 0.08)',
+  borderHot:    'rgba(198, 161, 91, 0.38)',
   borderGlass:  'rgba(255, 255, 255, 0.09)',
 
   // ── Tactical Surface Layers ───────────────────────────────────
-  layer1:       'rgba(255, 255, 255, 0.030)',  // barely lifted
-  layer2:       'rgba(255, 255, 255, 0.055)',  // card interior
-  layer3:       'rgba(255, 255, 255, 0.085)',  // focus/hover
+  layer1:       'rgba(255, 255, 255, 0.030)',
+  layer2:       'rgba(255, 255, 255, 0.055)',
+  layer3:       'rgba(255, 255, 255, 0.085)',
 
   // ── Tactical Status Chips ─────────────────────────────────────
-  goGreen:      '#A7C957',
-  goGreenDim:   'rgba(167, 201, 87, 0.12)',
-  cautionAmber: '#D7A84B',
-  cautionDim:   'rgba(215, 168, 75, 0.12)',
-  noGoRed:      '#E05F4F',
-  noGoDim:      'rgba(224, 95, 79, 0.12)',
+  goGreen:      '#4CAF50',
+  goGreenDim:   'rgba(76, 175, 80, 0.12)',
+  cautionAmber: '#D89B3D',
+  cautionDim:   'rgba(216, 155, 61, 0.12)',
+  noGoRed:      '#D9534F',
+  noGoDim:      'rgba(217, 83, 79, 0.12)',
 
   // ── Load Risk ─────────────────────────────────────────────────
-  loadLow:      '#A7C957',
-  loadMod:      '#D7A84B',
-  loadHigh:     '#E05F4F',
+  loadLow:      '#4CAF50',
+  loadMod:      '#D89B3D',
+  loadHigh:     '#D9534F',
 
   // ── Chart Palette ─────────────────────────────────────────────
-  chartRuck:    '#D7A84B',
-  chartStr:     '#A7C957',
-  chartRun:     '#8FA63B',
-  chartCardio:  '#8E9F7A',
-  chartMob:     '#C2B280',
-  chartWork:    '#BEC5A8',
+  chartRuck:    '#C6A15B',  // sand/gold — ruck sessions
+  chartStr:     '#4CAF50',  // green — strength
+  chartRun:     '#6F7F52',  // olive — run
+  chartCardio:  '#D89B3D',  // amber — cardio
+  chartMob:     '#A9B0A8',  // muted — mobility
+  chartWork:    '#BEC5A8',  // soft — general
 
   // ── Input States ──────────────────────────────────────────────
   inputBg:      'rgba(0, 0, 0, 0.28)',
-  inputBorder:  'rgba(240, 242, 232, 0.12)',
-  inputFocus:   'rgba(143, 166, 59, 0.45)',
-  inputError:   'rgba(224, 95, 79, 0.45)',
-  inputDisabled:'rgba(213, 218, 196, 0.14)',
+  inputBorder:  'rgba(242, 240, 232, 0.12)',
+  inputFocus:   'rgba(198, 161, 91, 0.45)',
+  inputError:   'rgba(217, 83, 79, 0.45)',
+  inputDisabled:'rgba(169, 176, 168, 0.14)',
 
   // ── Disabled ──────────────────────────────────────────────────
-  disabled:     'rgba(213, 218, 196, 0.22)',
-  disabledText: 'rgba(213, 218, 196, 0.36)',
+  disabled:     'rgba(169, 176, 168, 0.22)',
+  disabledText: 'rgba(169, 176, 168, 0.36)',
 } as const;
 
 // ── Typography ─────────────────────────────────────────────────
@@ -144,7 +144,7 @@ export const fontSize = {
 // ── Shadows ────────────────────────────────────────────────────
 export const shadows = {
   cyan: {
-    shadowColor: '#8FA63B',
+    shadowColor: '#C6A15B',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.30,
     shadowRadius: 14,
@@ -172,7 +172,7 @@ export const shadows = {
     elevation: 18,
   },
   glow: {
-    shadowColor: '#8FA63B',
+    shadowColor: '#C6A15B',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.45,
     shadowRadius: 20,
@@ -185,9 +185,10 @@ export const shadow = shadows;
 
 // ── Gradient Token Descriptors (use with expo-linear-gradient) ─
 export const gradients = {
-  hero:    { colors: ['#151A15', '#0B0F0C'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
+  hero:    { colors: ['#18211E', '#0B0F0E'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
   card:    { colors: ['rgba(255,255,255,0.055)', 'rgba(255,255,255,0.022)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
-  greenUp: { colors: ['rgba(167,201,87,0.18)', 'rgba(167,201,87,0.03)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
-  amberUp: { colors: ['rgba(215,168,75,0.16)', 'rgba(215,168,75,0.02)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
-  redUp:   { colors: ['rgba(224,95,79,0.16)', 'rgba(224,95,79,0.02)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
+  sand:    { colors: ['rgba(198,161,91,0.18)', 'rgba(198,161,91,0.03)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
+  greenUp: { colors: ['rgba(76,175,80,0.18)', 'rgba(76,175,80,0.03)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
+  amberUp: { colors: ['rgba(216,155,61,0.16)', 'rgba(216,155,61,0.02)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
+  redUp:   { colors: ['rgba(217,83,79,0.16)', 'rgba(217,83,79,0.02)'] as const, start: { x: 0, y: 0 }, end: { x: 0, y: 1 } },
 } as const;
