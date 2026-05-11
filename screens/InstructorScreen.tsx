@@ -116,6 +116,10 @@ function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
   return invite.status;
 }
 
+function cloudInviteLabel(invite: CloudInvite) {
+  return invite.gymName || invite.displayName || invite.email || 'Invite';
+}
+
 const cloudInviteFilters: Array<{ key: CloudInviteFilter; label: string }> = [
   { key: 'all', label: 'All' },
   { key: 'stale', label: 'Stale' },
@@ -414,6 +418,7 @@ export function InstructorScreen({
   const firstStaleInvite = useMemo(() => cloudInvites
     .filter((invite) => isStalePendingInvite(invite))
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0] ?? null, [cloudInvites]);
+  const firstStaleInviteLabel = firstStaleInvite ? cloudInviteLabel(firstStaleInvite) : '';
   function setCloudInviteQueueFilter(filter: CloudInviteFilter) {
     setCloudInviteFilter(filter);
     setCloudInviteLimit(5);
@@ -1290,10 +1295,10 @@ export function InstructorScreen({
           {firstStaleInvite ? (
             <View style={styles.inviteHealthActions}>
               <Pressable style={styles.inviteHealthAction} onPress={() => { void copyCloudInviteLink(firstStaleInvite); }}>
-                <Text style={styles.inviteOpsButtonText}>Copy First Stale</Text>
+                <Text style={styles.inviteOpsButtonText}>Copy: {firstStaleInviteLabel}</Text>
               </Pressable>
               <Pressable style={styles.inviteHealthAction} onPress={() => { void resendCloudInvite(firstStaleInvite); }}>
-                <Text style={styles.inviteOpsButtonText}>Resend First Stale</Text>
+                <Text style={styles.inviteOpsButtonText}>Resend: {firstStaleInviteLabel}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -1346,7 +1351,7 @@ export function InstructorScreen({
               return (
                 <View key={invite.id} style={styles.inviteCloudRow}>
                   <View style={styles.memberCopy}>
-                    <Text style={styles.memberName}>{invite.gymName || invite.displayName || invite.email || 'Invite'}</Text>
+                    <Text style={styles.memberName}>{cloudInviteLabel(invite)}</Text>
                     <Text style={styles.muted}>{invite.email ?? 'No email'} - expires {new Date(invite.expiresAt).toLocaleDateString()}</Text>
                   </View>
                   {displayStatus === 'pending' && onRevokeCloudInvite ? (

@@ -240,7 +240,7 @@ describe('InstructorScreen Invite Operations', () => {
       ]}
     />);
 
-    fireEvent.click(getByText('Copy First Stale'));
+    fireEvent.click(getByText('Copy: Oldest Stale'));
 
     await waitFor(() => expect(mocks.createCloudMemberInvite).toHaveBeenCalledWith(expect.objectContaining({
       member: expect.objectContaining({
@@ -262,7 +262,7 @@ describe('InstructorScreen Invite Operations', () => {
       ]}
     />);
 
-    fireEvent.click(getByText('Resend First Stale'));
+    fireEvent.click(getByText('Resend: Oldest Stale'));
 
     await waitFor(() => expect(mocks.createCloudMemberInvite).toHaveBeenCalledWith(expect.objectContaining({
       member: expect.objectContaining({
