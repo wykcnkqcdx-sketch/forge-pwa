@@ -48,6 +48,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Cloud invite rows now support status filters and incremental expansion so coaches can triage more than the latest few invites.
 - Invite Operations UI tests now cover cloud invite filtering, incremental expansion, revoke confirmation, and resend token creation.
 - Secure invite creation now lives in `lib/cloudInvites.ts`, with tests covering Supabase RPC payloads and storage-failure fallback.
+- Invite Operations now has Copy Link actions that create a fresh secure invite, copy it to the clipboard when available, and fall back to showing the link.
 
 ## Verification
 

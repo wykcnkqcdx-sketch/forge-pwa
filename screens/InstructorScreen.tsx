@@ -592,6 +592,44 @@ export function InstructorScreen({
     return inviteUrl;
   }
 
+  async function copyInviteUrl(inviteUrl: string) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(inviteUrl);
+        return true;
+      }
+    } catch (error) {
+      console.error('Failed to copy invite link', error);
+    }
+    return false;
+  }
+
+  async function copyInviteLinkForMember(
+    member: Pick<SquadMember, 'name' | 'gymName' | 'email' | 'groupId'> & Partial<Pick<SquadMember, 'id'>>,
+    refreshCloudRows = false,
+  ) {
+    const { inviteUrl, expiresAt, trimmedEmail, displayName, storageNote } = await createCloudMemberInvite({
+      appBaseUrl: appInviteUrl,
+      cloudEnabled,
+      cloudSquadId,
+      member,
+    });
+    if (member.id) {
+      onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
+    }
+
+    const copied = await copyInviteUrl(inviteUrl);
+    const expiry = new Date(expiresAt).toLocaleDateString();
+    showAlert(
+      copied ? 'Invite link copied' : 'Invite link ready',
+      copied
+        ? `${displayName}'s invite link is on your clipboard. Expires ${expiry}.\n\n${storageNote}`
+        : `Copy this invite link and send it to ${displayName}:\n\n${inviteUrl}\n\nExpires ${expiry}.\n\n${storageNote}`,
+    );
+    if (refreshCloudRows) onCloudSync();
+    return inviteUrl;
+  }
+
   async function resendCloudInvite(invite: CloudInvite) {
     await createSecureInviteForMember({
       name: invite.displayName || invite.gymName || invite.email || 'FORGE Member',
@@ -599,6 +637,15 @@ export function InstructorScreen({
       email: invite.email,
       groupId: invite.squadId,
     }, 'resent', true);
+  }
+
+  async function copyCloudInviteLink(invite: CloudInvite) {
+    await copyInviteLinkForMember({
+      name: invite.displayName || invite.gymName || invite.email || 'FORGE Member',
+      gymName: invite.gymName,
+      email: invite.email,
+      groupId: invite.squadId,
+    }, true);
   }
 
   function markInviteManual(member: SquadMember) {
@@ -1174,9 +1221,14 @@ export function InstructorScreen({
                       <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Revoke</Text>
                     </Pressable>
                   ) : displayStatus === 'expired' || displayStatus === 'revoked' ? (
-                    <Pressable style={styles.inviteOpsButton} onPress={() => { void resendCloudInvite(invite); }}>
-                      <Text style={styles.inviteOpsButtonText}>Resend</Text>
-                    </Pressable>
+                    <View style={styles.inviteOpsActions}>
+                      <Pressable style={styles.inviteOpsButton} onPress={() => { void resendCloudInvite(invite); }}>
+                        <Text style={styles.inviteOpsButtonText}>Resend</Text>
+                      </Pressable>
+                      <Pressable style={styles.inviteOpsButton} onPress={() => { void copyCloudInviteLink(invite); }}>
+                        <Text style={styles.inviteOpsButtonText}>Copy Link</Text>
+                      </Pressable>
+                    </View>
                   ) : (
                     <Text style={styles.inviteOpsReady}>{displayStatus.toUpperCase()}</Text>
                   )}
@@ -1222,14 +1274,22 @@ export function InstructorScreen({
                       <Pressable style={styles.inviteOpsButton} onPress={() => { void createSecureInviteForMember(member, 'resent'); }}>
                         <Text style={styles.inviteOpsButtonText}>Send Invite</Text>
                       </Pressable>
+                      <Pressable style={styles.inviteOpsButton} onPress={() => { void copyInviteLinkForMember(member); }}>
+                        <Text style={styles.inviteOpsButtonText}>Copy Link</Text>
+                      </Pressable>
                       <Pressable style={[styles.inviteOpsButton, styles.inviteOpsDangerButton]} onPress={() => markInviteManual(member)}>
                         <Text style={[styles.inviteOpsButtonText, styles.inviteOpsDangerText]}>Mark Manual</Text>
                       </Pressable>
                     </>
                   ) : group.key === 'manual' ? (
-                    <Pressable style={styles.inviteOpsButton} onPress={() => { void createSecureInviteForMember(member, 'resent'); }}>
-                      <Text style={styles.inviteOpsButtonText}>Send Invite</Text>
-                    </Pressable>
+                    <>
+                      <Pressable style={styles.inviteOpsButton} onPress={() => { void createSecureInviteForMember(member, 'resent'); }}>
+                        <Text style={styles.inviteOpsButtonText}>Send Invite</Text>
+                      </Pressable>
+                      <Pressable style={styles.inviteOpsButton} onPress={() => { void copyInviteLinkForMember(member); }}>
+                        <Text style={styles.inviteOpsButtonText}>Copy Link</Text>
+                      </Pressable>
+                    </>
                   ) : (
                     <Text style={styles.inviteOpsReady}>Ready</Text>
                   )}

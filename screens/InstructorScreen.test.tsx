@@ -6,6 +6,7 @@ import type { CloudInvite } from '../lib/squadCloud';
 
 const mocks = vi.hoisted(() => ({
   createCloudMemberInvite: vi.fn(),
+  showAlert: vi.fn(),
   showConfirm: vi.fn((_title: string, _message: string, onConfirm: () => void, _confirmLabel?: string) => onConfirm()),
 }));
 
@@ -55,7 +56,7 @@ vi.mock('../components/SquadMemberCard', () => ({
 }));
 
 vi.mock('../lib/dialogs', () => ({
-  showAlert: vi.fn(),
+  showAlert: (...args: unknown[]) => mocks.showAlert(...args),
   showConfirm: (...args: unknown[]) => mocks.showConfirm(...args as [string, string, () => void, string?]),
 }));
 
@@ -125,6 +126,12 @@ describe('InstructorScreen Invite Operations', () => {
       trimmedEmail: 'member@example.com',
       displayName: 'Member',
       storageNote: 'Secure invite token stored in Supabase.',
+    });
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: vi.fn().mockResolvedValue(undefined),
+      },
     });
   });
 
@@ -199,5 +206,36 @@ describe('InstructorScreen Invite Operations', () => {
       member: expect.objectContaining({ name: 'Revoked Resend' }),
     })));
     await waitFor(() => expect(onCloudSync).toHaveBeenCalled());
+  });
+
+  it('copies a fresh invite link for manual roster members', async () => {
+    const onUpdateMember = vi.fn();
+    const member = {
+      id: 'member-copy',
+      name: 'Pte Copy',
+      gymName: 'Copy',
+      email: 'copy@example.com',
+      groupId: 'alpha',
+      readiness: 70,
+      compliance: 80,
+      risk: 'Low' as const,
+      load: 45,
+      inviteStatus: 'Manual' as const,
+    };
+
+    const { getAllByText } = render(<InstructorScreen
+      {...baseProps}
+      members={[member]}
+      onUpdateMember={onUpdateMember}
+    />);
+
+    fireEvent.click(getAllByText('Copy Link')[0]);
+
+    await waitFor(() => expect(mocks.createCloudMemberInvite).toHaveBeenCalledWith(expect.objectContaining({
+      member: expect.objectContaining({ id: 'member-copy', name: 'Pte Copy' }),
+    })));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://forge.test/?invite=fresh-token'));
+    expect(onUpdateMember).toHaveBeenCalledWith('member-copy', expect.objectContaining({ inviteStatus: 'Invited' }));
+    expect(mocks.showAlert).toHaveBeenCalledWith('Invite link copied', expect.stringContaining('clipboard'));
   });
 });
