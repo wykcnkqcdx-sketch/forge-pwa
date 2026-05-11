@@ -165,6 +165,42 @@ describe('InstructorScreen Invite Operations', () => {
     expect(queryByText('Revoked Invite')).toBeNull();
   });
 
+  it('shows invite health counts for coach action states', () => {
+    const acceptedMember = {
+      id: 'accepted-member',
+      name: 'Accepted Member',
+      groupId: 'alpha',
+      readiness: 70,
+      compliance: 80,
+      risk: 'Low' as const,
+      load: 45,
+      inviteStatus: 'Joined' as const,
+    };
+    const readyMember = {
+      ...acceptedMember,
+      id: 'ready-member',
+      name: 'Ready Member',
+      cloudMembershipId: 'membership-1',
+    };
+
+    const { getByText } = render(<InstructorScreen
+      {...baseProps}
+      members={[acceptedMember, readyMember]}
+      cloudInvites={[
+        makeInvite({ id: 'stale', createdAt: '2026-05-01T12:00:00.000Z' }),
+        makeInvite({ id: 'revoked', status: 'revoked' }),
+        makeInvite({ id: 'expired', status: 'pending', expiresAt: '2026-05-01T12:00:00.000Z' }),
+      ]}
+    />);
+
+    expect(getByText('4 need action')).toBeTruthy();
+    expect(getByText('Stale 1')).toBeTruthy();
+    expect(getByText('Expired 1')).toBeTruthy();
+    expect(getByText('Revoked 1')).toBeTruthy();
+    expect(getByText('Accepted 1')).toBeTruthy();
+    expect(getByText('Ready 1')).toBeTruthy();
+  });
+
   it('searches cloud invite rows by email or name', () => {
     const { getByPlaceholderText, getByText, queryByText } = render(<InstructorScreen {...baseProps} cloudInvites={[
       makeInvite({ id: 'alpha', displayName: 'Alpha Invite', email: 'alpha@example.com' }),

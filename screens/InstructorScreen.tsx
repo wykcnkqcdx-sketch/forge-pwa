@@ -15,6 +15,7 @@ import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
+import { buildInviteHealth } from '../utils/inviteHealth';
 import { groupInviteLifecycle } from '../utils/inviteLifecycle';
 
 interface InstructorScreenProps {
@@ -408,6 +409,7 @@ export function InstructorScreen({
     expired: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'expired').length,
     revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
   }), [cloudInvites]);
+  const inviteHealth = useMemo(() => buildInviteHealth(members, cloudInvites), [cloudInvites, members]);
   const filteredCloudInvites = useMemo(() => {
     const query = cloudInviteSearch.trim().toLowerCase();
     return cloudInvites.filter((invite) => {
@@ -1252,7 +1254,20 @@ export function InstructorScreen({
       <Card>
         <View style={styles.cardHeader}>
           <Text style={[styles.cardTitle, styles.cardTitleFlush]}>Invite Operations</Text>
-          <Text style={styles.muted}>{members.length} roster</Text>
+          <Text style={styles.muted}>{inviteHealth.needsAction} need action</Text>
+        </View>
+        <View style={styles.inviteHealthRow}>
+          <View style={styles.inviteHealthMain}>
+            <Text style={[styles.inviteHealthNumber, { color: inviteHealth.needsAction ? colours.amber : colours.green }]}>{inviteHealth.needsAction}</Text>
+            <Text style={styles.inviteHealthLabel}>Need action</Text>
+          </View>
+          <View style={styles.inviteHealthStats}>
+            <Text style={styles.inviteHealthStat}>Stale {inviteHealth.stalePending}</Text>
+            <Text style={styles.inviteHealthStat}>Expired {inviteHealth.expired}</Text>
+            <Text style={styles.inviteHealthStat}>Revoked {inviteHealth.revoked}</Text>
+            <Text style={styles.inviteHealthStat}>Accepted {inviteHealth.acceptedNeedsSync}</Text>
+            <Text style={styles.inviteHealthStat}>Ready {inviteHealth.targetReady}</Text>
+          </View>
         </View>
         <View style={styles.inviteCloudGrid}>
           <View style={styles.inviteCloudTile}>
@@ -2014,6 +2029,32 @@ const styles = StyleSheet.create({
   inviteOpsCount: { color: colours.cyan, fontSize: 12, fontWeight: '900' },
   inviteOpsAction: { color: colours.textSoft, fontSize: 11, fontWeight: '700', lineHeight: 16 },
   inviteCloudGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
+  inviteHealthRow: {
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    padding: 10,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  inviteHealthMain: { minWidth: 82 },
+  inviteHealthNumber: { fontSize: 28, lineHeight: 32, fontWeight: '900' },
+  inviteHealthLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 2 },
+  inviteHealthStats: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  inviteHealthStat: {
+    color: colours.textSoft,
+    fontSize: 10,
+    fontWeight: '900',
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 5,
+    backgroundColor: 'rgba(0,0,0,0.12)',
+  },
   inviteCloudTile: {
     flex: 1,
     minWidth: 96,
