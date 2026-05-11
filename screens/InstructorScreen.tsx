@@ -1288,9 +1288,14 @@ export function InstructorScreen({
             </View>
           </View>
           {firstStaleInvite ? (
-            <Pressable style={styles.inviteHealthAction} onPress={() => { void copyCloudInviteLink(firstStaleInvite); }}>
-              <Text style={styles.inviteOpsButtonText}>Copy First Stale</Text>
-            </Pressable>
+            <View style={styles.inviteHealthActions}>
+              <Pressable style={styles.inviteHealthAction} onPress={() => { void copyCloudInviteLink(firstStaleInvite); }}>
+                <Text style={styles.inviteOpsButtonText}>Copy First Stale</Text>
+              </Pressable>
+              <Pressable style={styles.inviteHealthAction} onPress={() => { void resendCloudInvite(firstStaleInvite); }}>
+                <Text style={styles.inviteOpsButtonText}>Resend First Stale</Text>
+              </Pressable>
+            </View>
           ) : null}
         </View>
         <View style={styles.inviteCloudGrid}>
@@ -2075,6 +2080,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     backgroundColor: 'rgba(0,0,0,0.12)',
   },
+  inviteHealthActions: { gap: 6 },
   inviteHealthAction: {
     minHeight: 34,
     borderWidth: 1,
