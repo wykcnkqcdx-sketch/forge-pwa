@@ -15,7 +15,8 @@ import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
-import { buildInviteHealth, isStalePendingInvite } from '../utils/inviteHealth';
+import { buildInviteHealth, displayInviteStatus } from '../utils/inviteHealth';
+import { cloudInviteLabel, filterCloudInvites, firstStaleCloudInvite, type CloudInviteFilter } from '../utils/inviteQueue';
 import { groupInviteLifecycle } from '../utils/inviteLifecycle';
 
 interface InstructorScreenProps {
@@ -109,15 +110,9 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
 }
 
 type AssignmentScope = 'member' | 'group' | 'squad';
-type CloudInviteFilter = 'all' | 'stale' | CloudInvite['status'];
 
 function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
-  if (invite.status === 'pending' && new Date(invite.expiresAt).getTime() <= Date.now()) return 'expired';
-  return invite.status;
-}
-
-function cloudInviteLabel(invite: CloudInvite) {
-  return invite.gymName || invite.displayName || invite.email || 'Invite';
+  return displayInviteStatus(invite, new Date());
 }
 
 const cloudInviteFilters: Array<{ key: CloudInviteFilter; label: string }> = [
@@ -415,26 +410,15 @@ export function InstructorScreen({
     revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
   }), [cloudInvites]);
   const inviteHealth = useMemo(() => buildInviteHealth(members, cloudInvites), [cloudInvites, members]);
-  const firstStaleInvite = useMemo(() => cloudInvites
-    .filter((invite) => isStalePendingInvite(invite))
-    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0] ?? null, [cloudInvites]);
+  const firstStaleInvite = useMemo(() => firstStaleCloudInvite(cloudInvites), [cloudInvites]);
   const firstStaleInviteLabel = firstStaleInvite ? cloudInviteLabel(firstStaleInvite) : '';
   function setCloudInviteQueueFilter(filter: CloudInviteFilter) {
     setCloudInviteFilter(filter);
     setCloudInviteLimit(5);
   }
-  const filteredCloudInvites = useMemo(() => {
-    const query = cloudInviteSearch.trim().toLowerCase();
-    return cloudInvites.filter((invite) => {
-      const statusMatches = cloudInviteFilter === 'all'
-        || (cloudInviteFilter === 'stale' ? isStalePendingInvite(invite) : cloudInviteDisplayStatus(invite) === cloudInviteFilter);
-      if (!statusMatches) return false;
-      if (!query) return true;
-      return [invite.email, invite.displayName, invite.gymName]
-        .filter((value): value is string => Boolean(value))
-        .some((value) => value.toLowerCase().includes(query));
-    });
-  }, [cloudInviteFilter, cloudInviteSearch, cloudInvites]);
+  const filteredCloudInvites = useMemo(() => (
+    filterCloudInvites(cloudInvites, cloudInviteFilter, cloudInviteSearch)
+  ), [cloudInviteFilter, cloudInviteSearch, cloudInvites]);
   const visibleCloudInvites = filteredCloudInvites.slice(0, cloudInviteLimit);
   const fallbackAssignmentHistory = useMemo(() => {
     const grouped = new Map<string, {
