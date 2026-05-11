@@ -56,6 +56,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Latest invite recovery rows now include a Clear action that removes the persisted link.
 - Invite Operations now includes an Invite Health summary for stale pending, expired, revoked, accepted-needs-sync, and target-ready counts.
 - Invite Health chips now filter the cloud invite queue for pending/stale, expired, revoked, and accepted rows.
+- Invite Operations now has a dedicated stale-pending queue filter backed by the same stale predicate as Invite Health.
 
 ## Verification
 

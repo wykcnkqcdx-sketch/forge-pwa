@@ -15,7 +15,7 @@ import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
 import { buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
-import { buildInviteHealth } from '../utils/inviteHealth';
+import { buildInviteHealth, isStalePendingInvite } from '../utils/inviteHealth';
 import { groupInviteLifecycle } from '../utils/inviteLifecycle';
 
 interface InstructorScreenProps {
@@ -109,7 +109,7 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
 }
 
 type AssignmentScope = 'member' | 'group' | 'squad';
-type CloudInviteFilter = 'all' | CloudInvite['status'];
+type CloudInviteFilter = 'all' | 'stale' | CloudInvite['status'];
 
 function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
   if (invite.status === 'pending' && new Date(invite.expiresAt).getTime() <= Date.now()) return 'expired';
@@ -118,6 +118,7 @@ function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
 
 const cloudInviteFilters: Array<{ key: CloudInviteFilter; label: string }> = [
   { key: 'all', label: 'All' },
+  { key: 'stale', label: 'Stale' },
   { key: 'pending', label: 'Pending' },
   { key: 'expired', label: 'Expired' },
   { key: 'revoked', label: 'Revoked' },
@@ -417,7 +418,8 @@ export function InstructorScreen({
   const filteredCloudInvites = useMemo(() => {
     const query = cloudInviteSearch.trim().toLowerCase();
     return cloudInvites.filter((invite) => {
-      const statusMatches = cloudInviteFilter === 'all' || cloudInviteDisplayStatus(invite) === cloudInviteFilter;
+      const statusMatches = cloudInviteFilter === 'all'
+        || (cloudInviteFilter === 'stale' ? isStalePendingInvite(invite) : cloudInviteDisplayStatus(invite) === cloudInviteFilter);
       if (!statusMatches) return false;
       if (!query) return true;
       return [invite.email, invite.displayName, invite.gymName]
@@ -1266,7 +1268,7 @@ export function InstructorScreen({
             <Text style={styles.inviteHealthLabel}>Need action</Text>
           </View>
           <View style={styles.inviteHealthStats}>
-            <Pressable style={styles.inviteHealthChip} onPress={() => setCloudInviteQueueFilter('pending')}>
+            <Pressable style={styles.inviteHealthChip} onPress={() => setCloudInviteQueueFilter('stale')}>
               <Text style={styles.inviteHealthStat}>Stale {inviteHealth.stalePending}</Text>
             </Pressable>
             <Pressable style={styles.inviteHealthChip} onPress={() => setCloudInviteQueueFilter('expired')}>

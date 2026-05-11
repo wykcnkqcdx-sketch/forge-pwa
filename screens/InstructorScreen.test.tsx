@@ -205,11 +205,19 @@ describe('InstructorScreen Invite Operations', () => {
     const { getByText, queryByText } = render(<InstructorScreen
       {...baseProps}
       cloudInvites={[
-        makeInvite({ id: 'pending', displayName: 'Pending Invite', status: 'pending' }),
+        makeInvite({ id: 'pending', displayName: 'Pending Invite', status: 'pending', createdAt: '2026-05-10T12:00:00.000Z' }),
+        makeInvite({ id: 'stale', displayName: 'Stale Invite', status: 'pending', createdAt: '2026-05-01T12:00:00.000Z' }),
         makeInvite({ id: 'revoked', displayName: 'Revoked Invite', status: 'revoked' }),
         makeInvite({ id: 'expired', displayName: 'Expired Invite', status: 'pending', expiresAt: '2026-05-01T12:00:00.000Z' }),
       ]}
     />);
+
+    fireEvent.click(getByText('Stale 1'));
+
+    expect(getByText('Stale Invite')).toBeTruthy();
+    expect(queryByText('Pending Invite')).toBeNull();
+    expect(queryByText('Expired Invite')).toBeNull();
+    expect(queryByText('Revoked Invite')).toBeNull();
 
     fireEvent.click(getByText('Expired 1'));
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { SquadMember } from '../data/mockData';
 import type { CloudInvite } from '../lib/squadCloud';
-import { buildInviteHealth } from './inviteHealth';
+import { buildInviteHealth, isStalePendingInvite } from './inviteHealth';
 
 function member(id: string, updates: Partial<SquadMember> = {}): SquadMember {
   return {
@@ -54,5 +54,14 @@ describe('buildInviteHealth', () => {
       targetReady: 1,
       needsAction: 5,
     });
+  });
+
+  it('identifies only unexpired pending invites older than seven days as stale', () => {
+    const now = new Date('2026-05-11T12:00:00.000Z');
+
+    expect(isStalePendingInvite(invite('stale', { createdAt: '2026-05-01T12:00:00.000Z' }), now)).toBe(true);
+    expect(isStalePendingInvite(invite('fresh', { createdAt: '2026-05-09T12:00:00.000Z' }), now)).toBe(false);
+    expect(isStalePendingInvite(invite('expired', { expiresAt: '2026-05-05T12:00:00.000Z' }), now)).toBe(false);
+    expect(isStalePendingInvite(invite('revoked', { status: 'revoked', createdAt: '2026-05-01T12:00:00.000Z' }), now)).toBe(false);
   });
 });
