@@ -40,8 +40,8 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   cardHot: {
-    borderColor: colours.border,
-    backgroundColor: 'rgba(143,166,59,0.06)',
+    borderColor: colours.borderHot,
+    backgroundColor: colours.panelHot,
   },
   highlight: {
     position: 'absolute',

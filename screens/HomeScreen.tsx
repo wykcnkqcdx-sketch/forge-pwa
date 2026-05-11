@@ -24,10 +24,10 @@ function formatOneDecimal(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
-function readinessStatus(score: number) {
-  if (score >= 75) return { label: 'Ready for moderate training', tone: colours.green };
-  if (score >= 60) return { label: 'Keep this steady', tone: colours.amber };
-  return { label: 'Recovery priority', tone: colours.red };
+function readinessBand(score: number): { label: string; sub: string; tone: string } {
+  if (score >= 75) return { label: 'FIELD READY',  sub: 'Moderate session recommended', tone: colours.green };
+  if (score >= 60) return { label: 'MODERATE',     sub: 'Keep load steady today',        tone: colours.amber };
+  return              { label: 'RECOVER',          sub: 'Recovery priority',              tone: colours.red   };
 }
 
 export function HomeScreen({
@@ -52,43 +52,53 @@ export function HomeScreen({
   secondaryActionLabel?: string;
 }) {
   const performance = useMemo(() => buildPerformanceProfile(sessions), [sessions]);
-  const latestReadiness = useMemo(() => getLatestReadinessLog(readinessLogs, member?.id), [member?.id, readinessLogs]);
+  const latestReadiness = useMemo(
+    () => getLatestReadinessLog(readinessLogs, member?.id),
+    [member?.id, readinessLogs],
+  );
   const readinessStale = isReadinessStale(latestReadiness);
-  const readinessScore = readinessStale ? performance.readiness : latestReadiness ? performance.readiness : performance.readiness;
-  const status = readinessStatus(readinessScore);
-  const displayName = member?.gymName || member?.name;
+  const readinessScore = performance.readiness;
+  const band = readinessBand(readinessScore);
 
-  const weeklyRuckKm = useMemo(() => {
-    return sessions
-      .filter((session) => session.type === 'Ruck' && isThisWeek(session.completedAt))
-      .reduce((total, session) => {
-        const routeKm = session.routePoints && session.routePoints.length > 1 ? undefined : undefined;
-        return total + (routeKm ?? (session.durationMinutes / 60) * 5.2);
-      }, 0);
-  }, [sessions]);
+  const weeklyRuckKm = useMemo(() =>
+    sessions
+      .filter(s => s.type === 'Ruck' && isThisWeek(s.completedAt))
+      .reduce((total, s) => {
+        const km = s.ruckMission?.targetDistanceKm ?? (s.durationMinutes / 60) * 5.2;
+        return total + km;
+      }, 0),
+    [sessions],
+  );
+
+  const loadMoved = useMemo(() =>
+    sessions
+      .filter(s => s.type === 'Ruck' && isThisWeek(s.completedAt) && s.loadKg)
+      .reduce((total, s) => {
+        const km = s.ruckMission?.targetDistanceKm ?? (s.durationMinutes / 60) * 5.2;
+        return total + (s.loadKg ?? 0) * km;
+      }, 0),
+    [sessions],
+  );
 
   const streak = useMemo(() => {
     const days = new Set(
       sessions
-        .filter((session) => session.completedAt)
-        .map((session) => new Date(session.completedAt as string).toDateString())
+        .filter(s => s.completedAt)
+        .map(s => new Date(s.completedAt as string).toDateString()),
     );
     let count = 0;
     const cursor = new Date();
-    while (days.has(cursor.toDateString())) {
-      count += 1;
-      cursor.setDate(cursor.getDate() - 1);
-    }
+    while (days.has(cursor.toDateString())) { count++; cursor.setDate(cursor.getDate() - 1); }
     return member?.streakDays ?? count;
   }, [member?.streakDays, sessions]);
 
-  const recommendation = useMemo(() => {
+  const orders = useMemo(() => {
     const assigned = member?.assignmentSession;
     if (goToReadiness && (!latestReadiness || readinessStale)) {
       return {
         title: 'Readiness check',
         detail: 'Two minutes. Sleep, soreness, hydration and pain flags.',
-        action: 'Readiness Check',
+        action: 'COMPLETE READINESS CHECK',
         icon: 'body-outline' as keyof typeof Ionicons.glyphMap,
         tone: colours.amber,
         onPress: goToReadiness,
@@ -98,17 +108,17 @@ export function HomeScreen({
       return {
         title: assigned.title,
         detail: assigned.coachNote ?? `${assigned.type} assigned by coach.`,
-        action: 'Start Session',
-        icon: assigned.type === 'Ruck' ? 'footsteps-outline' as const : 'barbell-outline' as const,
-        tone: status.tone,
+        action: assigned.type === 'Ruck' ? 'START RUCK' : 'START SESSION',
+        icon: assigned.type === 'Ruck' ? ('footsteps-outline' as const) : ('barbell-outline' as const),
+        tone: band.tone,
         onPress: assigned.type === 'Ruck' ? goToRuck : goToTrain,
       };
     }
     if (performance.loadRisk === 'High' || performance.readinessBand === 'RED') {
       return {
         title: 'Mobility reset',
-        detail: '20 to 30 min. Bring load down before the next hard effort.',
-        action: 'Log Workout',
+        detail: '20–30 min. Bring load down before the next hard effort.',
+        action: 'LOG WORKOUT',
         icon: 'body-outline' as keyof typeof Ionicons.glyphMap,
         tone: colours.red,
         onPress: goToTrain,
@@ -116,23 +126,23 @@ export function HomeScreen({
     }
     if (weeklyRuckKm < 6) {
       return {
-        title: '6 km ruck',
-        detail: '15 kg load. Zone 2 pace. Add checkpoints if training outdoors.',
-        action: 'Start Ruck',
+        title: '6 km ruck · 15 kg load',
+        detail: 'Zone 2 pace. Add checkpoints if training outdoors.',
+        action: 'START RUCK',
         icon: 'footsteps-outline' as keyof typeof Ionicons.glyphMap,
-        tone: colours.green,
+        tone: colours.cyan,
         onPress: goToRuck,
       };
     }
     return {
       title: 'Strength block',
       detail: 'Compound work plus carries. Keep effort at RPE 7.',
-      action: 'Log Workout',
+      action: 'LOG WORKOUT',
       icon: 'barbell-outline' as keyof typeof Ionicons.glyphMap,
       tone: colours.green,
       onPress: goToTrain,
     };
-  }, [goToReadiness, goToRuck, goToTrain, latestReadiness, member?.assignmentSession, performance.loadRisk, performance.readinessBand, readinessStale, status.tone, weeklyRuckKm]);
+  }, [goToReadiness, goToRuck, goToTrain, latestReadiness, member?.assignmentSession, performance.loadRisk, performance.readinessBand, readinessStale, band.tone, weeklyRuckKm]);
 
   const alerts = useMemo(() => {
     const list: Array<{ label: string; tone: string; icon: keyof typeof Ionicons.glyphMap }> = [];
@@ -140,123 +150,300 @@ export function HomeScreen({
     if (latestReadiness?.hydration === 'Poor') list.push({ label: 'Hydration low', tone: colours.amber, icon: 'water-outline' });
     if ((latestReadiness?.pain ?? 0) >= 4) list.push({ label: 'Pain flag needs review', tone: colours.red, icon: 'alert-circle-outline' });
     if (performance.loadRisk === 'High') list.push({ label: 'Training load high', tone: colours.red, icon: 'flame-outline' });
-    return list.length ? list : [{ label: 'No injury flags', tone: colours.green, icon: 'shield-checkmark-outline' as const }];
+    return list.length
+      ? list
+      : [{ label: 'No injury flags', tone: colours.green, icon: 'shield-checkmark-outline' as const }];
   }, [latestReadiness, performance.loadRisk, readinessStale]);
 
+  const squadCompliance = member ? Math.round(member.compliance) : null;
   const lastCompletion = workoutCompletions[0];
 
   return (
     <Screen>
+      {/* ── Header ───────────────────────────────────────────── */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.kicker}>FORGE READINESS</Text>
-          <Text style={styles.title}>{displayName ? `${displayName}'s Today` : 'What is next?'}</Text>
+          <Text style={styles.brandName}>FORGE</Text>
+          <Text style={[styles.brandKicker, { color: band.tone }]}>{band.label}</Text>
         </View>
+        <Pressable style={styles.readinessBadge} onPress={goToReadiness}>
+          <Text style={[styles.readinessNum, { color: band.tone }]}>{readinessScore}</Text>
+          <Text style={styles.readinessLabel}>READINESS</Text>
+        </Pressable>
       </View>
 
-      <Card hot>
-        <View style={styles.readinessRow}>
-          <View>
-            <Text style={styles.label}>Readiness</Text>
-            <Text style={[styles.readinessValue, { color: status.tone }]}>{readinessScore}</Text>
-          </View>
-          <View style={styles.statusBlock}>
-            <Text style={[styles.statusText, { color: status.tone }]}>{status.label}</Text>
-            <Text style={styles.statusMeta}>{readinessStale ? 'Fresh check needed' : 'Current check-in active'}</Text>
-          </View>
+      {/* ── Today's Orders ───────────────────────────────────── */}
+      <Card hot accent={orders.tone}>
+        <View style={styles.ordersHeader}>
+          <Text style={styles.sectionLabel}>TODAY'S ORDERS</Text>
+          <Ionicons name={orders.icon} size={18} color={orders.tone} />
         </View>
-        <ProgressBar value={readinessScore} colour={status.tone} height={8} />
-      </Card>
-
-      <Card>
-        <View style={styles.recommendationHeader}>
-          <Text style={styles.label}>Today's Recommendation</Text>
-          <Ionicons name={recommendation.icon} size={20} color={recommendation.tone} />
-        </View>
-        <Text style={[styles.recommendationTitle, { color: recommendation.tone }]}>{recommendation.title}</Text>
-        <Text style={styles.body}>{recommendation.detail}</Text>
-        <Pressable style={[styles.primaryButton, { backgroundColor: recommendation.tone }]} onPress={recommendation.onPress}>
-          <Ionicons name={recommendation.icon} size={18} color={colours.background} />
-          <Text style={styles.primaryButtonText}>{recommendation.action}</Text>
+        <View style={styles.divider} />
+        <Text style={[styles.ordersTitle, { color: orders.tone }]}>{orders.title}</Text>
+        <Text style={styles.ordersDetail}>{orders.detail}</Text>
+        <Pressable
+          style={[styles.ctaButton, { backgroundColor: orders.tone }]}
+          onPress={orders.onPress}
+        >
+          <Ionicons name={orders.icon} size={16} color={colours.background} />
+          <Text style={styles.ctaText}>{orders.action}</Text>
         </Pressable>
       </Card>
 
-      <View style={styles.quickRow}>
-        {[
-          { label: 'Start Ruck', icon: 'footsteps-outline' as const, tone: colours.green, onPress: goToRuck },
-          { label: 'Log Workout', icon: 'barbell-outline' as const, tone: colours.amber, onPress: goToTrain },
-          { label: 'Readiness', icon: 'body-outline' as const, tone: colours.cyan, onPress: goToReadiness },
-        ].map((action) => (
-          <Pressable key={action.label} style={[styles.quickButton, { borderColor: `${action.tone}45`, backgroundColor: `${action.tone}12` }]} onPress={action.onPress}>
-            <Ionicons name={action.icon} size={18} color={action.tone} />
-            <Text style={[styles.quickText, { color: action.tone }]}>{action.label}</Text>
-          </Pressable>
-        ))}
+      {/* ── Stat tiles ───────────────────────────────────────── */}
+      <View style={styles.statsRow}>
+        <View style={styles.statTile}>
+          <Text style={styles.tileLabel}>RUCK WEEK</Text>
+          <Text style={styles.tileValue}>{formatOneDecimal(weeklyRuckKm)}</Text>
+          <Text style={styles.tileUnit}>km</Text>
+        </View>
+        <View style={styles.statTile}>
+          <Text style={styles.tileLabel}>LOAD MOVED</Text>
+          <Text style={styles.tileValue}>{Math.round(loadMoved)}</Text>
+          <Text style={styles.tileUnit}>kg·km</Text>
+        </View>
+        <View style={styles.statTile}>
+          <Text style={styles.tileLabel}>STREAK</Text>
+          <Text style={[styles.tileValue, streak >= 3 && { color: colours.cyan }]}>{streak}</Text>
+          <Text style={styles.tileUnit}>days</Text>
+        </View>
       </View>
 
-      <Card>
-        <Text style={styles.cardTitle}>This Week</Text>
-        <View style={styles.statsGrid}>
-          <View style={styles.statTile}>
-            <Text style={styles.statValue}>{formatOneDecimal(weeklyRuckKm)} km</Text>
-            <Text style={styles.statLabel}>Ruck distance</Text>
+      {/* ── Squad Pulse ──────────────────────────────────────── */}
+      {squadCompliance !== null && (
+        <Card>
+          <View style={styles.squadHeader}>
+            <Text style={styles.sectionLabel}>SQUAD PULSE</Text>
+            <Ionicons name="people-outline" size={16} color={colours.muted} />
           </View>
-          <View style={styles.statTile}>
-            <Text style={[styles.statValue, { color: performance.riskTone }]}>{performance.loadRisk}</Text>
-            <Text style={styles.statLabel}>Training load</Text>
+          <View style={styles.squadCompliance}>
+            <Text style={[styles.squadPct, { color: squadCompliance >= 75 ? colours.green : colours.amber }]}>
+              {squadCompliance}%
+            </Text>
+            <Text style={styles.squadSub}>complete this week</Text>
           </View>
-          <View style={styles.statTile}>
-            <Text style={styles.statValue}>{streak}</Text>
-            <Text style={styles.statLabel}>Day streak</Text>
-          </View>
-        </View>
-      </Card>
+          <ProgressBar
+            value={squadCompliance}
+            colour={squadCompliance >= 75 ? colours.green : colours.amber}
+            height={6}
+          />
+          {lastCompletion && (
+            <Text style={styles.squadNote}>
+              Last: {lastCompletion.assignment} — {lastCompletion.effort.toLowerCase()}
+            </Text>
+          )}
+        </Card>
+      )}
 
-      <Card>
-        <Text style={styles.cardTitle}>Alerts</Text>
+      {/* ── Field status ─────────────────────────────────────── */}
+      <View style={styles.statusCard}>
+        <Text style={styles.sectionLabel}>FIELD STATUS</Text>
         {alerts.map((alert) => (
           <View key={alert.label} style={styles.alertRow}>
-            <Ionicons name={alert.icon} size={16} color={alert.tone} />
+            <Ionicons name={alert.icon} size={14} color={alert.tone} />
             <Text style={[styles.alertText, { color: alert.tone }]}>{alert.label}</Text>
           </View>
         ))}
-        {lastCompletion ? <Text style={styles.footerNote}>Last member update: {lastCompletion.assignment} was {lastCompletion.effort.toLowerCase()}.</Text> : null}
-      </Card>
+      </View>
 
-      <Pressable style={styles.linkButton} onPress={goToAnalytics}>
-        <Text style={styles.linkText}>Open detailed readiness and load analytics</Text>
-        <Ionicons name="chevron-forward" size={16} color={colours.cyan} />
+      {/* ── Analytics link ───────────────────────────────────── */}
+      <Pressable style={styles.analyticsLink} onPress={goToAnalytics}>
+        <Text style={styles.analyticsText}>Readiness + load analytics</Text>
+        <Ionicons name="chevron-forward" size={14} color={colours.cyan} />
       </Pressable>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
-  kicker: { ...typography.label, color: colours.cyan },
-  title: { color: colours.text, fontSize: 32, lineHeight: 36, fontWeight: '900', marginTop: 4 },
-  label: { ...typography.label, color: colours.muted },
-  readinessRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 18, marginBottom: 12 },
-  readinessValue: { fontSize: 64, lineHeight: 68, fontWeight: '900' },
-  statusBlock: { flex: 1, alignItems: 'flex-end' },
-  statusText: { fontSize: 18, lineHeight: 23, fontWeight: '900', textAlign: 'right' },
-  statusMeta: { ...typography.caption, color: colours.muted, marginTop: 5, textAlign: 'right' },
-  recommendationHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
-  recommendationTitle: { fontSize: 28, lineHeight: 32, fontWeight: '900' },
-  body: { ...typography.body, color: colours.textSoft, marginTop: 6 },
-  primaryButton: { minHeight: touchTarget, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, marginTop: 16 },
-  primaryButtonText: { color: colours.background, fontWeight: '900', fontSize: 14 },
-  quickRow: { flexDirection: 'row', gap: 8 },
-  quickButton: { flex: 1, minHeight: 70, borderWidth: 1, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 8 },
-  quickText: { fontSize: 11, fontWeight: '900', textAlign: 'center' },
-  cardTitle: { ...typography.h4, color: colours.text, marginBottom: 12 },
-  statsGrid: { flexDirection: 'row', gap: 8 },
-  statTile: { flex: 1, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: radius.sm, padding: 12, backgroundColor: colours.layer1 },
-  statValue: { color: colours.text, fontSize: 22, fontWeight: '900' },
-  statLabel: { ...typography.caption, color: colours.muted, marginTop: 4 },
-  alertRow: { minHeight: 38, flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, borderTopColor: colours.borderSoft },
-  alertText: { fontSize: 13, fontWeight: '900' },
-  footerNote: { ...typography.caption, color: colours.textSoft, marginTop: 10, lineHeight: 18 },
-  linkButton: { ...shadow.subtle, minHeight: touchTarget, borderWidth: 1, borderColor: colours.borderHot, borderRadius: radius.sm, backgroundColor: colours.cyanDim, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 },
-  linkText: { color: colours.cyan, fontWeight: '900', fontSize: 13 },
+  // Header
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingBottom: 4,
+  },
+  brandName: {
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+    color: colours.text,
+    lineHeight: 44,
+  },
+  brandKicker: {
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+    marginTop: 2,
+  },
+  readinessBadge: {
+    alignItems: 'flex-end',
+    paddingTop: 4,
+  },
+  readinessNum: {
+    fontSize: 56,
+    fontWeight: '900',
+    lineHeight: 58,
+    letterSpacing: -2,
+    fontVariant: ['tabular-nums'],
+  },
+  readinessLabel: {
+    ...typography.label,
+    color: colours.muted,
+    textAlign: 'right',
+  },
+
+  // Today's Orders
+  ordersHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sectionLabel: {
+    ...typography.label,
+    color: colours.muted,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: colours.borderSoft,
+    marginBottom: 12,
+  },
+  ordersTitle: {
+    fontSize: 26,
+    fontWeight: '900',
+    lineHeight: 30,
+    letterSpacing: -0.4,
+    marginBottom: 6,
+  },
+  ordersDetail: {
+    ...typography.body,
+    color: colours.textSoft,
+    marginBottom: 16,
+  },
+  ctaButton: {
+    minHeight: touchTarget,
+    borderRadius: radius.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  ctaText: {
+    color: colours.background,
+    fontWeight: '900',
+    fontSize: 13,
+    letterSpacing: 1.2,
+  },
+
+  // Stat tiles
+  statsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  statTile: {
+    flex: 1,
+    backgroundColor: colours.panel,
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: radius.sm,
+    padding: 12,
+    alignItems: 'center',
+  },
+  tileLabel: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1.4,
+    color: colours.muted,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  tileValue: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: colours.text,
+    fontVariant: ['tabular-nums'],
+    letterSpacing: -0.5,
+    lineHeight: 32,
+  },
+  tileUnit: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: colours.soft,
+    letterSpacing: 0.6,
+    marginTop: 2,
+  },
+
+  // Squad Pulse
+  squadHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  squadCompliance: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 6,
+    marginBottom: 8,
+  },
+  squadPct: {
+    fontSize: 36,
+    fontWeight: '900',
+    lineHeight: 38,
+    fontVariant: ['tabular-nums'],
+  },
+  squadSub: {
+    ...typography.caption,
+    color: colours.muted,
+  },
+  squadNote: {
+    ...typography.caption,
+    color: colours.muted,
+    marginTop: 8,
+  },
+
+  // Field Status
+  statusCard: {
+    backgroundColor: colours.panel,
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: radius.sm,
+    padding: 14,
+    gap: 2,
+  },
+  alertRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    minHeight: 32,
+    borderTopWidth: 1,
+    borderTopColor: colours.borderSoft,
+    marginTop: 4,
+  },
+  alertText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+
+  // Analytics link
+  analyticsLink: {
+    minHeight: touchTarget,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    borderRadius: radius.sm,
+    backgroundColor: colours.cyanDim,
+    ...shadow.subtle,
+  },
+  analyticsText: {
+    color: colours.cyan,
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 0.6,
+  },
 });
