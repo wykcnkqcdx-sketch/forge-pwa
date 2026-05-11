@@ -669,6 +669,21 @@ export function InstructorScreen({
     );
   }
 
+  function renderLatestInviteRow() {
+    if (!latestInviteLink) return null;
+    return (
+      <View style={styles.latestInviteRow}>
+        <View style={styles.memberCopy}>
+          <Text style={styles.memberName}>Latest invite: {latestInviteLink.label}</Text>
+          <Text style={styles.muted}>Expires {new Date(latestInviteLink.expiresAt).toLocaleDateString()}</Text>
+        </View>
+        <Pressable style={styles.inviteOpsButton} onPress={() => { void copyLatestInviteLink(); }}>
+          <Text style={styles.inviteOpsButtonText}>Copy Again</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
   async function resendCloudInvite(invite: CloudInvite) {
     await createSecureInviteForMember({
       name: invite.displayName || invite.gymName || invite.email || 'FORGE Member',
@@ -1234,17 +1249,7 @@ export function InstructorScreen({
         </View>
         {cloudInvites.length ? (
           <View style={styles.inviteCloudList}>
-            {latestInviteLink ? (
-              <View style={styles.latestInviteRow}>
-                <View style={styles.memberCopy}>
-                  <Text style={styles.memberName}>Latest invite: {latestInviteLink.label}</Text>
-                  <Text style={styles.muted}>Expires {new Date(latestInviteLink.expiresAt).toLocaleDateString()}</Text>
-                </View>
-                <Pressable style={styles.inviteOpsButton} onPress={() => { void copyLatestInviteLink(); }}>
-                  <Text style={styles.inviteOpsButtonText}>Copy Again</Text>
-                </Pressable>
-              </View>
-            ) : null}
+            {renderLatestInviteRow()}
             <TextInput
               value={cloudInviteSearch}
               onChangeText={(value) => {
@@ -1305,17 +1310,7 @@ export function InstructorScreen({
           </View>
         ) : (
           <>
-            {latestInviteLink ? (
-              <View style={styles.latestInviteRow}>
-                <View style={styles.memberCopy}>
-                  <Text style={styles.memberName}>Latest invite: {latestInviteLink.label}</Text>
-                  <Text style={styles.muted}>Expires {new Date(latestInviteLink.expiresAt).toLocaleDateString()}</Text>
-                </View>
-                <Pressable style={styles.inviteOpsButton} onPress={() => { void copyLatestInviteLink(); }}>
-                  <Text style={styles.inviteOpsButtonText}>Copy Again</Text>
-                </Pressable>
-              </View>
-            ) : null}
+            {renderLatestInviteRow()}
             <Text style={styles.inviteOpsEmpty}>No cloud invite rows loaded yet.</Text>
           </>
         )}

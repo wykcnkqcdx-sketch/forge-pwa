@@ -51,6 +51,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Invite Operations now has Copy Link actions that create a fresh secure invite, copy it to the clipboard when available, and fall back to showing the link.
 - Cloud invite rows now support local search by email, display name, or gym name alongside status filters.
 - Invite Operations now keeps the latest generated invite link available for a quick Copy Again recovery action.
+- Latest invite recovery row rendering is now centralized inside `InstructorScreen` to avoid duplicated Invite Operations JSX.
 
 ## Verification
 
