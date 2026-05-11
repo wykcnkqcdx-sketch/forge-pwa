@@ -52,6 +52,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Cloud invite rows now support local search by email, display name, or gym name alongside status filters.
 - Invite Operations now keeps the latest generated invite link available for a quick Copy Again recovery action.
 - Latest invite recovery row rendering is now centralized inside `InstructorScreen` to avoid duplicated Invite Operations JSX.
+- Latest generated invite links are now persisted locally with expiry-aware loading and malformed-data cleanup.
 
 ## Verification
 

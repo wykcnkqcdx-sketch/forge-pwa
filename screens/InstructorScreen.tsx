@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Linking, Platform, Text, TextInput, View, StyleSheet, Pressable, FlatList } from 'react-native';
 import { Screen } from '../components/Screen';
 import { Card } from '../components/Card';
@@ -10,6 +10,7 @@ import { type AssignedExerciseBlock, exerciseLibrary, ExerciseCategory, Programm
 import type { AssignmentDeployment, ReadinessLog, WorkoutCompletion } from '../data/domain';
 import { showAlert, showConfirm } from '../lib/dialogs';
 import { createCloudMemberInvite } from '../lib/cloudInvites';
+import { loadLatestInviteLink, saveLatestInviteLink, type LatestInviteLink } from '../lib/latestInviteLink';
 import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
@@ -108,12 +109,6 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
 
 type AssignmentScope = 'member' | 'group' | 'squad';
 type CloudInviteFilter = 'all' | CloudInvite['status'];
-type LatestInviteLink = {
-  url: string;
-  label: string;
-  expiresAt: string;
-  createdAt: string;
-};
 
 function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
   if (invite.status === 'pending' && new Date(invite.expiresAt).getTime() <= Date.now()) return 'expired';
@@ -244,6 +239,18 @@ export function InstructorScreen({
   const [cloudInviteLimit, setCloudInviteLimit] = useState(5);
   const [cloudInviteSearch, setCloudInviteSearch] = useState('');
   const [latestInviteLink, setLatestInviteLink] = useState<LatestInviteLink | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadLatestInviteLink()
+      .then((link) => {
+        if (!cancelled) setLatestInviteLink(link);
+      })
+      .catch((error) => {
+        console.error('Failed to load latest invite link', error);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -571,16 +578,18 @@ export function InstructorScreen({
       cloudSquadId,
       member,
     });
-
-    if (context === 'resent' && member.id) {
-      onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
-    }
-    setLatestInviteLink({
+    const latestLink = {
       url: inviteUrl,
       label: displayName,
       expiresAt,
       createdAt: new Date().toISOString(),
-    });
+    };
+
+    if (context === 'resent' && member.id) {
+      onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
+    }
+    setLatestInviteLink(latestLink);
+    saveLatestInviteLink(latestLink).catch((error) => console.error('Failed to save latest invite link', error));
 
     const inviteBody = `You've been invited to FORGE Tactical Fitness.\n\nOpen your secure FORGE member portal invite here:\n${inviteUrl}\n\nThis invite expires on ${new Date(expiresAt).toLocaleDateString()}.\n\nCoach note: ${storageNote}`;
 
@@ -636,15 +645,17 @@ export function InstructorScreen({
       cloudSquadId,
       member,
     });
-    if (member.id) {
-      onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
-    }
-    setLatestInviteLink({
+    const latestLink = {
       url: inviteUrl,
       label: displayName,
       expiresAt,
       createdAt: new Date().toISOString(),
-    });
+    };
+    if (member.id) {
+      onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
+    }
+    setLatestInviteLink(latestLink);
+    saveLatestInviteLink(latestLink).catch((error) => console.error('Failed to save latest invite link', error));
 
     const copied = await copyInviteUrl(inviteUrl);
     const expiry = new Date(expiresAt).toLocaleDateString();

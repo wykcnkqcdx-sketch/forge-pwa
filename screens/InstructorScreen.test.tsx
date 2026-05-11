@@ -6,6 +6,8 @@ import type { CloudInvite } from '../lib/squadCloud';
 
 const mocks = vi.hoisted(() => ({
   createCloudMemberInvite: vi.fn(),
+  loadLatestInviteLink: vi.fn(),
+  saveLatestInviteLink: vi.fn(),
   showAlert: vi.fn(),
   showConfirm: vi.fn((_title: string, _message: string, onConfirm: () => void, _confirmLabel?: string) => onConfirm()),
 }));
@@ -62,6 +64,11 @@ vi.mock('../lib/dialogs', () => ({
 
 vi.mock('../lib/cloudInvites', () => ({
   createCloudMemberInvite: (...args: unknown[]) => mocks.createCloudMemberInvite(...args),
+}));
+
+vi.mock('../lib/latestInviteLink', () => ({
+  loadLatestInviteLink: (...args: unknown[]) => mocks.loadLatestInviteLink(...args),
+  saveLatestInviteLink: (...args: unknown[]) => mocks.saveLatestInviteLink(...args),
 }));
 
 function makeInvite(overrides: Partial<CloudInvite>): CloudInvite {
@@ -127,6 +134,8 @@ describe('InstructorScreen Invite Operations', () => {
       displayName: 'Member',
       storageNote: 'Secure invite token stored in Supabase.',
     });
+    mocks.loadLatestInviteLink.mockResolvedValue(null);
+    mocks.saveLatestInviteLink.mockResolvedValue(undefined);
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -248,6 +257,11 @@ describe('InstructorScreen Invite Operations', () => {
     })));
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://forge.test/?invite=fresh-token'));
     expect(onUpdateMember).toHaveBeenCalledWith('member-copy', expect.objectContaining({ inviteStatus: 'Invited' }));
+    expect(mocks.saveLatestInviteLink).toHaveBeenCalledWith(expect.objectContaining({
+      url: 'https://forge.test/?invite=fresh-token',
+      label: 'Member',
+      expiresAt: '2026-05-24T12:00:00.000Z',
+    }));
     expect(mocks.showAlert).toHaveBeenCalledWith('Invite link copied', expect.stringContaining('clipboard'));
   });
 
@@ -285,5 +299,18 @@ describe('InstructorScreen Invite Operations', () => {
 
     await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://forge.test/?invite=fresh-token'));
     expect(mocks.showAlert).toHaveBeenCalledWith('Invite link copied', expect.stringContaining('latest invite link'));
+  });
+
+  it('loads a persisted latest invite link on mount', async () => {
+    mocks.loadLatestInviteLink.mockResolvedValueOnce({
+      url: 'https://forge.test/?invite=stored-token',
+      label: 'Stored',
+      expiresAt: '2026-05-24T12:00:00.000Z',
+      createdAt: '2026-05-11T12:00:00.000Z',
+    });
+
+    const { getByText } = render(<InstructorScreen {...baseProps} />);
+
+    await waitFor(() => expect(getByText('Latest invite: Stored')).toBeTruthy());
   });
 });
