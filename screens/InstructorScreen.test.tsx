@@ -231,6 +231,26 @@ describe('InstructorScreen Invite Operations', () => {
     expect(queryByText('Expired Invite')).toBeNull();
   });
 
+  it('copies a fresh link for the oldest stale invite from invite health', async () => {
+    const { getByText } = render(<InstructorScreen
+      {...baseProps}
+      cloudInvites={[
+        makeInvite({ id: 'newer-stale', displayName: 'Newer Stale', email: 'newer@example.com', createdAt: '2026-05-02T12:00:00.000Z' }),
+        makeInvite({ id: 'oldest-stale', displayName: 'Oldest Stale', email: 'oldest@example.com', createdAt: '2026-05-01T12:00:00.000Z' }),
+      ]}
+    />);
+
+    fireEvent.click(getByText('Copy First Stale'));
+
+    await waitFor(() => expect(mocks.createCloudMemberInvite).toHaveBeenCalledWith(expect.objectContaining({
+      member: expect.objectContaining({
+        name: 'Oldest Stale',
+        email: 'oldest@example.com',
+      }),
+    })));
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://forge.test/?invite=fresh-token'));
+  });
+
   it('searches cloud invite rows by email or name', () => {
     const { getByPlaceholderText, getByText, queryByText } = render(<InstructorScreen {...baseProps} cloudInvites={[
       makeInvite({ id: 'alpha', displayName: 'Alpha Invite', email: 'alpha@example.com' }),

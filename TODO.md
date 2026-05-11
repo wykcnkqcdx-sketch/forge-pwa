@@ -57,6 +57,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Invite Operations now includes an Invite Health summary for stale pending, expired, revoked, accepted-needs-sync, and target-ready counts.
 - Invite Health chips now filter the cloud invite queue for pending/stale, expired, revoked, and accepted rows.
 - Invite Operations now has a dedicated stale-pending queue filter backed by the same stale predicate as Invite Health.
+- Invite Health now offers a Copy First Stale action that refreshes the oldest stale pending invite link.
 
 ## Verification
 

@@ -411,6 +411,9 @@ export function InstructorScreen({
     revoked: cloudInvites.filter((invite) => cloudInviteDisplayStatus(invite) === 'revoked').length,
   }), [cloudInvites]);
   const inviteHealth = useMemo(() => buildInviteHealth(members, cloudInvites), [cloudInvites, members]);
+  const firstStaleInvite = useMemo(() => cloudInvites
+    .filter((invite) => isStalePendingInvite(invite))
+    .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())[0] ?? null, [cloudInvites]);
   function setCloudInviteQueueFilter(filter: CloudInviteFilter) {
     setCloudInviteFilter(filter);
     setCloudInviteLimit(5);
@@ -1284,6 +1287,11 @@ export function InstructorScreen({
               <Text style={styles.inviteHealthStat}>Ready {inviteHealth.targetReady}</Text>
             </View>
           </View>
+          {firstStaleInvite ? (
+            <Pressable style={styles.inviteHealthAction} onPress={() => { void copyCloudInviteLink(firstStaleInvite); }}>
+              <Text style={styles.inviteOpsButtonText}>Copy First Stale</Text>
+            </Pressable>
+          ) : null}
         </View>
         <View style={styles.inviteCloudGrid}>
           <View style={styles.inviteCloudTile}>
@@ -2066,6 +2074,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 7,
     paddingVertical: 5,
     backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  inviteHealthAction: {
+    minHeight: 34,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
+    borderRadius: 8,
+    paddingHorizontal: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.14)',
   },
   inviteHealthStat: { color: colours.textSoft, fontSize: 10, fontWeight: '900' },
   inviteCloudTile: {
