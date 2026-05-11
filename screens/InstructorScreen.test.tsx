@@ -250,4 +250,40 @@ describe('InstructorScreen Invite Operations', () => {
     expect(onUpdateMember).toHaveBeenCalledWith('member-copy', expect.objectContaining({ inviteStatus: 'Invited' }));
     expect(mocks.showAlert).toHaveBeenCalledWith('Invite link copied', expect.stringContaining('clipboard'));
   });
+
+  it('keeps the latest generated invite link available to copy again', async () => {
+    mocks.createCloudMemberInvite.mockResolvedValueOnce({
+      inviteUrl: 'https://forge.test/?invite=fresh-token',
+      expiresAt: '2026-05-24T12:00:00.000Z',
+      trimmedEmail: 'latest@example.com',
+      displayName: 'Latest',
+      storageNote: 'Secure invite token stored in Supabase.',
+    });
+    const member = {
+      id: 'member-latest',
+      name: 'Pte Latest',
+      gymName: 'Latest',
+      email: 'latest@example.com',
+      groupId: 'alpha',
+      readiness: 70,
+      compliance: 80,
+      risk: 'Low' as const,
+      load: 45,
+      inviteStatus: 'Manual' as const,
+    };
+
+    const { getAllByText, getByText } = render(<InstructorScreen
+      {...baseProps}
+      members={[member]}
+    />);
+
+    fireEvent.click(getAllByText('Copy Link')[0]);
+    await waitFor(() => expect(getByText('Latest invite: Latest')).toBeTruthy());
+
+    vi.mocked(navigator.clipboard.writeText).mockClear();
+    fireEvent.click(getByText('Copy Again'));
+
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith('https://forge.test/?invite=fresh-token'));
+    expect(mocks.showAlert).toHaveBeenCalledWith('Invite link copied', expect.stringContaining('latest invite link'));
+  });
 });

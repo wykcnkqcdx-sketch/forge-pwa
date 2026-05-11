@@ -108,6 +108,12 @@ function assignmentTargetState(member: SquadMember | null, cloudEnabled: boolean
 
 type AssignmentScope = 'member' | 'group' | 'squad';
 type CloudInviteFilter = 'all' | CloudInvite['status'];
+type LatestInviteLink = {
+  url: string;
+  label: string;
+  expiresAt: string;
+  createdAt: string;
+};
 
 function cloudInviteDisplayStatus(invite: CloudInvite): CloudInvite['status'] {
   if (invite.status === 'pending' && new Date(invite.expiresAt).getTime() <= Date.now()) return 'expired';
@@ -237,6 +243,7 @@ export function InstructorScreen({
   const [cloudInviteFilter, setCloudInviteFilter] = useState<CloudInviteFilter>('all');
   const [cloudInviteLimit, setCloudInviteLimit] = useState(5);
   const [cloudInviteSearch, setCloudInviteSearch] = useState('');
+  const [latestInviteLink, setLatestInviteLink] = useState<LatestInviteLink | null>(null);
 
   const groupScores = useMemo(() => {
     return groups.map((group) => {
@@ -568,6 +575,12 @@ export function InstructorScreen({
     if (context === 'resent' && member.id) {
       onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
     }
+    setLatestInviteLink({
+      url: inviteUrl,
+      label: displayName,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
 
     const inviteBody = `You've been invited to FORGE Tactical Fitness.\n\nOpen your secure FORGE member portal invite here:\n${inviteUrl}\n\nThis invite expires on ${new Date(expiresAt).toLocaleDateString()}.\n\nCoach note: ${storageNote}`;
 
@@ -626,6 +639,12 @@ export function InstructorScreen({
     if (member.id) {
       onUpdateMember(member.id, { inviteStatus: 'Invited', email: trimmedEmail || member.email, updatedAt: new Date().toISOString() });
     }
+    setLatestInviteLink({
+      url: inviteUrl,
+      label: displayName,
+      expiresAt,
+      createdAt: new Date().toISOString(),
+    });
 
     const copied = await copyInviteUrl(inviteUrl);
     const expiry = new Date(expiresAt).toLocaleDateString();
@@ -637,6 +656,17 @@ export function InstructorScreen({
     );
     if (refreshCloudRows) onCloudSync();
     return inviteUrl;
+  }
+
+  async function copyLatestInviteLink() {
+    if (!latestInviteLink) return;
+    const copied = await copyInviteUrl(latestInviteLink.url);
+    showAlert(
+      copied ? 'Invite link copied' : 'Invite link ready',
+      copied
+        ? `${latestInviteLink.label}'s latest invite link is on your clipboard.`
+        : `Copy this invite link and send it to ${latestInviteLink.label}:\n\n${latestInviteLink.url}`,
+    );
   }
 
   async function resendCloudInvite(invite: CloudInvite) {
@@ -1204,6 +1234,17 @@ export function InstructorScreen({
         </View>
         {cloudInvites.length ? (
           <View style={styles.inviteCloudList}>
+            {latestInviteLink ? (
+              <View style={styles.latestInviteRow}>
+                <View style={styles.memberCopy}>
+                  <Text style={styles.memberName}>Latest invite: {latestInviteLink.label}</Text>
+                  <Text style={styles.muted}>Expires {new Date(latestInviteLink.expiresAt).toLocaleDateString()}</Text>
+                </View>
+                <Pressable style={styles.inviteOpsButton} onPress={() => { void copyLatestInviteLink(); }}>
+                  <Text style={styles.inviteOpsButtonText}>Copy Again</Text>
+                </Pressable>
+              </View>
+            ) : null}
             <TextInput
               value={cloudInviteSearch}
               onChangeText={(value) => {
@@ -1263,7 +1304,20 @@ export function InstructorScreen({
             ) : null}
           </View>
         ) : (
-          <Text style={styles.inviteOpsEmpty}>No cloud invite rows loaded yet.</Text>
+          <>
+            {latestInviteLink ? (
+              <View style={styles.latestInviteRow}>
+                <View style={styles.memberCopy}>
+                  <Text style={styles.memberName}>Latest invite: {latestInviteLink.label}</Text>
+                  <Text style={styles.muted}>Expires {new Date(latestInviteLink.expiresAt).toLocaleDateString()}</Text>
+                </View>
+                <Pressable style={styles.inviteOpsButton} onPress={() => { void copyLatestInviteLink(); }}>
+                  <Text style={styles.inviteOpsButtonText}>Copy Again</Text>
+                </Pressable>
+              </View>
+            ) : null}
+            <Text style={styles.inviteOpsEmpty}>No cloud invite rows loaded yet.</Text>
+          </>
         )}
         {inviteLifecycleGroups.map((group) => (
           <View key={group.key} style={styles.inviteOpsSection}>
@@ -1952,6 +2006,20 @@ const styles = StyleSheet.create({
   inviteCloudValue: { fontSize: 22, lineHeight: 26, fontWeight: '900' },
   inviteCloudLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 3 },
   inviteCloudList: { gap: 6, marginBottom: 10 },
+  latestInviteRow: {
+    minHeight: 42,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    borderWidth: 1,
+    borderColor: `${colours.cyan}45`,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    backgroundColor: colours.cyanDim,
+    marginBottom: 4,
+  },
   inviteSearchInput: {
     minHeight: 40,
     borderWidth: 1,
