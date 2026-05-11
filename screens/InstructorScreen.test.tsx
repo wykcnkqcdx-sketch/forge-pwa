@@ -444,30 +444,55 @@ describe('InstructorScreen Invite Operations', () => {
 });
 
 describe('InstructorScreen Assignment History', () => {
+  const deployment = {
+    id: 'deployment-1',
+    title: 'Ruck Intervals',
+    scope: 'squad' as const,
+    targetMemberIds: ['member-1', 'member-2'],
+    targetNames: ['Doyle', 'Walsh'],
+    cloudReadyMemberIds: ['member-1'],
+    completedMemberIds: ['member-1'],
+    exerciseCount: 3,
+    assignedAt: '2026-05-10T10:00:00.000Z',
+  };
+
   it('shows assignment delivery health across recent deployments', () => {
     const { getAllByText, getByText } = render(<InstructorScreen
       {...baseProps}
-      assignmentDeployments={[
-        {
-          id: 'deployment-1',
-          title: 'Ruck Intervals',
-          scope: 'squad',
-          targetMemberIds: ['member-1', 'member-2'],
-          targetNames: ['Doyle', 'Walsh'],
-          cloudReadyMemberIds: ['member-1'],
-          completedMemberIds: ['member-1'],
-          exerciseCount: 3,
-          assignedAt: '2026-05-10T10:00:00.000Z',
-        },
-      ]}
+      assignmentDeployments={[deployment]}
     />);
 
     expect(getByText('2')).toBeTruthy();
     expect(getAllByText('Need action').length).toBeGreaterThan(0);
-    expect(getByText((_content, element) => element?.textContent === 'Cloud 1')).toBeTruthy();
-    expect(getByText((_content, element) => element?.textContent === 'Local 1')).toBeTruthy();
-    expect(getByText((_content, element) => element?.textContent === 'Done 1')).toBeTruthy();
-    expect(getByText((_content, element) => element?.textContent === 'Pending 1')).toBeTruthy();
-    expect(getByText((_content, element) => element?.textContent === 'Delivery 50%')).toBeTruthy();
+    expect(getAllByText((_content, element) => element?.textContent === 'Cloud 1').length).toBeGreaterThan(0);
+    expect(getAllByText((_content, element) => element?.textContent === 'Local 1').length).toBeGreaterThan(0);
+    expect(getAllByText((_content, element) => element?.textContent === 'Done 1').length).toBeGreaterThan(0);
+    expect(getAllByText((_content, element) => element?.textContent === 'Pending 1').length).toBeGreaterThan(0);
+    expect(getAllByText((_content, element) => element?.textContent === 'Delivery 50%').length).toBeGreaterThan(0);
+  });
+
+  it('opens the first local-only assignment from delivery health', () => {
+    const { getAllByText, getByText } = render(<InstructorScreen
+      {...baseProps}
+      assignmentDeployments={[deployment]}
+    />);
+
+    fireEvent.click(getAllByText((_content, element) => element?.textContent === 'Local 1')[0]);
+
+    expect(getAllByText('Doyle').length).toBeGreaterThan(0);
+    expect(getAllByText('Walsh').length).toBeGreaterThan(0);
+    expect(getByText((_content, element) => element?.textContent === 'Local only - Pending')).toBeTruthy();
+  });
+
+  it('opens the first pending assignment from delivery health', () => {
+    const { getAllByText, getByText } = render(<InstructorScreen
+      {...baseProps}
+      assignmentDeployments={[deployment]}
+    />);
+
+    fireEvent.click(getAllByText((_content, element) => element?.textContent === 'Pending 1')[0]);
+
+    expect(getByText((_content, element) => element?.textContent === 'Cloud delivered - Completed')).toBeTruthy();
+    expect(getByText((_content, element) => element?.textContent === 'Local only - Pending')).toBeTruthy();
   });
 });

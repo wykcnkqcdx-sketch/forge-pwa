@@ -82,3 +82,13 @@ export function buildAssignmentDeliveryHealth(assignments: Array<{
     needsAction: localOnly + pending,
   };
 }
+
+export function firstAssignmentWithLocalOnly<T extends { targetCount: number; cloudReadyCount: number; localOnlyCount?: number }>(assignments: T[]) {
+  return assignments.find((assignment) => (
+    (assignment.localOnlyCount ?? Math.max(0, assignment.targetCount - assignment.cloudReadyCount)) > 0
+  )) ?? null;
+}
+
+export function firstAssignmentWithPending<T extends { targetCount: number; completedCount: number }>(assignments: T[]) {
+  return assignments.find((assignment) => assignment.targetCount - assignment.completedCount > 0) ?? null;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildAssignmentDeliveryHealth, buildAssignmentDeliveryRows } from './assignmentDelivery';
+import { buildAssignmentDeliveryHealth, buildAssignmentDeliveryRows, firstAssignmentWithLocalOnly, firstAssignmentWithPending } from './assignmentDelivery';
 import type { SquadMember } from '../data/mockData';
 import type { WorkoutCompletion } from '../data/domain';
 
@@ -84,5 +84,23 @@ describe('buildAssignmentDeliveryHealth', () => {
       completionPercent: 60,
       needsAction: 4,
     });
+  });
+
+  it('finds the first assignment with local-only targets', () => {
+    const assignments = [
+      { key: 'ready', targetCount: 2, cloudReadyCount: 2, completedCount: 0 },
+      { key: 'local', targetCount: 3, cloudReadyCount: 2, completedCount: 0 },
+    ];
+
+    expect(firstAssignmentWithLocalOnly(assignments)?.key).toBe('local');
+  });
+
+  it('finds the first assignment with pending completions', () => {
+    const assignments = [
+      { key: 'done', targetCount: 2, cloudReadyCount: 2, completedCount: 2 },
+      { key: 'pending', targetCount: 3, cloudReadyCount: 3, completedCount: 1 },
+    ];
+
+    expect(firstAssignmentWithPending(assignments)?.key).toBe('pending');
   });
 });

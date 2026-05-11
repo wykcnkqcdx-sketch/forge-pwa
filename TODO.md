@@ -63,6 +63,7 @@ The map interaction fix is complete. The backend identity foundation is now the 
 - Cloud invite queue label, filter, search, and oldest-stale selection rules now live in `utils/inviteQueue.ts` with focused tests.
 - Cloud invite pending/accepted/expired/revoked counts now live in `utils/inviteQueue.ts`.
 - Assignment History now has a Delivery Health summary for cloud delivered, local only, completed, pending, and delivery percentage.
+- Delivery Health Local and Pending chips now open the first assignment needing local delivery or completion attention.
 
 ## Verification
 

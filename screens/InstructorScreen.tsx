@@ -14,7 +14,7 @@ import { clearLatestInviteLink, loadLatestInviteLink, saveLatestInviteLink, type
 import type { CloudInvite, CloudTeamPulse } from '../lib/squadCloud';
 import { SquadMemberCard, completionTone } from '../components/SquadMemberCard';
 import { ProgrammeBuilder } from '../components/ProgrammeBuilder';
-import { buildAssignmentDeliveryHealth, buildAssignmentDeliveryRows } from '../utils/assignmentDelivery';
+import { buildAssignmentDeliveryHealth, buildAssignmentDeliveryRows, firstAssignmentWithLocalOnly, firstAssignmentWithPending } from '../utils/assignmentDelivery';
 import { buildInviteHealth, displayInviteStatus } from '../utils/inviteHealth';
 import { cloudInviteLabel, countCloudInvites, filterCloudInvites, firstStaleCloudInvite, type CloudInviteFilter } from '../utils/inviteQueue';
 import { groupInviteLifecycle } from '../utils/inviteLifecycle';
@@ -517,6 +517,8 @@ export function InstructorScreen({
     });
   }, [assignmentDeployments, fallbackAssignmentHistory, members, workoutCompletions]);
   const assignmentDeliveryHealth = useMemo(() => buildAssignmentDeliveryHealth(assignmentHistory), [assignmentHistory]);
+  const firstLocalOnlyAssignment = useMemo(() => firstAssignmentWithLocalOnly(assignmentHistory), [assignmentHistory]);
+  const firstPendingAssignment = useMemo(() => firstAssignmentWithPending(assignmentHistory), [assignmentHistory]);
   const selectedDeployment = assignmentHistory.find((assignment) => assignment.key === selectedDeploymentKey) ?? null;
   const selectedDeploymentTargets = useMemo(() => {
     if (!selectedDeployment) return [];
@@ -1120,9 +1122,23 @@ export function InstructorScreen({
             </View>
             <View style={styles.deliveryHealthStats}>
               <Text style={styles.deliveryHealthStat}>Cloud {assignmentDeliveryHealth.cloudDelivered}</Text>
-              <Text style={styles.deliveryHealthStat}>Local {assignmentDeliveryHealth.localOnly}</Text>
+              <Pressable
+                style={styles.deliveryHealthChip}
+                onPress={() => {
+                  if (firstLocalOnlyAssignment) setSelectedDeploymentKey(firstLocalOnlyAssignment.key);
+                }}
+              >
+                <Text style={styles.deliveryHealthStat}>Local {assignmentDeliveryHealth.localOnly}</Text>
+              </Pressable>
               <Text style={styles.deliveryHealthStat}>Done {assignmentDeliveryHealth.completed}</Text>
-              <Text style={styles.deliveryHealthStat}>Pending {assignmentDeliveryHealth.pending}</Text>
+              <Pressable
+                style={styles.deliveryHealthChip}
+                onPress={() => {
+                  if (firstPendingAssignment) setSelectedDeploymentKey(firstPendingAssignment.key);
+                }}
+              >
+                <Text style={styles.deliveryHealthStat}>Pending {assignmentDeliveryHealth.pending}</Text>
+              </Pressable>
               <Text style={styles.deliveryHealthStat}>Delivery {assignmentDeliveryHealth.deliveryPercent}%</Text>
             </View>
           </View>
@@ -2121,16 +2137,18 @@ const styles = StyleSheet.create({
   deliveryHealthNumber: { fontSize: 28, lineHeight: 32, fontWeight: '900' },
   deliveryHealthLabel: { color: colours.textSoft, fontSize: 10, fontWeight: '900', marginTop: 2 },
   deliveryHealthStats: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  deliveryHealthStat: {
-    color: colours.textSoft,
-    fontSize: 10,
-    fontWeight: '900',
+  deliveryHealthChip: {
     borderWidth: 1,
     borderColor: colours.borderSoft,
     borderRadius: 8,
     paddingHorizontal: 7,
     paddingVertical: 5,
     backgroundColor: 'rgba(0,0,0,0.12)',
+  },
+  deliveryHealthStat: {
+    color: colours.textSoft,
+    fontSize: 10,
+    fontWeight: '900',
   },
   latestInviteRow: {
     minHeight: 42,
