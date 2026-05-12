@@ -219,6 +219,7 @@ function App() {
   };
 
   const handleHitExercise = (exerciseId: string) => {
+    // @ts-ignore
     setAppState(prev => ({
       ...prev,
       assignedWorkout: {
