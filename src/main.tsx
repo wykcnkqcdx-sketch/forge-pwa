@@ -62,8 +62,7 @@ function AuthScreen() {
   return (
     <div className="app-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <div className="ambient-map" aria-hidden="true" />
-      <div style={{ width: '100%', maxWidth: 400, padding: 24, margin: 'auto' }}>
-        <Card className="metric-card">
+      <Card className="metric-card" style={{ width: '100%', maxWidth: 400, padding: 24, margin: 'auto' }}>
         <h1 style={{ fontSize: '1.5rem', marginBottom: 8, textAlign: 'center' }}>FORGE</h1>
         <p style={{ textAlign: 'center', marginBottom: 24, color: 'var(--muted)' }}>Tactical Performance OS</p>
         <form onSubmit={handleAuth}>
