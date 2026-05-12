@@ -47,7 +47,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
-function AuthScreen() {
+function AuthScreen({ inviteToken }: { inviteToken?: string | null }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -78,7 +78,9 @@ function AuthScreen() {
       <div className="ambient-map" aria-hidden="true" />
       <Card className="metric-card" style={{ width: '100%', maxWidth: 400, padding: 24, margin: 'auto' }}>
         <h1 style={{ fontSize: '1.5rem', marginBottom: 8, textAlign: 'center' }}>FORGE</h1>
-        <p style={{ textAlign: 'center', marginBottom: 24, color: 'var(--muted)' }}>Tactical Performance OS</p>
+        <p style={{ textAlign: 'center', marginBottom: 24, color: inviteToken ? 'var(--amber)' : 'var(--muted)', fontWeight: inviteToken ? 700 : 400 }}>
+          {inviteToken ? 'Sign in or sign up to join your squad' : 'Tactical Performance OS'}
+        </p>
         <form onSubmit={handleAuth}>
           <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Email</label>
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} required />
@@ -100,6 +102,15 @@ function App() {
   const [isSynced, setIsSynced] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [membership, setMembership] = useState<{ squad_id: string, id: string } | null>(null);
+  const [inviteToken, setInviteToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('invite');
+      if (token) setInviteToken(token);
+    }
+  }, []);
 
   // Centralized Application State (Simulating temp.tsx logic)
   const [appState, setAppState] = useState(() => {
@@ -155,6 +166,32 @@ function App() {
       setMembership(null);
     }
   }, [session]);
+
+  // Invite Claiming Flow
+  useEffect(() => {
+    async function claimInvite() {
+      if (!session || !inviteToken || !supabase) return;
+      
+      try {
+        const { data, error } = await supabase.rpc('claim_member_invite', { p_token: inviteToken });
+        if (error) throw error;
+        
+        alert('Successfully joined the squad!');
+        
+        // Clean up the URL so it doesn't try to claim again on refresh
+        const url = new URL(window.location.href);
+        url.searchParams.delete('invite');
+        window.history.replaceState({}, '', url.toString());
+        
+        setInviteToken(null);
+        if (data) setMembership({ id: data.id, squad_id: data.squad_id });
+      } catch (err: any) {
+        alert('Failed to claim invite: ' + err.message);
+        setInviteToken(null);
+      }
+    }
+    claimInvite();
+  }, [session, inviteToken]);
 
   // Real-time Supabase Subscription
   useEffect(() => {
@@ -323,7 +360,7 @@ function App() {
   }
 
   if (supabase && !session) {
-    return <AuthScreen />;
+    return <AuthScreen inviteToken={inviteToken} />;
   }
 
   return (
