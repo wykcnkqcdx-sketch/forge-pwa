@@ -279,37 +279,42 @@ function App() {
 
     // Push to Supabase if connected
     if (supabase && isSynced && membership && session) {
-      // @ts-ignore
-      supabase.from('team_activity').insert({
-        id: newActivityId,
-        squad_id: membership.squad_id, 
-        actor_membership_id: membership.id,
-        activity_type: 'workout_completed', 
-        title,
-        metadata: { 
-          result,
-          original_type: workout.type
+      const pushToCloud = async () => {
+        try {
+          await supabase.from('team_activity').insert({
+            id: newActivityId,
+            squad_id: membership.squad_id, 
+            actor_membership_id: membership.id,
+            activity_type: 'workout_completed', 
+            title,
+            metadata: { 
+              result,
+              original_type: workout.type,
+            }
+          });
+          
+          await supabase.from('workout_completions').insert({
+            id: newActivityId,
+            user_id: session.user.id,
+            squad_id: membership.squad_id,
+            membership_id: membership.id,
+            member_id: membership.id, 
+            member_name: session.user.email || 'Member',
+            group_id: 'default',
+            completion_type: workout.title.startsWith('Quick Log') ? 'quick_log' : 'assigned',
+            session_kind: workout.type,
+            assignment: workout.title,
+            effort: workout.effort,
+            duration_minutes: workout.duration,
+            volume: workout.volume,
+            note: workout.note || null,
+            completed_at: new Date().toISOString(),
+          });
+        } catch (err) {
+          console.error('Failed to sync completion:', err);
         }
-      }).catch(console.error);
-      
-      // Write to workout_completions so the coach sees it
-      supabase.from('workout_completions').insert({
-        id: newActivityId,
-        user_id: session.user.id,
-        squad_id: membership.squad_id,
-        membership_id: membership.id,
-        member_id: membership.id, // Fallback for legacy views
-        member_name: session.user.email || 'Member',
-        group_id: 'default',
-        completion_type: workout.title.startsWith('Quick Log') ? 'quick_log' : 'assigned',
-        session_kind: workout.type,
-        assignment: workout.title,
-        effort: workout.effort,
-        duration_minutes: workout.duration,
-        volume: workout.volume,
-        note: workout.note || null,
-        completed_at: new Date().toISOString()
-      }).catch(console.error);
+      };
+      pushToCloud();
     }
   };
 
@@ -1036,7 +1041,7 @@ function QuickLog({ onLog }: { onLog: (data: any) => void }) {
       volume: parsedVolume,
       duration: parsedDuration,
       effort,
-      note: note.trim() || undefined
+      note: note.trim() || undefined,
     });
 
     setFeedback(`Logged ${kind.toLowerCase()} for ${parsedDuration} min. Data saved locally!`);

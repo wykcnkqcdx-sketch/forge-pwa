@@ -15,14 +15,14 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('react-native', async () => {
   const ReactModule = await import('react');
-  const wrap = (tag: keyof HTMLElementTagNameMap) => ({ children, style: _style, onPress, ...props }: any) => (
+  const wrap = (tag: keyof HTMLElementTagNameMap) => ({ children, style: _style, onPress, contentContainerStyle, showsVerticalScrollIndicator, scrollIndicatorInsets, keyboardShouldPersistTaps, ...props }: any) => (
     ReactModule.createElement(tag, { ...props, onClick: onPress }, children)
   );
 
   return {
     View: wrap('div'),
     Text: wrap('span'),
-    TextInput: ({ value, onChangeText, placeholder, style: _style, ...props }: any) => (
+    TextInput: ({ value, onChangeText, placeholder, style: _style, placeholderTextColor, autoCorrect, keyboardType, ...props }: any) => (
       <input {...props} placeholder={placeholder} value={value ?? ''} onChange={(event) => onChangeText?.(event.currentTarget.value)} />
     ),
     Pressable: wrap('button'),

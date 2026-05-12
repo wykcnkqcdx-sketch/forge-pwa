@@ -36,6 +36,10 @@ vi.mock('expo-haptics', () => ({
 vi.mock('../lib/supabase', () => ({
   isSupabaseConfigured: false
 }));
+vi.mock('react-native', () => ({
+  View: ({ children }: any) => <div>{children}</div>,
+  Platform: { OS: 'web' }
+}));
 
 const mockUseApp = {
   sessions: [], members: [], groups: [], programmeTemplates: [], readinessLogs: [], workoutCompletions: [],
