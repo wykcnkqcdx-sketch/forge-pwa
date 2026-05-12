@@ -471,11 +471,13 @@ function Card({
   title,
   action,
   className = '',
+  style,
   children,
 }: {
   title?: string;
   action?: string;
   className?: string;
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   return (
