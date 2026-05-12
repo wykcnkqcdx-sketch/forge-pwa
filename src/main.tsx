@@ -153,6 +153,13 @@ function App() {
     window.navigator.vibrate?.(12);
   };
 
+  const handleCloudSync = async () => {
+    if (!supabase) return;
+    // Sync logic here
+    setIsSynced(true);
+    setTimeout(() => setIsSynced(false), 2000);
+  };
+
   const handleCompleteAssigned = () => {
     setAppState(prev => ({ ...prev, assignedWorkout: { ...prev.assignedWorkout, status: 'completed' } }));
   };
