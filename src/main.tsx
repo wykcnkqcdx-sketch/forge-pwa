@@ -15,7 +15,11 @@ import {
   trainingBlocks,
   trendMetrics,
 } from './data';
-import './styles.css';
+// Web-only stylesheet (Expo/RN cannot import .css)
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+if (typeof document !== 'undefined') {
+  require('./styles.css');
+}
 
 const quickLogKinds = ['Run', 'Ruck', 'Cardio', 'Strength', 'Workout', 'Mobility'];
 const efforts = ['Too Easy', 'About Right', 'Too Hard'];
