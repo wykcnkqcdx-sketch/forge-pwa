@@ -21,6 +21,9 @@ import type { AppNavigation, AppActions, Tab, MemberTab, PendingMemberInvite, Fo
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
   { id: 'home',         label: 'Home',    icon: 'home-outline',       iconActive: 'home' },
   { id: 'routePlanner', label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
+  // Added so swipe/tap navigation remains consistent after ruck-map/coaching updates
+  { id: 'ruck',          label: 'Live',   icon: 'footsteps-outline',  iconActive: 'footsteps' },
+  { id: 'ruckRing',      label: 'Ring',   icon: 'analytics-outline', iconActive: 'analytics' },
   { id: 'train',        label: 'Train',   icon: 'barbell-outline',    iconActive: 'barbell' },
   { id: 'logbook',      label: 'Logbook', icon: 'book-outline',       iconActive: 'book' },
   { id: 'squad',        label: 'Squad',   icon: 'people-outline',     iconActive: 'people' },
