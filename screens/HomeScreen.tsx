@@ -9,6 +9,9 @@ import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { getCurrentStreak, getLongestStreak, getLast7DayFlags, streakMilestoneLabel } from '../lib/streak';
 import { secureGetItem, secureSetItem, secureRemoveItem } from '../lib/secureStorage';
 import { colours, radius, shadow, touchTarget, typography } from '../theme';
+import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
+import { getProtocol } from '../lib/injuryProtocols';
+import { responsiveSpacing, statusColors } from '../utils/styling';
 import type { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
 
@@ -94,6 +97,29 @@ export function HomeScreen({
   const [weeklyGoalKm, setWeeklyGoalKm] = useState<number | null>(null);
   const [goalModalOpen, setGoalModalOpen]   = useState(false);
   const [goalInput, setGoalInput]           = useState('');
+
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
+  const [bodyMapView, setBodyMapView] = useState<BodyMapView>('anterior');
+  const [selectedPainLevel, setSelectedPainLevel] = useState(4);
+  const [painMap, setPainMap] = useState<PainMap>({});
+  const hotspots = choirSegments
+    .map((seg) => ({ ...seg, level: painMap[seg.id] ?? 0 }))
+    .filter((seg) => seg.level > 0)
+    .sort((a, b) => b.level - a.level)
+    .slice(0, 3);
+  const lowerBackLoadFlag =
+    sessions.some((s) => s.type === 'Ruck' && (s.loadKg ?? 0) >= 18) &&
+    ((painMap.P09 ?? 0) >= 5 || (painMap.P10 ?? 0) >= 5);
+
+  function markInjury(segmentId: string) {
+    setSelectedSegment(segmentId);
+    setPainMap((cur) => ({ ...cur, [segmentId]: selectedPainLevel }));
+  }
+
+  function setPainIntensity(level: number) {
+    setSelectedPainLevel(level);
+    if (selectedSegment) setPainMap((cur) => ({ ...cur, [selectedSegment]: level }));
+  }
 
   useEffect(() => {
     secureGetItem('forge:weeklyRuckGoalKm').then(val => {
@@ -320,6 +346,150 @@ export function HomeScreen({
           </View>
         ))}
       </View>
+
+      {/* ── Injury Report ────────────────────────────────────── */}
+      <Card>
+        <Text style={styles.cardTitle}>Injury Report</Text>
+        <Text style={styles.muted}>Tap a CHOIR segment, then set pain intensity.</Text>
+        <View style={styles.intensityRow}>
+          {[0, 2, 4, 6, 8, 10].map((level) => (
+            <Pressable
+              key={level}
+              style={[
+                styles.intensityButton,
+                {
+                  backgroundColor:
+                    level <= 0 ? colours.cyanDim : level <= 3 ? colours.cyan : level <= 6 ? colours.amber : colours.red,
+                  borderColor: selectedPainLevel === level ? colours.text : 'transparent',
+                },
+              ]}
+              onPress={() => setPainIntensity(level)}
+              accessibilityRole="button"
+              accessibilityLabel={`Set pain intensity ${level} out of 10`}
+            >
+              <Text style={[styles.intensityText, level > 0 && { color: colours.background }]}>{level}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <BodyMap
+          activeView={bodyMapView}
+          painMap={painMap}
+          selectedSegment={selectedSegment}
+          selectedPainLevel={selectedPainLevel}
+          onChangeView={setBodyMapView}
+          onSelect={markInjury}
+        />
+        <View style={[styles.hotspotPanel, shadow.subtle]}>
+          <Text style={styles.hotspotTitle}>HPT Hotspots</Text>
+          {hotspots.length ? (
+            hotspots.map((seg) => (
+              <View key={seg.id} style={styles.hotspotRow}>
+                <Text style={styles.hotspotName}>{seg.id} {seg.label}</Text>
+                <Text style={[styles.hotspotScore, { color: seg.level >= 7 ? colours.red : seg.level >= 4 ? colours.amber : colours.cyan }]}>
+                  {seg.level}/10
+                </Text>
+              </View>
+            ))
+          ) : (
+            <Text style={styles.muted}>No musculoskeletal reports logged.</Text>
+          )}
+          {lowerBackLoadFlag && (
+            <Text style={styles.hotspotAlert}>
+              Lower-back hotspot rising after loaded ruck exposure. Flag for HPT trend review.
+            </Text>
+          )}
+        </View>
+
+        {selectedSegment && (painMap[selectedSegment] ?? 0) > 0 && (() => {
+          const proto = getProtocol(selectedSegment);
+          const pain = painMap[selectedSegment] ?? 0;
+          const severity = pain >= 7 ? 'severe' : pain >= 4 ? 'moderate' : 'mild';
+          const modalityColor = proto.modality === 'ice' ? colours.cyan : proto.modality === 'heat' ? colours.amber : colours.violet;
+          return (
+            <View style={styles.protoPanel}>
+              <View style={styles.protoHeader}>
+                <Ionicons name="medkit-outline" size={16} color={colours.red} />
+                <Text style={styles.protoTitle}>Recovery Protocol</Text>
+                <View style={[styles.protoSeverityBadge, { borderColor: pain >= 7 ? colours.red : pain >= 4 ? colours.amber : colours.cyan }]}>
+                  <Text style={[styles.protoSeverityText, { color: pain >= 7 ? colours.red : pain >= 4 ? colours.amber : colours.cyan }]}>{severity.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <Text style={styles.protoRegion}>{proto.region}</Text>
+              <Text style={styles.protoMuscles}>{proto.muscles.join(' · ')}</Text>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>ACUTE MANAGEMENT</Text>
+                <Text style={styles.protoBody}>{proto.acuteManagement}</Text>
+                <View style={[styles.protoModalityPill, { borderColor: modalityColor }]}>
+                  <Text style={[styles.protoModalityText, { color: modalityColor }]}>{proto.modality.toUpperCase()}</Text>
+                </View>
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>RETURN TO TRAIN</Text>
+                <View style={styles.rttRow}>
+                  {(['mild', 'moderate', 'severe'] as const).map((s) => (
+                    <View key={s} style={[styles.rttCard, s === severity && styles.rttCardActive]}>
+                      <Text style={[styles.rttCardLabel, s === severity && { color: colours.text }]}>{s.charAt(0).toUpperCase() + s.slice(1)}</Text>
+                      <Text style={[styles.rttCardDays, s === severity && { color: colours.cyan }]}>{proto.returnToTrainDays[s]}d</Text>
+                    </View>
+                  ))}
+                </View>
+                <Text style={[styles.muted, { marginTop: 4 }]}>Estimated days at {severity} severity (pain {pain}/10)</Text>
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>STRETCHING</Text>
+                {proto.stretches.map((s, i) => (
+                  <View key={i} style={styles.protoItem}>
+                    <View style={styles.protoItemHeader}>
+                      <Text style={styles.protoItemName}>{s.name}</Text>
+                      <Text style={styles.protoItemMeta}>{s.duration}</Text>
+                    </View>
+                    <Text style={styles.protoBody}>{s.instruction}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>RECOVERY EXERCISES</Text>
+                {proto.recoveryExercises.map((ex, i) => (
+                  <View key={i} style={styles.protoItem}>
+                    <View style={styles.protoItemHeader}>
+                      <Text style={styles.protoItemName}>{ex.name}</Text>
+                      <Text style={styles.protoItemMeta}>{ex.sets} × {ex.reps}</Text>
+                    </View>
+                    <Text style={styles.protoBody}>{ex.notes}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>MAINTENANCE</Text>
+                {proto.maintenanceExercises.map((ex, i) => (
+                  <View key={i} style={styles.protoMaintenanceRow}>
+                    <Ionicons name="checkmark-circle-outline" size={13} color={colours.green} />
+                    <Text style={styles.protoBody}>{ex}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.protoSection}>
+                <Text style={styles.protoSectionLabel}>INJURY PREVENTION</Text>
+                {proto.preventionTips.map((tip, i) => (
+                  <View key={i} style={styles.protoMaintenanceRow}>
+                    <Ionicons name="shield-checkmark-outline" size={13} color={colours.violet} />
+                    <Text style={styles.protoBody}>{tip}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <Text style={styles.medicalDisclaimer}>* Protocol is guidance only. Consult a physiotherapist or medical officer for injuries that are severe, persistent, or involve neurological symptoms.</Text>
+            </View>
+          );
+        })()}
+      </Card>
 
       {/* ── Analytics link ───────────────────────────────────── */}
       <Pressable style={styles.analyticsLink} onPress={goToAnalytics}>
@@ -723,6 +893,40 @@ const styles = StyleSheet.create({
     fontSize: 12,
     letterSpacing: 0.6,
   },
+  cardTitle: { color: colours.text, fontSize: 19, fontWeight: '900', marginBottom: responsiveSpacing('md') },
+  muted: { ...typography.caption, color: colours.muted },
+  intensityRow: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginVertical: responsiveSpacing('md') },
+  intensityButton: { width: 44, height: 44, borderRadius: 8, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
+  intensityText: { color: colours.text, fontSize: 14, fontWeight: '900' },
+  hotspotPanel: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, padding: responsiveSpacing('md'), backgroundColor: colours.panel, marginTop: responsiveSpacing('md'), gap: 6 },
+  hotspotTitle: { ...typography.h4, color: colours.text, marginBottom: 4 },
+  hotspotRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: responsiveSpacing('md'), paddingVertical: 6, borderTopWidth: 1, borderColor: colours.borderSoft },
+  hotspotName: { flex: 1, ...typography.caption, color: colours.textSoft, fontWeight: '800' },
+  hotspotScore: { ...typography.caption, fontWeight: '900' },
+  hotspotAlert: { ...typography.caption, color: colours.red, fontWeight: '900', lineHeight: 17, marginTop: 4 },
+  protoPanel: { marginTop: responsiveSpacing('md'), borderWidth: 1, borderColor: statusColors(colours.red).borderMed, borderRadius: 12, padding: responsiveSpacing('md'), backgroundColor: statusColors(colours.red).bgMed, gap: 2 },
+  protoHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 },
+  protoTitle: { color: colours.text, fontWeight: '900', fontSize: 15, flex: 1 },
+  protoSeverityBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
+  protoSeverityText: { ...typography.label, fontWeight: '900', letterSpacing: 1 },
+  protoRegion: { color: colours.text, fontWeight: '900', fontSize: 16, marginBottom: 2 },
+  protoMuscles: { ...typography.caption, color: colours.textSoft, lineHeight: 17, marginBottom: 6 },
+  protoSection: { marginTop: responsiveSpacing('md'), gap: 6 },
+  protoSectionLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.5, marginBottom: 2 },
+  protoBody: { ...typography.caption, color: colours.textSoft, lineHeight: 17, flex: 1 },
+  protoModalityPill: { alignSelf: 'flex-start', borderWidth: 1, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3, marginTop: 4 },
+  protoModalityText: { ...typography.label, fontWeight: '900', letterSpacing: 1 },
+  rttRow: { flexDirection: 'row', gap: responsiveSpacing('sm') },
+  rttCard: { flex: 1, borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 8, paddingVertical: 8, alignItems: 'center', backgroundColor: colours.surface },
+  rttCardActive: { borderColor: colours.cyan, backgroundColor: statusColors(colours.cyan).bgMed },
+  rttCardLabel: { ...typography.label, color: colours.muted, marginBottom: 2 },
+  rttCardDays: { color: colours.muted, fontWeight: '900', fontSize: 18 },
+  protoItem: { borderTopWidth: 1, borderTopColor: colours.borderSoft, paddingTop: 6, gap: 3 },
+  protoItemHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  protoItemName: { color: colours.text, fontWeight: '800', fontSize: 13, flex: 1 },
+  protoItemMeta: { ...typography.label, color: colours.cyan, fontWeight: '900' },
+  protoMaintenanceRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, paddingVertical: 3 },
+  medicalDisclaimer: { ...typography.caption, color: colours.amber, fontStyle: 'italic', marginTop: responsiveSpacing('md'), lineHeight: 14 },
 });
 
 // ── Goal modal styles ────────────────────────────────────────────
