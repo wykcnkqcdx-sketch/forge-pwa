@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
+import { createClient } from '@supabase/supabase-js';
 import {
   challenges,
   dailyMission,
@@ -27,11 +28,17 @@ function estimateQuickLogVolume(kind: string, durationMinutes: number) {
   return Math.max(rate * Math.max(durationMinutes, 1), kind === 'Mobility' ? 20 : 60);
 }
 
+// Initialize Supabase client for Vite Web
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [expanded, setExpanded] = useState('mission');
   const [timer, setTimer] = useState(18 * 60 + 42);
   const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
+  const [isSynced, setIsSynced] = useState(false);
 
   // Centralized Application State (Simulating temp.tsx logic)
   const [appState, setAppState] = useState(() => {
@@ -64,23 +71,66 @@ function App() {
     localStorage.setItem('forge:appState', JSON.stringify(appState));
   }, [appState]);
 
+  // Real-time Supabase Subscription
+  useEffect(() => {
+    if (!supabase || !isSynced) return;
+    const channel = supabase.channel('public:team_activity')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_activity' }, (payload) => {
+        const newActivity = payload.new;
+        setAppState(prev => {
+          // Prevent duplicate if we just inserted it locally
+          if (prev.activities.some((a: any) => a.id === newActivity.id)) return prev;
+          return {
+            ...prev,
+            activities: [{
+              id: newActivity.id,
+              type: newActivity.type,
+              title: newActivity.title,
+              result: newActivity.metadata?.result || 'Completed',
+              time: 'Just now',
+              hypes: 0
+            }, ...prev.activities]
+          };
+        });
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [isSynced]);
+
   const handleLogSession = (session: { type: string, title: string, volume: number, duration: number, effort: string }) => {
+    const newActivityId = Date.now().toString();
+    const title = appState.ghostMode ? 'A teammate logged activity' : `You finished ${session.title}`;
+    const result = `${session.duration} min · +${session.volume} vol`;
+
     setAppState(prev => ({
       ...prev,
       weeklyVolume: prev.weeklyVolume + session.volume,
       readiness: Math.min(100, Math.max(1, prev.readiness + (session.effort === 'Too Hard' ? -3 : session.effort === 'Too Easy' ? 2 : 1))),
       activities: [
         {
-          id: Date.now().toString(),
+          id: newActivityId,
           type: session.type,
-          title: prev.ghostMode ? 'A teammate logged activity' : `You finished ${session.title}`,
-          result: `${session.duration} min · +${session.volume} vol`,
+          title,
+          result,
           time: 'Just now',
           hypes: 0
         },
         ...prev.activities
       ]
     }));
+
+    // Push to Supabase if connected
+    if (supabase && isSynced) {
+      supabase.from('team_activity').insert({
+        id: newActivityId,
+        squad_id: 'alpha', // Map to your squad ID
+        member_id: 'current-user', 
+        type: session.type,
+        title,
+        metadata: { result }
+      }).catch(console.error);
+    }
   };
 
   const handleHype = (id: string) => {
@@ -130,6 +180,33 @@ function App() {
     }
   };
 
+  const handleCloudSync = async () => {
+    if (!supabase) {
+      alert("Supabase is missing! Create a .env file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+      return;
+    }
+    try {
+      // Pull the latest 10 activities to hydrate the feed
+      const { data } = await supabase.from('team_activity').select('*').order('created_at', { ascending: false }).limit(10);
+      if (data && data.length > 0) {
+        setAppState(prev => ({
+          ...prev,
+          activities: data.map((d: any) => ({
+            id: d.id,
+            type: d.type,
+            title: d.title,
+            result: d.metadata?.result || '',
+            time: new Date(d.created_at).toLocaleDateString(),
+            hypes: 0
+          }))
+        }));
+      }
+      setIsSynced(true);
+    } catch (error) {
+      console.error('Failed to sync', error);
+    }
+  };
+
   useEffect(() => {
     const interval = window.setInterval(() => setTimer((value) => value + 1), 1000);
     return () => window.clearInterval(interval);
@@ -165,7 +242,7 @@ function App() {
         {activeTab === 'tactical' && <Tactical timer={timer} />}
         {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
         {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
-        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} onClearData={handleClearData} />}
+        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} onClearData={handleClearData} onSync={handleCloudSync} isSynced={isSynced} />}
       </main>
 
       <nav className="mobile-nav" aria-label="Primary navigation">
@@ -451,11 +528,12 @@ function Team({ weeklyVolume }: { weeklyVolume: number }) {
   );
 }
 
-function Profile({ ghostMode, setGhostMode, onLog, onClearData }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void }) {
+function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void; onSync: () => Promise<void>; isSynced: boolean }) {
   const [syncing, setSyncing] = useState(false);
-  const handleSync = () => {
+  const handleSyncClick = async () => {
     setSyncing(true);
-    setTimeout(() => setSyncing(false), 1500);
+    await onSync();
+    setSyncing(false);
   };
 
   return (
@@ -468,18 +546,18 @@ function Profile({ ghostMode, setGhostMode, onLog, onClearData }: { ghostMode: b
             <p style={{ fontSize: '0.8rem', margin: 0, lineHeight: 1.4 }}>Connect to Supabase to backup your logs and sync with your coach.</p>
           </div>
           <button 
-            onClick={handleSync}
+            onClick={handleSyncClick}
             style={{
-              background: syncing ? 'transparent' : 'rgba(217, 142, 58, 0.11)',
-              border: `1px solid ${syncing ? 'var(--line)' : 'rgba(217, 142, 58, 0.48)'}`,
-              color: syncing ? 'var(--soft)' : 'var(--amber)',
+              background: syncing || isSynced ? 'transparent' : 'rgba(217, 142, 58, 0.11)',
+              border: `1px solid ${syncing || isSynced ? 'var(--line)' : 'rgba(217, 142, 58, 0.48)'}`,
+              color: syncing || isSynced ? 'var(--soft)' : 'var(--amber)',
               padding: '8px 16px',
               borderRadius: '12px',
               fontWeight: 800,
               cursor: 'pointer'
             }}
           >
-            {syncing ? 'Syncing...' : 'Sync Now'}
+            {syncing ? 'Syncing...' : isSynced ? 'Synced' : 'Sync Now'}
           </button>
         </div>
       </Card>
