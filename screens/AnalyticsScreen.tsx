@@ -14,6 +14,7 @@ import { TrainingSession } from '../data/mockData';
 import { ReadinessLog } from '../data/domain';
 import { buildPerformanceProfile, sortSessionsByDate } from '../lib/performance';
 import { TrainingCalendar } from '../components/TrainingCalendar';
+import { WeeklyLoadChart } from '../components/WeeklyLoadChart';
 import { exportSessionsToPdf } from '../lib/pdfExport';
 import { BodyMap, BodyMapView, PainMap, choirSegments } from '../components/BodyMap';
 import type { WorkoutCompletion } from '../data/domain';
@@ -288,6 +289,10 @@ export function AnalyticsScreen({
           bezier
           style={styles.lineChart}
         />
+      </Card>
+
+      <Card>
+        <WeeklyLoadChart sessions={sessions} />
       </Card>
 
       <Card>
