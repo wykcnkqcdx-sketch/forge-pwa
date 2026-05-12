@@ -2,7 +2,6 @@
   "compilerOptions": {
     "target": "ES2022",
     "useDefineForClassFields": true,
-    "forceConsistentCasingInFileNames": true,
     "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "allowJs": false,
     "strict": true,
@@ -10,6 +9,7 @@
     "moduleResolution": "Bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
     "noEmit": true,
     "jsx": "react-jsx",
     "types": ["react", "react-dom"]
