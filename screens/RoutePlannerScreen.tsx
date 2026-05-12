@@ -363,13 +363,14 @@ const cr = StyleSheet.create({
 // ── Props ────────────────────────────────────────────────────────
 
 export type RoutePlannerScreenProps = {
-  sessions:    TrainingSession[];
-  onLaunchRuck: () => void;
+  sessions:      TrainingSession[];
+  onLaunchRuck:  () => void;
+  onGoToRuckRing?: () => void;
 };
 
 // ── Main screen ──────────────────────────────────────────────────
 
-export function RoutePlannerScreen({ sessions, onLaunchRuck }: RoutePlannerScreenProps) {
+export function RoutePlannerScreen({ sessions, onLaunchRuck, onGoToRuckRing }: RoutePlannerScreenProps) {
   const [distanceKm,  setDistanceKm]  = useState(8);
   const [loadKg,      setLoadKg]      = useState(15);
   const [targetPace,  setTargetPace]  = useState(9.0);  // min/km
@@ -439,9 +440,17 @@ export function RoutePlannerScreen({ sessions, onLaunchRuck }: RoutePlannerScree
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.kicker}>ROUTE PLANNER</Text>
-        <Text style={styles.title}>Mission Brief</Text>
+      <View style={styles.headerRow}>
+        <View style={styles.header}>
+          <Text style={styles.kicker}>ROUTE PLANNER</Text>
+          <Text style={styles.title}>Mission Brief</Text>
+        </View>
+        {onGoToRuckRing && (
+          <Pressable style={styles.ringLink} onPress={onGoToRuckRing}>
+            <Ionicons name="analytics-outline" size={13} color={colours.cyan} />
+            <Text style={styles.ringLinkText}>RUCK RING</Text>
+          </Pressable>
+        )}
       </View>
 
       {/* Distance */}
@@ -605,9 +614,23 @@ const styles = StyleSheet.create({
   root:    { flex: 1, backgroundColor: colours.background },
   content: { padding: 14, gap: 20, paddingBottom: 60 },
 
-  header: { gap: 4 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 },
+  header: { gap: 4, flex: 1 },
   kicker: { ...typography.label, color: colours.cyan },
   title:  { color: colours.text, fontSize: 30, lineHeight: 34, fontWeight: '900' },
+  ringLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
+    backgroundColor: colours.cyanDim,
+    marginTop: 4,
+  },
+  ringLinkText: { color: colours.cyan, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
 
   section:      { gap: 12 },
   sectionLabel: { ...typography.label, color: colours.muted },

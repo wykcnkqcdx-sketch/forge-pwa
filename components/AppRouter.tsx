@@ -6,6 +6,7 @@ import { ReadinessScreen } from '../screens/ReadinessScreen';
 import { AnalyticsScreen } from '../screens/AnalyticsScreen';
 import { LogbookScreen } from '../screens/LogbookScreen';
 import { RoutePlannerScreen } from '../screens/RoutePlannerScreen';
+import { RuckRingScreen } from '../screens/RuckRingScreen';
 import { RuckScreen } from '../screens/RuckScreen';
 import { TrainScreen } from '../screens/TrainScreen';
 import { FuelScreen } from '../screens/FuelScreen';
@@ -73,6 +74,14 @@ export function AppRouter() {
           <RoutePlannerScreen
             sessions={sessions}
             onLaunchRuck={() => switchTab('ruck')}
+            onGoToRuckRing={() => switchTab('ruckRing')}
+          />
+        );
+      case 'ruckRing':
+        return (
+          <RuckRingScreen
+            sessions={sessions}
+            onGoToRuck={() => switchTab('routePlanner')}
           />
         );
       case 'squad':
