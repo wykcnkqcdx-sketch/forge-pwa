@@ -494,19 +494,6 @@ function Card({
 }
 
 
-  return (
-    <section className={`card ${className}`}>
-      {title && (
-        <header className="card-header">
-          <h2>{title}</h2>
-          {action && <span>{action}</span>}
-        </header>
-      )}
-      {children}
-    </section>
-  );
-}
-
 function MetricGrid({ metrics }: { metrics: Array<{ label: string; value: string; detail: string; tone?: string }> }) {
   return (
     <div className="metric-grid">
