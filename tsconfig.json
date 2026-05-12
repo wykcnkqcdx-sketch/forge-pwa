@@ -1,28 +1,19 @@
 {
-  "extends": "expo/tsconfig.base",
   "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
     "allowJs": false,
     "strict": true,
-    "baseUrl": ".",
-    "paths": {
-      "expo-image": ["node_modules/expo-image/build/index"]
-    },
-    "types": ["react"]
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "types": ["react", "react-dom"]
   },
-  "include": [
-    "App.tsx",
-    "App.test.tsx",
-    "components/**/*.ts",
-    "components/**/*.tsx",
-    "data/**/*.ts",
-    "lib/**/*.ts",
-    "lib/**/*.tsx",
-    "screens/**/*.ts",
-    "screens/**/*.tsx",
-    "theme.ts",
-    "types/**/*.ts",
-    "utils/**/*.ts",
-    "utils/**/*.test.ts"
-  ],
-  "exclude": ["_expo", "dist", "web-build", "node_modules", "public"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"],
+  "exclude": ["node_modules", "dist"]
 }

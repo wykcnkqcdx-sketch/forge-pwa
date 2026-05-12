@@ -2,8 +2,11 @@
   "name": "forge-tactical-fitness-app",
   "version": "1.0.0",
   "private": true,
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "src/main.tsx",
   "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1",
     "start": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
@@ -52,9 +55,11 @@
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "~19.2.0",
+    "@types/react-dom": "^19.2.3",
     "fake-indexeddb": "^6.2.5",
     "happy-dom": "^20.9.0",
     "typescript": "~5.9.2",
+    "vite": "^7.0.0",
     "vitest": "^4.1.5"
   },
   "overrides": {

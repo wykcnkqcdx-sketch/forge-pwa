@@ -8,6 +8,7 @@ import { colours, radius, touchTarget, typography } from '../theme';
 import type { TrainingSession } from '../data/mockData';
 import { getPRSessionIds } from '../lib/personalRecords';
 import { TrainingHeatmap } from '../components/TrainingHeatmap';
+import { PRRecordsCard } from '../components/PRRecordsCard';
 
 type SessionType = TrainingSession['type'];
 type Filter = 'ALL' | SessionType;
@@ -271,6 +272,9 @@ export function LogbookScreen({ sessions, addSession, deleteSession, editSession
 
         {/* Activity heatmap — always shows all sessions regardless of filter */}
         {sessions.length > 0 && <TrainingHeatmap sessions={sessions} />}
+
+        {/* PR Records board */}
+        {sessions.length > 0 && <PRRecordsCard sessions={sessions} />}
 
         {/* Filter chips */}
         <FlatList

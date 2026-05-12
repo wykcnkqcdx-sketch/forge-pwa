@@ -20,7 +20,7 @@ type Props = InstructorProps & {
   cloudInvites?: CloudInvite[];
 };
 
-type Mode = 'pulse' | 'coach' | 'member';
+type Mode = 'pulse' | 'coach' | 'member' | 'leaderboard';
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -49,9 +49,10 @@ function buildPulse(members: SquadMember[], completions: WorkoutCompletion[]) {
 
 function ModeSwitch({ mode, onChange }: { mode: Mode; onChange: (m: Mode) => void }) {
   const tabs: Array<{ key: Mode; icon: string; label: string }> = [
-    { key: 'pulse',  icon: 'pulse-outline',     label: 'PULSE' },
-    { key: 'coach',  icon: 'clipboard-outline',  label: 'COACH' },
-    { key: 'member', icon: 'flash-outline',      label: 'MEMBER' },
+    { key: 'pulse',       icon: 'pulse-outline',     label: 'PULSE' },
+    { key: 'leaderboard', icon: 'podium-outline',     label: 'RANKS' },
+    { key: 'coach',       icon: 'clipboard-outline',  label: 'COACH' },
+    { key: 'member',      icon: 'flash-outline',      label: 'MEMBER' },
   ];
   return (
     <View style={sw.bar}>
@@ -249,6 +250,201 @@ const mc = StyleSheet.create({
     color: colours.amber,
     fontSize: 11,
     fontWeight: '700',
+  },
+});
+
+// ── Squad Leaderboard view ───────────────────────────────────────
+
+type LBMetric = 'load' | 'compliance' | 'streak' | 'readiness';
+
+const LB_TABS: Array<{ key: LBMetric; label: string }> = [
+  { key: 'load',       label: 'LOAD' },
+  { key: 'compliance', label: 'COMPLY' },
+  { key: 'streak',     label: 'STREAK' },
+  { key: 'readiness',  label: 'READY' },
+];
+
+const MEDAL = ['#FFD700', '#C0C0C0', '#CD7F32'] as const;
+
+function medalColour(rank: number): string {
+  if (rank <= 3) return MEDAL[rank - 1];
+  return colours.muted;
+}
+
+function lbValue(m: SquadMember, metric: LBMetric): number {
+  switch (metric) {
+    case 'load':       return m.weeklyVolume ?? m.load;
+    case 'compliance': return m.compliance;
+    case 'streak':     return m.streakDays ?? 0;
+    case 'readiness':  return m.readiness;
+  }
+}
+
+function lbFormatted(value: number, metric: LBMetric): string {
+  switch (metric) {
+    case 'load':       return String(value);
+    case 'compliance': return `${value}%`;
+    case 'streak':     return `${value}d`;
+    case 'readiness':  return String(value);
+  }
+}
+
+function SquadLeaderboardView({ members }: { members: SquadMember[] }) {
+  const [metric, setMetric] = useState<LBMetric>('load');
+
+  const ranked = useMemo(() => {
+    return [...members]
+      .sort((a, b) => lbValue(b, metric) - lbValue(a, metric))
+      .map((member, i) => ({ member, value: lbValue(member, metric), rank: i + 1 }));
+  }, [members, metric]);
+
+  const max = ranked.length > 0 ? Math.max(ranked[0].value, 1) : 1;
+
+  return (
+    <Screen>
+      <View style={styles.header}>
+        <Text style={styles.kicker}>SQUAD LEADERBOARD</Text>
+        <Text style={styles.title}>{members.length} operators ranked</Text>
+      </View>
+
+      {/* Metric selector */}
+      <View style={lb.tabRow}>
+        {LB_TABS.map(tab => {
+          const active = metric === tab.key;
+          return (
+            <Pressable
+              key={tab.key}
+              style={[lb.tab, active && lb.tabActive]}
+              onPress={() => setMetric(tab.key)}
+            >
+              <Text style={[lb.tabLabel, active && lb.tabLabelActive]}>{tab.label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Podium top-3 */}
+      {ranked.length >= 3 && (
+        <View style={lb.podium}>
+          {/* 2nd */}
+          <View style={[lb.podiumSlot, { marginTop: 20 }]}>
+            <Text style={[lb.podiumRank, { color: MEDAL[1] }]}>2</Text>
+            <Text style={lb.podiumName}>{ranked[1].member.gymName || ranked[1].member.name}</Text>
+            <Text style={[lb.podiumVal, { color: MEDAL[1] }]}>{lbFormatted(ranked[1].value, metric)}</Text>
+            <View style={[lb.podiumBase, { backgroundColor: `${MEDAL[1]}30`, borderColor: `${MEDAL[1]}60`, height: 40 }]} />
+          </View>
+          {/* 1st */}
+          <View style={lb.podiumSlot}>
+            <Ionicons name="trophy" size={18} color={MEDAL[0]} style={{ marginBottom: 2 }} />
+            <Text style={[lb.podiumRank, { color: MEDAL[0], fontSize: 22 }]}>1</Text>
+            <Text style={lb.podiumName}>{ranked[0].member.gymName || ranked[0].member.name}</Text>
+            <Text style={[lb.podiumVal, { color: MEDAL[0] }]}>{lbFormatted(ranked[0].value, metric)}</Text>
+            <View style={[lb.podiumBase, { backgroundColor: `${MEDAL[0]}30`, borderColor: `${MEDAL[0]}60`, height: 56 }]} />
+          </View>
+          {/* 3rd */}
+          <View style={[lb.podiumSlot, { marginTop: 32 }]}>
+            <Text style={[lb.podiumRank, { color: MEDAL[2] }]}>3</Text>
+            <Text style={lb.podiumName}>{ranked[2].member.gymName || ranked[2].member.name}</Text>
+            <Text style={[lb.podiumVal, { color: MEDAL[2] }]}>{lbFormatted(ranked[2].value, metric)}</Text>
+            <View style={[lb.podiumBase, { backgroundColor: `${MEDAL[2]}30`, borderColor: `${MEDAL[2]}60`, height: 28 }]} />
+          </View>
+        </View>
+      )}
+
+      {/* Full ranked list */}
+      {ranked.map(({ member, value, rank }) => {
+        const mc2 = medalColour(rank);
+        const barW = `${Math.round((value / max) * 100)}%` as const;
+        return (
+          <View key={member.id} style={lb.row}>
+            <View style={[lb.rankBadge, { borderColor: `${mc2}80` }]}>
+              <Text style={[lb.rankNum, { color: mc2 }]}>{rank}</Text>
+            </View>
+            <View style={lb.nameBlock}>
+              <Text style={lb.rowName} numberOfLines={1}>{member.gymName || member.name}</Text>
+              <View style={lb.barBg}>
+                <View style={[lb.barFill, { width: barW, backgroundColor: rank === 1 ? colours.cyan : `${colours.muted}80` }]} />
+              </View>
+            </View>
+            <Text style={[lb.rowValue, rank === 1 && { color: colours.cyan }]}>
+              {lbFormatted(value, metric)}
+            </Text>
+          </View>
+        );
+      })}
+    </Screen>
+  );
+}
+
+const lb = StyleSheet.create({
+  tabRow: {
+    flexDirection: 'row',
+    backgroundColor: colours.surface,
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: radius.sm,
+    padding: 3,
+    gap: 3,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: 'center',
+    borderRadius: radius.xs,
+  },
+  tabActive: { backgroundColor: colours.cyan },
+  tabLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 1.2, color: colours.muted },
+  tabLabelActive: { color: colours.background },
+
+  podium: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  podiumSlot: { flex: 1, alignItems: 'center', gap: 2 },
+  podiumRank: { fontSize: 18, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  podiumName: { fontSize: 9, fontWeight: '900', color: colours.text, letterSpacing: 0.8, textAlign: 'center' },
+  podiumVal:  { fontSize: 12, fontWeight: '900', fontVariant: ['tabular-nums'], marginBottom: 4 },
+  podiumBase: { width: '100%', borderRadius: radius.xs, borderWidth: 1 },
+
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: colours.panel,
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  rankBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rankNum: { fontSize: 12, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  nameBlock: { flex: 1, gap: 5 },
+  rowName:   { color: colours.text, fontSize: 13, fontWeight: '900' },
+  barBg: {
+    height: 3,
+    backgroundColor: colours.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  barFill: { height: 3, borderRadius: 2 },
+  rowValue: {
+    color: colours.muted,
+    fontSize: 16,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+    minWidth: 48,
+    textAlign: 'right',
   },
 });
 
