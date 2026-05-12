@@ -130,6 +130,23 @@ function App() {
         title,
         metadata: { result }
       }).catch(console.error);
+      supabase.auth.getUser().then(({ data: { user } }) => {
+        if (!user) return; // RLS will block this if there's no user session anyway
+        
+        supabase.from('team_activity').insert({
+          id: newActivityId,
+          // Replace this with the actual UUID of the squad the user belongs to:
+          squad_id: '11111111-1111-4111-8111-111111111111', 
+          
+          // Schema expects 'activity_type' with a strict check constraint:
+          activity_type: 'workout_completed', 
+          title,
+          metadata: { 
+            result,
+            original_type: session.type // Store "Ruck", "Run", etc. safely in metadata
+          }
+        }).catch(console.error);
+      });
     }
   };
 
