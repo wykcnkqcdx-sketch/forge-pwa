@@ -33,6 +33,40 @@ function App() {
   const [timer, setTimer] = useState(18 * 60 + 42);
   const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
 
+  // Centralized Application State (Simulating temp.tsx logic)
+  const [appState, setAppState] = useState({
+    readiness: readiness.score || 82,
+    weeklyVolume: 8200,
+    ghostMode: false,
+    activities: recentActivity.map((a, i) => ({ ...a, id: String(i), hypes: 0 }))
+  });
+
+  const handleLogSession = (session: { type: string, title: string, volume: number, duration: number, effort: string }) => {
+    setAppState(prev => ({
+      ...prev,
+      weeklyVolume: prev.weeklyVolume + session.volume,
+      readiness: Math.min(100, Math.max(1, prev.readiness + (session.effort === 'Too Hard' ? -3 : session.effort === 'Too Easy' ? 2 : 1))),
+      activities: [
+        {
+          id: Date.now().toString(),
+          type: session.type,
+          title: prev.ghostMode ? 'A teammate logged activity' : `You finished ${session.title}`,
+          result: `${session.duration} min · +${session.volume} vol`,
+          time: 'Just now',
+          hypes: 0
+        },
+        ...prev.activities
+      ]
+    }));
+  };
+
+  const handleHype = (id: string) => {
+    setAppState(prev => ({
+      ...prev,
+      activities: prev.activities.map(a => a.id === id ? { ...a, hypes: a.hypes + 1 } : a)
+    }));
+  };
+
   useEffect(() => {
     const interval = window.setInterval(() => setTimer((value) => value + 1), 1000);
     return () => window.clearInterval(interval);
@@ -65,10 +99,15 @@ function App() {
       <main className="screen" key={activeTab}>
         {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} onNavigate={selectTab} />}
         {activeTab === 'train' && <Train timer={timer} />}
+        {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} onNavigate={selectTab} appState={appState} onHype={handleHype} />}
+        {activeTab === 'train' && <Train timer={timer} onLog={handleLogSession} />}
         {activeTab === 'tactical' && <Tactical timer={timer} />}
         {activeTab === 'recovery' && <Recovery />}
         {activeTab === 'team' && <Team />}
         {activeTab === 'profile' && <Profile />}
+        {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
+        {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
+        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} />}
       </main>
 
       <nav className="mobile-nav" aria-label="Primary navigation">
@@ -90,10 +129,12 @@ function App() {
 }
 
 function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpanded: (id: string) => void; onNavigate: (tab: TabId) => void }) {
+function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expanded: string; setExpanded: (id: string) => void; onNavigate: (tab: TabId) => void; appState: any; onHype: (id: string) => void }) {
   return (
     <>
       <section className="hero-grid">
         <ReadinessCard />
+        <ReadinessCard readinessScore={appState.readiness} />
         <MissionCard expanded={expanded === 'mission'} onToggle={() => setExpanded(expanded === 'mission' ? '' : 'mission')} />
       </section>
       <QuickActions onAction={(action) => {
@@ -113,12 +154,26 @@ function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpa
         <div className="activity-list">
           {recentActivity.map((item) => (
             <div className="activity-item" key={item.title}>
+          {appState.activities.map((item: any) => (
+            <div className="activity-item" key={item.id}>
               <span>{item.type}</span>
               <div>
                 <strong>{item.title}</strong>
                 <p>{item.result}</p>
               </div>
               <time>{item.time}</time>
+              <div style={{ textAlign: 'right' }}>
+                <time>{item.time}</time>
+                <button
+                  onClick={() => {
+                    window.navigator.vibrate?.(12);
+                    onHype(item.id);
+                  }}
+                  style={{ background: 'transparent', border: '1px solid var(--line)', color: 'var(--amber)', borderRadius: 8, padding: '4px 8px', fontSize: '0.7rem', marginTop: 6, cursor: 'pointer', display: 'block', width: '100%' }}
+                >
+                  Bump {item.hypes > 0 ? `(${item.hypes})` : ''}
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -128,8 +183,10 @@ function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpa
 }
 
 function Train({ timer }: { timer: number }) {
+function Train({ timer, onLog }: { timer: number; onLog: (data: any) => void }) {
   const [isTraining, setIsTraining] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
+  const [effort, setEffort] = useState('About Right');
 
   return (
     <>
@@ -162,6 +219,36 @@ function Train({ timer }: { timer: number }) {
           </button>
         ))}
       </div>
+      {selectedBlock && (
+        <Card title="Finish Session" className="metric-card" style={{ marginTop: 14 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+            {efforts.map((e) => (
+              <button
+                key={e}
+                onClick={() => setEffort(e)}
+                style={{
+                  flex: 1,
+                  padding: '10px 4px',
+                  borderRadius: '12px',
+                  border: `1px solid ${effort === e ? 'rgba(143, 201, 111, 0.36)' : 'var(--line)'}`,
+                  background: effort === e ? 'rgba(143, 201, 111, 0.12)' : 'rgba(255, 255, 255, 0.035)',
+                  color: effort === e ? 'var(--green)' : 'var(--soft)',
+                  fontSize: '0.75rem',
+                  fontWeight: 800,
+                }}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+          <button className="primary-action" style={{ width: '100%', padding: '12px' }} onClick={() => {
+            onLog({ type: 'Workout', title: selectedBlock, volume: 150, duration: Math.max(1, Math.floor(timer / 60)), effort });
+            setSelectedBlock(null);
+            setIsTraining(false);
+            window.navigator.vibrate?.([20, 50, 20]);
+          }}>Log & Complete</button>
+        </Card>
+      )}
       <Card title="Performance Trends">
         <MetricGrid metrics={trendMetrics} />
         <TrendBars />
@@ -206,6 +293,7 @@ function Tactical({ timer }: { timer: number }) {
 }
 
 function Recovery() {
+function Recovery({ readiness }: { readiness: number }) {
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
   const toggleTask = (task: string) => {
@@ -221,6 +309,7 @@ function Recovery() {
         <p className="eyebrow">Recovery Score</p>
         <div className="score-line">
           <ProgressRing value={82 + (completedTasks.size * 6)} label={String(82 + (completedTasks.size * 6))} />
+          <ProgressRing value={readiness + (completedTasks.size * 2)} label={String(readiness + (completedTasks.size * 2))} />
           <div>
             <h2>Ready with guardrails</h2>
             <p>Push aerobic work. Cap heavy eccentrics until calf soreness drops.</p>
@@ -247,8 +336,19 @@ function Recovery() {
 }
 
 function Team() {
+function Team({ weeklyVolume }: { weeklyVolume: number }) {
   return (
     <>
+      <Card className="team-pulse-card" style={{ marginBottom: 14 }}>
+        <p className="eyebrow">Team Pulse</p>
+        <div className="score-line">
+          <ProgressRing value={Math.min(100, (weeklyVolume / 10000) * 100)} label={String(Math.min(100, Math.round((weeklyVolume / 10000) * 100)))} />
+          <div>
+            <h2>{weeklyVolume.toLocaleString()} units</h2>
+            <p>of 10,000 squad volume goal this week</p>
+          </div>
+        </div>
+      </Card>
       <Card title="Unit Readiness" action="Live">
         <div className="squad-list">
           {squad.map((unit) => (
@@ -287,9 +387,11 @@ function Team() {
 function Profile() {
   const [ghostMode, setGhostMode] = useState(false);
 
+function Profile({ ghostMode, setGhostMode, onLog }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void }) {
   return (
     <>
       <QuickLog />
+      <QuickLog onLog={onLog} />
       <Card className="profile-card">
         <p className="eyebrow">Operator Profile</p>
         <h2>{profile.name}</h2>
@@ -334,14 +436,18 @@ function Profile() {
 }
 
 function ReadinessCard() {
+function ReadinessCard({ readinessScore }: { readinessScore: number }) {
   return (
     <Card className="readiness-card">
       <p className="eyebrow">Readiness</p>
       <div className="readiness-layout">
         <ProgressRing value={readiness.score} label={String(readiness.score)} />
+        <ProgressRing value={readinessScore} label={String(readinessScore)} />
         <div>
           <h2>{readiness.status}</h2>
           <p>{readiness.delta}</p>
+          <h2>{readinessScore >= 80 ? 'Optimal' : readinessScore >= 60 ? 'Ready' : 'Recover'}</h2>
+          <p>{readinessScore >= 80 ? 'Prime for heavy load' : 'Monitor fatigue'}</p>
         </div>
       </div>
     </Card>
@@ -472,6 +578,7 @@ function TrendBar({ value }: { value: number }) {
 }
 
 function QuickLog() {
+function QuickLog({ onLog }: { onLog: (data: any) => void }) {
   const [kind, setKind] = useState('Run');
   const [duration, setDuration] = useState('30');
   const [volume, setVolume] = useState('');
@@ -494,6 +601,14 @@ function QuickLog() {
       setFeedback('Enter a valid volume or leave it blank to auto-calculate.');
       return;
     }
+
+    onLog({
+      type: kind,
+      title: `Quick Log: ${kind}`,
+      volume: parsedVolume,
+      duration: parsedDuration,
+      effort
+    });
 
     setFeedback(`Logged ${kind.toLowerCase()} for ${parsedDuration} min. Data saved locally!`);
     
