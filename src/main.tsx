@@ -209,6 +209,7 @@ function App() {
 
     // Push to Supabase if connected
     if (supabase && isSynced && membership) {
+      // @ts-ignore
       supabase.from('team_activity').insert({
         id: newActivityId,
         squad_id: membership.squad_id, 
