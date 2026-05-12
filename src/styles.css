@@ -136,8 +136,11 @@ p {
 .screen {
   display: grid;
   gap: 14px;
+  align-items: start;
   animation: screenIn 260ms ease both;
+  padding-bottom: 10px; /* avoid overlap with fixed mobile-nav */
 }
+
 
 @keyframes screenIn {
   from {
