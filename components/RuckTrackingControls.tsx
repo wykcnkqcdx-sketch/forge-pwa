@@ -1,7 +1,7 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colours, touchTarget, typography } from '../theme';
+import { colours, radius, touchTarget } from '../theme';
 
 export function RuckTrackingControls({
   isTracking,
@@ -12,6 +12,7 @@ export function RuckTrackingControls({
   onResume,
   onReview,
   onDiscard,
+  onCheckpoint,
 }: {
   isTracking: boolean;
   isStarting: boolean;
@@ -21,50 +22,73 @@ export function RuckTrackingControls({
   onResume: () => void;
   onReview: () => void;
   onDiscard: () => void;
+  onCheckpoint?: () => void;
 }) {
+  // ── Live tracking ──────────────────────────────────────────────
   if (isTracking) {
     return (
       <View style={styles.row}>
-        <View style={styles.fieldBadge}>
-          <View style={styles.fieldDot} />
-          <Text style={styles.fieldLabel}>IN FIELD</Text>
+        {/* Pulse indicator */}
+        <View style={styles.liveBadge}>
+          <View style={styles.liveDot} />
+          <Text style={styles.liveLabel}>LIVE RUCK</Text>
         </View>
-        <Pressable style={styles.endButton} onPress={onStop}>
-          <Ionicons name="stop" size={16} color="#fff" />
-          <Text style={styles.endButtonText}>END</Text>
+
+        {/* Checkpoint — shown when callback provided */}
+        {onCheckpoint && (
+          <Pressable style={styles.cpBtn} onPress={onCheckpoint}>
+            <Ionicons name="flag" size={15} color={colours.amber} />
+            <Text style={styles.cpBtnText}>CP</Text>
+          </Pressable>
+        )}
+
+        {/* Pause */}
+        <Pressable style={styles.pauseBtn} onPress={onStop}>
+          <Ionicons name="pause" size={16} color={colours.text} />
+          <Text style={styles.pauseBtnText}>PAUSE</Text>
+        </Pressable>
+
+        {/* Finish — stop + go straight to review */}
+        <Pressable style={styles.finishBtn} onPress={() => { onStop(); onReview(); }}>
+          <Ionicons name="checkmark-circle" size={16} color={colours.background} />
+          <Text style={styles.finishBtnText}>FINISH</Text>
         </Pressable>
       </View>
     );
   }
 
+  // ── Paused / stopped ───────────────────────────────────────────
   if (hasStarted) {
     return (
       <View style={styles.row}>
-        <Pressable style={styles.resumeButton} onPress={onResume}>
+        <Pressable style={styles.resumeBtn} onPress={onResume}>
           <Ionicons name="play" size={18} color={colours.background} />
-          <Text style={styles.resumeButtonText}>RESUME</Text>
+          <Text style={styles.resumeBtnText}>RESUME</Text>
         </Pressable>
-        <Pressable style={styles.reviewButton} onPress={onReview}>
-          <Text style={styles.reviewButtonText}>Review</Text>
+        <Pressable style={styles.aarBtn} onPress={onReview}>
+          <Text style={styles.aarBtnText}>AAR</Text>
         </Pressable>
-        <Pressable style={styles.discardButton} onPress={onDiscard}>
-          <Ionicons name="close" size={18} color={colours.textSoft} />
+        <Pressable style={styles.discardBtn} onPress={onDiscard}>
+          <Ionicons name="trash-outline" size={17} color={colours.red} />
         </Pressable>
       </View>
     );
   }
 
+  // ── Not started ────────────────────────────────────────────────
   return (
     <Pressable
-      style={[styles.launchButton, isStarting && styles.launchButtonDisabled]}
+      style={[styles.startBtn, isStarting && styles.startBtnDisabled]}
       onPress={onStart}
       disabled={isStarting}
     >
-      <View style={styles.launchInner}>
-        <View style={styles.launchTextGroup}>
-          <Text style={styles.launchLabel}>BEGIN MISSION</Text>
-          <Text style={styles.launchSubtext}>
-            {isStarting ? 'Acquiring GPS signal…' : 'Start GPS tracking'}
+      <View style={styles.startInner}>
+        <View style={styles.startTextGroup}>
+          <Text style={styles.startLabel}>
+            {isStarting ? 'ACQUIRING GPS…' : 'START RUCK'}
+          </Text>
+          <Text style={styles.startSub}>
+            {isStarting ? 'Hold on, locking signal' : 'Begin GPS tracking'}
           </Text>
         </View>
         <Ionicons
@@ -81,104 +105,157 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
-  fieldBadge: {
+
+  // Live state
+  liveBadge: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: 'rgba(167,201,87,0.06)',
+    borderRadius: radius.sm,
+    backgroundColor: colours.greenDim,
     borderWidth: 1,
-    borderColor: 'rgba(167,201,87,0.22)',
+    borderColor: `${colours.green}40`,
     minHeight: touchTarget,
   },
-  fieldDot: {
+  liveDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: colours.green,
   },
-  fieldLabel: {
+  liveLabel: {
     color: colours.green,
-    fontWeight: '900' as const,
-    fontSize: 12,
+    fontWeight: '900',
+    fontSize: 11,
     letterSpacing: 1.8,
   },
-  endButton: {
+  cpBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 14,
+    borderRadius: radius.sm,
+    minHeight: touchTarget,
+    backgroundColor: colours.amberDim,
+    borderWidth: 1,
+    borderColor: `${colours.amber}40`,
+  },
+  cpBtnText: {
+    color: colours.amber,
+    fontWeight: '900',
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  pauseBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    backgroundColor: colours.red,
-    borderRadius: 8,
+    paddingHorizontal: 16,
+    borderRadius: radius.sm,
     minHeight: touchTarget,
+    backgroundColor: colours.layer2,
+    borderWidth: 1,
+    borderColor: colours.borderSoft,
   },
-  endButtonText: {
-    color: '#fff',
-    fontWeight: '900' as const,
-    fontSize: 13,
+  pauseBtnText: {
+    color: colours.text,
+    fontWeight: '900',
+    fontSize: 11,
+    letterSpacing: 1.2,
+  },
+  finishBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingHorizontal: 18,
+    borderRadius: radius.sm,
+    minHeight: touchTarget,
+    backgroundColor: colours.cyan,
+  },
+  finishBtnText: {
+    color: colours.background,
+    fontWeight: '900',
+    fontSize: 12,
     letterSpacing: 1.4,
   },
-  resumeButton: {
+
+  // Paused state
+  resumeBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
     backgroundColor: colours.cyan,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     paddingVertical: 12,
     minHeight: touchTarget,
   },
-  resumeButtonText: { color: colours.background, fontWeight: '900' as const, fontSize: 14 },
-  reviewButton: {
-    paddingHorizontal: 16,
+  resumeBtnText: {
+    color: colours.background,
+    fontWeight: '900',
+    fontSize: 14,
+    letterSpacing: 0.8,
+  },
+  aarBtn: {
+    paddingHorizontal: 18,
     paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 8,
+    backgroundColor: colours.layer2,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: colours.borderHot,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: touchTarget,
   },
-  reviewButtonText: { color: colours.textSoft, fontWeight: '900' as const, fontSize: 13 },
-  discardButton: {
+  aarBtnText: {
+    color: colours.cyan,
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 1.2,
+  },
+  discardBtn: {
     width: touchTarget,
     height: touchTarget,
-    borderRadius: 8,
+    borderRadius: radius.sm,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: colours.redDim,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
+    borderColor: `${colours.red}40`,
   },
-  launchButton: {
+
+  // Start state
+  startBtn: {
     backgroundColor: colours.green,
-    borderRadius: 10,
+    borderRadius: radius.sm,
     paddingVertical: 16,
     paddingHorizontal: 20,
   },
-  launchButtonDisabled: { opacity: 0.62 },
-  launchInner: {
+  startBtnDisabled: { opacity: 0.62 },
+  startInner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  launchTextGroup: { gap: 3 },
-  launchLabel: {
+  startTextGroup: { gap: 3 },
+  startLabel: {
     color: colours.background,
-    fontWeight: '900' as const,
+    fontWeight: '900',
     fontSize: 16,
     letterSpacing: 1.4,
   },
-  launchSubtext: {
-    color: 'rgba(7,17,30,0.70)',
+  startSub: {
+    color: 'rgba(11,15,14,0.65)',
     fontSize: 11,
-    fontWeight: '700' as const,
+    fontWeight: '700',
   },
 });
