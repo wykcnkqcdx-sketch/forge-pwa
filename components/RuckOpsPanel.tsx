@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     backgroundColor: colours.panel,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: colours.border,
+    borderColor: colours.borderSoft,
     overflow: 'hidden',
   },
   sectionHeader: {

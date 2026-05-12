@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colours, typography } from '../theme';
+import { colours, radius, typography } from '../theme';
 import { CATEGORIES, ALL_ABBREVS } from '../data/militaryAbbreviations';
 
 type Props = {
@@ -109,17 +109,17 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 300,
-    backgroundColor: 'rgba(4,8,15,0.96)',
+    backgroundColor: colours.panel,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(103,232,249,0.18)',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopColor: colours.borderGlass,
+    borderTopLeftRadius: radius.xs,
+    borderTopRightRadius: radius.xs,
   },
   handle: {
     width: 32,
     height: 3,
     borderRadius: 2,
-    backgroundColor: 'rgba(255,255,255,0.18)',
+    backgroundColor: colours.borderSoft,
     alignSelf: 'center',
     marginTop: 8,
   },
