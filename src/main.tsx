@@ -47,7 +47,16 @@ function App() {
       readiness: readiness.score || 82,
       weeklyVolume: 8200,
       ghostMode: false,
-      activities: recentActivity.map((a, i) => ({ ...a, id: String(i), hypes: 0 }))
+      activities: recentActivity.map((a, i) => ({ ...a, id: String(i), hypes: 0 })),
+      assignedWorkout: {
+        title: 'Operator Base',
+        status: 'assigned',
+        exercises: [
+          { id: 'e1', name: 'Heavy Ruck', dose: '45 min @ 45lbs', hit: false, coachPick: true },
+          { id: 'e2', name: 'Sandbag Cleans', dose: '4x8', hit: false, coachPick: false },
+          { id: 'e3', name: 'Farmer Carry', dose: '400m', hit: false, coachPick: false }
+        ]
+      }
     };
   });
 
@@ -81,6 +90,46 @@ function App() {
     }));
   };
 
+  const handleHitExercise = (exerciseId: string) => {
+    setAppState(prev => ({
+      ...prev,
+      assignedWorkout: {
+        ...prev.assignedWorkout,
+        exercises: prev.assignedWorkout.exercises.map((ex: any) => 
+          ex.id === exerciseId ? { ...ex, hit: !ex.hit } : ex
+        )
+      }
+    }));
+    window.navigator.vibrate?.(12);
+  };
+
+  const handleCompleteAssigned = () => {
+    setAppState(prev => ({ ...prev, assignedWorkout: { ...prev.assignedWorkout, status: 'completed' } }));
+  };
+
+  const handleClearData = () => {
+    // Using the web-safe window.confirm per your README notes for PWA support
+    if (window.confirm("OPSEC Wipe: Are you sure you want to delete all local data? This cannot be undone.")) {
+      localStorage.removeItem('forge:appState');
+      setAppState({
+        readiness: readiness.score || 82,
+        weeklyVolume: 8200,
+        ghostMode: false,
+        activities: recentActivity.map((a, i) => ({ ...a, id: String(i), hypes: 0 })),
+        assignedWorkout: {
+          title: 'Operator Base',
+          status: 'assigned',
+          exercises: [
+            { id: 'e1', name: 'Heavy Ruck', dose: '45 min @ 45lbs', hit: false, coachPick: true },
+            { id: 'e2', name: 'Sandbag Cleans', dose: '4x8', hit: false, coachPick: false },
+            { id: 'e3', name: 'Farmer Carry', dose: '400m', hit: false, coachPick: false }
+          ]
+        }
+      });
+      window.navigator.vibrate?.([50, 100, 50]); // Distinct "destructive" haptic pattern
+    }
+  };
+
   useEffect(() => {
     const interval = window.setInterval(() => setTimer((value) => value + 1), 1000);
     return () => window.clearInterval(interval);
@@ -112,11 +161,11 @@ function App() {
 
       <main className="screen" key={activeTab}>
         {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} onNavigate={selectTab} appState={appState} onHype={handleHype} />}
-        {activeTab === 'train' && <Train timer={timer} onLog={handleLogSession} />}
+        {activeTab === 'train' && <Train timer={timer} onLog={handleLogSession} assignedWorkout={appState.assignedWorkout} onHitExercise={handleHitExercise} onComplete={handleCompleteAssigned} />}
         {activeTab === 'tactical' && <Tactical timer={timer} />}
         {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
         {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
-        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} />}
+        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} onClearData={handleClearData} />}
       </main>
 
       <nav className="mobile-nav" aria-label="Primary navigation">
@@ -138,6 +187,15 @@ function App() {
 }
 
 function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expanded: string; setExpanded: (id: string) => void; onNavigate: (tab: TabId) => void; appState: any; onHype: (id: string) => void }) {
+  const [dateOffset, setDateOffset] = useState(0);
+
+  const changeDate = (dir: number) => {
+    setDateOffset(prev => prev + dir);
+    window.navigator.vibrate?.(12);
+  };
+
+  const dateLabel = dateOffset === 0 ? "Today's Activity" : dateOffset === -1 ? "Yesterday's Activity" : `${Math.abs(dateOffset)} days ago`;
+
   return (
     <>
       <section className="hero-grid">
@@ -157,9 +215,14 @@ function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expande
         <MiniStat label="Sleep" value={readiness.sleep} />
         <MiniStat label="Strain" value={readiness.strain} />
       </div>
-      <Card title="Recent Activity" action="All logs">
+      <Card>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <button onClick={() => changeDate(-1)} style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: '1.4rem', cursor: 'pointer', padding: '0 10px' }}>&lsaquo;</button>
+          <h2 style={{ fontSize: '1rem', color: 'var(--text)' }}>{dateLabel}</h2>
+          <button onClick={() => changeDate(1)} disabled={dateOffset === 0} style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: '1.4rem', cursor: 'pointer', padding: '0 10px', opacity: dateOffset === 0 ? 0.3 : 1 }}>&rsaquo;</button>
+        </div>
         <div className="activity-list">
-          {appState.activities.map((item: any) => (
+          {appState.activities.length > 0 ? appState.activities.map((item: any) => (
             <div className="activity-item" key={item.id}>
               <span>{item.type}</span>
               <div>
@@ -179,16 +242,15 @@ function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expande
                 </button>
               </div>
             </div>
-          ))}
+          )) : <p style={{ color: 'var(--muted)', textAlign: 'center', padding: '20px 0' }}>No activity logged.</p>}
         </div>
       </Card>
     </>
   );
 }
 
-function Train({ timer, onLog }: { timer: number; onLog: (data: any) => void }) {
+function Train({ timer, onLog, assignedWorkout, onHitExercise, onComplete }: { timer: number; onLog: (data: any) => void; assignedWorkout: any; onHitExercise: (id: string) => void; onComplete: () => void }) {
   const [isTraining, setIsTraining] = useState(false);
-  const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
   const [effort, setEffort] = useState('About Right');
 
   return (
@@ -208,48 +270,53 @@ function Train({ timer, onLog }: { timer: number; onLog: (data: any) => void }) 
           </button>
         </div>
       </Card>
-      <div className="action-grid">
-        {trainingBlocks.map((block) => (
-          <button 
-            className="action-card" 
-            key={block.name}
-            onClick={() => setSelectedBlock(block.name)}
-            style={{ borderColor: selectedBlock === block.name ? '#8fc96f' : undefined }}
-          >
-            <span>{block.action}</span>
-            <strong>{block.name}</strong>
-            <p>{block.detail}</p>
-          </button>
-        ))}
-      </div>
-      {selectedBlock && (
-        <Card title="Finish Session" className="metric-card" style={{ marginTop: 14 }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
-            {efforts.map((e) => (
-              <button
-                key={e}
-                onClick={() => setEffort(e)}
-                style={{
-                  flex: 1,
-                  padding: '10px 4px',
-                  borderRadius: '12px',
-                  border: `1px solid ${effort === e ? 'rgba(143, 201, 111, 0.36)' : 'var(--line)'}`,
-                  background: effort === e ? 'rgba(143, 201, 111, 0.12)' : 'rgba(255, 255, 255, 0.035)',
-                  color: effort === e ? 'var(--green)' : 'var(--soft)',
-                  fontSize: '0.75rem',
-                  fontWeight: 800,
-                }}
-              >
-                {e}
-              </button>
+      {assignedWorkout.status === 'assigned' ? (
+        <Card title="Current Workout" action={assignedWorkout.title} className="metric-card">
+          <div className="checkpoint-list">
+            {assignedWorkout.exercises.map((ex: any) => (
+              <div className={`checkpoint-row ${ex.hit ? 'active' : ''}`} key={ex.id}>
+                <span>{ex.coachPick ? "Coach's Pick" : "Assigned"}</span>
+                <div style={{ flex: 1 }}>
+                  <strong style={{ display: 'block', marginBottom: 4 }}>{ex.name}</strong>
+                  <span style={{ color: 'var(--muted)', fontSize: '0.8rem' }}>{ex.dose}</span>
+                </div>
+                <button 
+                  onClick={() => onHitExercise(ex.id)}
+                  style={{
+                    background: ex.hit ? 'var(--green)' : 'transparent',
+                    border: `1px solid var(--green)`,
+                    color: ex.hit ? '#000' : 'var(--green)',
+                    padding: '6px 16px',
+                    borderRadius: '12px',
+                    fontSize: '0.8rem',
+                    fontWeight: 800,
+                    cursor: 'pointer'
+                  }}
+                >
+                  {ex.hit ? 'Hit' : 'Mark'}
+                </button>
+              </div>
             ))}
           </div>
-          <button className="primary-action" style={{ width: '100%', padding: '12px' }} onClick={() => {
-            onLog({ type: 'Workout', title: selectedBlock, volume: 150, duration: Math.max(1, Math.floor(timer / 60)), effort });
-            setSelectedBlock(null);
-            setIsTraining(false);
-            window.navigator.vibrate?.([20, 50, 20]);
-          }}>Log & Complete</button>
+          <div style={{ marginTop: 24 }}>
+            <p className="eyebrow">Finish Session</p>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 14, marginTop: 8 }}>
+              {efforts.map((e) => (
+                <button key={e} onClick={() => setEffort(e)} style={{ flex: 1, padding: '10px 4px', borderRadius: '12px', border: `1px solid ${effort === e ? 'rgba(143, 201, 111, 0.36)' : 'var(--line)'}`, background: effort === e ? 'rgba(143, 201, 111, 0.12)' : 'rgba(255, 255, 255, 0.035)', color: effort === e ? 'var(--green)' : 'var(--soft)', fontSize: '0.75rem', fontWeight: 800 }}>{e}</button>
+              ))}
+            </div>
+            <button className="primary-action" style={{ width: '100%', padding: '12px' }} onClick={() => {
+              onLog({ type: 'Workout', title: assignedWorkout.title, volume: 180, duration: Math.max(1, Math.floor(timer / 60)), effort });
+              setIsTraining(false);
+              onComplete();
+              window.navigator.vibrate?.([20, 50, 20]);
+            }}>Log & Complete</button>
+          </div>
+        </Card>
+      ) : (
+        <Card className="metric-card good" style={{ textAlign: 'center', padding: '24px' }}>
+           <h2 style={{ color: 'var(--green)', marginBottom: 8 }}>Session Complete</h2>
+           <p>You have finished your assigned work for today. Outstanding effort.</p>
         </Card>
       )}
       <Card title="Performance Trends">
@@ -384,10 +451,38 @@ function Team({ weeklyVolume }: { weeklyVolume: number }) {
   );
 }
 
-function Profile({ ghostMode, setGhostMode, onLog }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void }) {
+function Profile({ ghostMode, setGhostMode, onLog, onClearData }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void }) {
+  const [syncing, setSyncing] = useState(false);
+  const handleSync = () => {
+    setSyncing(true);
+    setTimeout(() => setSyncing(false), 1500);
+  };
+
   return (
     <>
       <QuickLog onLog={onLog} />
+      <Card title="Cloud Sync">
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
+          <div style={{ flex: 1 }}>
+            <strong style={{ color: 'var(--text)', display: 'block', marginBottom: 4 }}>Data is Local Only</strong>
+            <p style={{ fontSize: '0.8rem', margin: 0, lineHeight: 1.4 }}>Connect to Supabase to backup your logs and sync with your coach.</p>
+          </div>
+          <button 
+            onClick={handleSync}
+            style={{
+              background: syncing ? 'transparent' : 'rgba(217, 142, 58, 0.11)',
+              border: `1px solid ${syncing ? 'var(--line)' : 'rgba(217, 142, 58, 0.48)'}`,
+              color: syncing ? 'var(--soft)' : 'var(--amber)',
+              padding: '8px 16px',
+              borderRadius: '12px',
+              fontWeight: 800,
+              cursor: 'pointer'
+            }}
+          >
+            {syncing ? 'Syncing...' : 'Sync Now'}
+          </button>
+        </div>
+      </Card>
       <Card className="profile-card">
         <p className="eyebrow">Operator Profile</p>
         <h2>{profile.name}</h2>
@@ -426,6 +521,16 @@ function Profile({ ghostMode, setGhostMode, onLog }: { ghostMode: boolean; setGh
             <MiniStat key={record.label} label={record.label} value={record.value} />
           ))}
         </div>
+      </Card>
+      <Card title="Danger Zone" className="metric-card danger">
+        <p style={{ marginBottom: 14 }}>Wipe all local session data and reset to default mock state.</p>
+        <button 
+          className="primary-action" 
+          onClick={onClearData}
+          style={{ background: 'linear-gradient(180deg, #d75e4b, #b94b3a)', color: '#fff', width: '100%', padding: '12px', boxShadow: '0 14px 34px rgba(215, 94, 75, 0.22)' }}
+        >
+          OPSEC Wipe
+        </button>
       </Card>
     </>
   );
