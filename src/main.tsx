@@ -97,14 +97,9 @@ function App() {
       </header>
 
       <main className="screen" key={activeTab}>
-        {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} onNavigate={selectTab} />}
-        {activeTab === 'train' && <Train timer={timer} />}
         {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} onNavigate={selectTab} appState={appState} onHype={handleHype} />}
         {activeTab === 'train' && <Train timer={timer} onLog={handleLogSession} />}
         {activeTab === 'tactical' && <Tactical timer={timer} />}
-        {activeTab === 'recovery' && <Recovery />}
-        {activeTab === 'team' && <Team />}
-        {activeTab === 'profile' && <Profile />}
         {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
         {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
         {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} />}
@@ -128,12 +123,10 @@ function App() {
   );
 }
 
-function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpanded: (id: string) => void; onNavigate: (tab: TabId) => void }) {
 function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expanded: string; setExpanded: (id: string) => void; onNavigate: (tab: TabId) => void; appState: any; onHype: (id: string) => void }) {
   return (
     <>
       <section className="hero-grid">
-        <ReadinessCard />
         <ReadinessCard readinessScore={appState.readiness} />
         <MissionCard expanded={expanded === 'mission'} onToggle={() => setExpanded(expanded === 'mission' ? '' : 'mission')} />
       </section>
@@ -152,8 +145,6 @@ function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expande
       </div>
       <Card title="Recent Activity" action="All logs">
         <div className="activity-list">
-          {recentActivity.map((item) => (
-            <div className="activity-item" key={item.title}>
           {appState.activities.map((item: any) => (
             <div className="activity-item" key={item.id}>
               <span>{item.type}</span>
@@ -161,7 +152,6 @@ function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expande
                 <strong>{item.title}</strong>
                 <p>{item.result}</p>
               </div>
-              <time>{item.time}</time>
               <div style={{ textAlign: 'right' }}>
                 <time>{item.time}</time>
                 <button
@@ -182,7 +172,6 @@ function Home({ expanded, setExpanded, onNavigate, appState, onHype }: { expande
   );
 }
 
-function Train({ timer }: { timer: number }) {
 function Train({ timer, onLog }: { timer: number; onLog: (data: any) => void }) {
   const [isTraining, setIsTraining] = useState(false);
   const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
@@ -292,7 +281,6 @@ function Tactical({ timer }: { timer: number }) {
   );
 }
 
-function Recovery() {
 function Recovery({ readiness }: { readiness: number }) {
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
 
@@ -308,7 +296,6 @@ function Recovery({ readiness }: { readiness: number }) {
       <Card className="recovery-score">
         <p className="eyebrow">Recovery Score</p>
         <div className="score-line">
-          <ProgressRing value={82 + (completedTasks.size * 6)} label={String(82 + (completedTasks.size * 6))} />
           <ProgressRing value={readiness + (completedTasks.size * 2)} label={String(readiness + (completedTasks.size * 2))} />
           <div>
             <h2>Ready with guardrails</h2>
@@ -335,7 +322,6 @@ function Recovery({ readiness }: { readiness: number }) {
   );
 }
 
-function Team() {
 function Team({ weeklyVolume }: { weeklyVolume: number }) {
   return (
     <>
@@ -384,13 +370,9 @@ function Team({ weeklyVolume }: { weeklyVolume: number }) {
   );
 }
 
-function Profile() {
-  const [ghostMode, setGhostMode] = useState(false);
-
 function Profile({ ghostMode, setGhostMode, onLog }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void }) {
   return (
     <>
-      <QuickLog />
       <QuickLog onLog={onLog} />
       <Card className="profile-card">
         <p className="eyebrow">Operator Profile</p>
@@ -435,17 +417,13 @@ function Profile({ ghostMode, setGhostMode, onLog }: { ghostMode: boolean; setGh
   );
 }
 
-function ReadinessCard() {
 function ReadinessCard({ readinessScore }: { readinessScore: number }) {
   return (
     <Card className="readiness-card">
       <p className="eyebrow">Readiness</p>
       <div className="readiness-layout">
-        <ProgressRing value={readiness.score} label={String(readiness.score)} />
         <ProgressRing value={readinessScore} label={String(readinessScore)} />
         <div>
-          <h2>{readiness.status}</h2>
-          <p>{readiness.delta}</p>
           <h2>{readinessScore >= 80 ? 'Optimal' : readinessScore >= 60 ? 'Ready' : 'Recover'}</h2>
           <p>{readinessScore >= 80 ? 'Prime for heavy load' : 'Monitor fatigue'}</p>
         </div>
@@ -577,7 +555,6 @@ function TrendBar({ value }: { value: number }) {
   return <span ref={ref} />;
 }
 
-function QuickLog() {
 function QuickLog({ onLog }: { onLog: (data: any) => void }) {
   const [kind, setKind] = useState('Run');
   const [duration, setDuration] = useState('30');
