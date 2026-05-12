@@ -6,6 +6,7 @@ import { ProgressBar } from '../components/ProgressBar';
 import { Screen } from '../components/Screen';
 import { buildPerformanceProfile } from '../lib/performance';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
+import { getCurrentStreak, getLongestStreak, getLast7DayFlags, streakMilestoneLabel } from '../lib/streak';
 import { colours, radius, shadow, touchTarget, typography } from '../theme';
 import type { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
@@ -82,17 +83,12 @@ export function HomeScreen({
     [sessions],
   );
 
-  const streak = useMemo(() => {
-    const days = new Set(
-      sessions
-        .filter(s => s.completedAt)
-        .map(s => new Date(s.completedAt as string).toDateString()),
-    );
-    let count = 0;
-    const cursor = new Date();
-    while (days.has(cursor.toDateString())) { count++; cursor.setDate(cursor.getDate() - 1); }
-    return member?.streakDays ?? count;
-  }, [member?.streakDays, sessions]);
+  const streak = useMemo(
+    () => member?.streakDays ?? getCurrentStreak(sessions),
+    [member?.streakDays, sessions],
+  );
+  const longestStreak = useMemo(() => getLongestStreak(sessions), [sessions]);
+  const last7 = useMemo(() => getLast7DayFlags(sessions), [sessions]);
 
   const orders = useMemo(() => {
     const assigned = member?.assignmentSession;
@@ -213,8 +209,21 @@ export function HomeScreen({
         </View>
         <View style={styles.statTile}>
           <Text style={styles.tileLabel}>STREAK</Text>
+          <View style={styles.streakDots}>
+            {last7.map((active, i) => (
+              <View key={i} style={[styles.streakDot, active && styles.streakDotActive]} />
+            ))}
+          </View>
           <Text style={[styles.tileValue, streak >= 3 && { color: colours.cyan }]}>{streak}</Text>
           <Text style={styles.tileUnit}>days</Text>
+          {streakMilestoneLabel(streak) && (
+            <View style={styles.streakMilestone}>
+              <Text style={styles.streakMilestoneText}>{streakMilestoneLabel(streak)}</Text>
+            </View>
+          )}
+          {longestStreak > streak && (
+            <Text style={styles.streakBest}>BEST {longestStreak}</Text>
+          )}
         </View>
       </View>
 
@@ -485,6 +494,41 @@ const styles = StyleSheet.create({
     color: colours.soft,
     letterSpacing: 0.6,
     marginTop: 2,
+  },
+  streakDots: {
+    flexDirection: 'row',
+    gap: 2,
+    marginBottom: 4,
+    marginTop: 2,
+  },
+  streakDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2,
+    backgroundColor: colours.border,
+  },
+  streakDotActive: {
+    backgroundColor: colours.cyan,
+  },
+  streakMilestone: {
+    marginTop: 4,
+    backgroundColor: `${colours.cyan}20`,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+  },
+  streakMilestoneText: {
+    color: colours.cyan,
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
+  streakBest: {
+    color: colours.muted,
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    marginTop: 3,
   },
 
   // Squad Pulse
