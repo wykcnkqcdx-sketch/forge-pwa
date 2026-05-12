@@ -229,7 +229,16 @@ export function InstructorScreen({
   const [assignmentScope, setAssignmentScope] = useState<AssignmentScope>('member');
   const [assignmentMemberId, setAssignmentMemberId] = useState('');
   const [assignmentGroupId, setAssignmentGroupId] = useState(groups[0]?.id ?? 'alpha');
-  const [assignmentLabel, setAssignmentLabel] = useState(assignmentTemplates[0]);
+  // Default template list: training modes + named coach nudge templates
+  // (keeps UI stable even if programmeTemplates are empty during tests)
+  const assignmentTemplates = useMemo(() => {
+    const modeTitles = trainingModes.map((m) => m.title);
+    const nudgeTitles = Object.values(coachNudgeTemplates).map((t) => t.label);
+    const programmeTitles = programmeTemplates.map((t) => t.name);
+    return Array.from(new Set([...nudgeTitles, ...programmeTitles, ...modeTitles]));
+  }, [programmeTemplates]);
+
+  const [assignmentLabel, setAssignmentLabel] = useState<string>(() => assignmentTemplates[0] ?? 'Training Plan');
   const [assignmentFeedback, setAssignmentFeedback] = useState('');
   const [assignmentNote, setAssignmentNote] = useState('');
   const [stagedAssignmentExercises, setStagedAssignmentExercises] = useState<AssignedExerciseBlock[]>([]);
