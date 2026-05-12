@@ -101,6 +101,7 @@ function App() {
         {activeTab === 'train' && <Train timer={timer} onLog={handleLogSession} />}
         {activeTab === 'tactical' && <Tactical timer={timer} />}
 
+
         {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
         {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
         {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} />}
