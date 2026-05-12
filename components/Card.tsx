@@ -33,9 +33,9 @@ export function Card({ children, style, accent, hot }: Props) {
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: 'rgba(10, 20, 35, 0.72)',
+    backgroundColor: colours.panel,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
+    borderColor: colours.border,
     borderRadius: 20,
     overflow: 'hidden',
   },

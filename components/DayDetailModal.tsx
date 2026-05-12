@@ -230,7 +230,7 @@ export function DayDetailModal({ visible, date, daySessions, allSessions, onClos
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.72)' },
+  overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(11,15,14,0.75)' },
   panel: {
     maxHeight: '92%',
     borderTopLeftRadius: 24,
@@ -254,7 +254,7 @@ const styles = StyleSheet.create({
   fullDate: { ...typography.caption, color: colours.muted },
   statusBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   statusText: { ...typography.label, fontWeight: '900', letterSpacing: 1, fontSize: 9 },
-  closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)' },
+  closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.layer2 },
 
   scroll: { flexGrow: 0 },
   scrollContent: { padding: 20, gap: 20 },
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderLeftWidth: 3,
     borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: colours.surface,
   },
   sessionIconWrap: { width: 34, height: 34, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
   sessionTitle: { color: colours.text, fontWeight: '800', fontSize: 13 },
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
 
   recTypeBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   recTypeText: { ...typography.label, fontWeight: '900', letterSpacing: 1, fontSize: 9 },
-  recPanel: { borderWidth: 1, borderRadius: 12, padding: 14, backgroundColor: 'rgba(255,255,255,0.03)', gap: 10 },
+  recPanel: { borderWidth: 1, borderRadius: 12, padding: 14, backgroundColor: colours.surface, gap: 10 },
   recHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   recHeadline: { fontSize: 17, fontWeight: '900' },
   recRationale: { ...typography.caption, color: colours.textSoft, lineHeight: 18 },
@@ -302,15 +302,15 @@ const styles = StyleSheet.create({
   logForm: { gap: 12 },
   logFieldLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.2, fontSize: 9 },
   typePicker: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  typePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.04)' },
+  typePill: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: colours.surface },
   typePillText: { ...typography.label, color: colours.muted, fontWeight: '800' },
   stepperRow: { flexDirection: 'row', gap: 6 },
-  durationChip: { flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)' },
+  durationChip: { flex: 1, paddingVertical: 9, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, alignItems: 'center', backgroundColor: colours.surface },
   durationChipActive: { borderColor: colours.cyan, backgroundColor: statusColors(colours.cyan).bgMed },
   durationChipText: { ...typography.label, color: colours.muted, fontWeight: '800' },
   durationChipTextActive: { color: colours.cyan },
   rpeRow: { flexDirection: 'row', gap: 4 },
-  rpeBtn: { flex: 1, paddingVertical: 9, borderRadius: 6, borderWidth: 1, borderColor: colours.borderSoft, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.04)' },
+  rpeBtn: { flex: 1, paddingVertical: 9, borderRadius: 6, borderWidth: 1, borderColor: colours.borderSoft, alignItems: 'center', backgroundColor: colours.surface },
   rpeBtnText: { color: colours.muted, fontSize: 12, fontWeight: '900' },
   logPreview: { borderWidth: 1, borderRadius: 8, padding: 10 },
   logPreviewText: { ...typography.caption, color: colours.textSoft, fontWeight: '800', textAlign: 'center' },

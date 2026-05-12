@@ -42,9 +42,9 @@ const styles = StyleSheet.create({
   card: {
     flex: 1,
     minWidth: 140,
-    backgroundColor: 'rgba(10, 20, 35, 0.80)',
+    backgroundColor: colours.panel,
     borderWidth: 1,
-    borderColor: colours.borderSoft,
+    borderColor: colours.border,
     borderRadius: 14,
     padding: 14,
     overflow: 'hidden',

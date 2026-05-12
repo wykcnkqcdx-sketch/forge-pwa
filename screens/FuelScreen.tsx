@@ -404,7 +404,7 @@ export function FuelScreen({
                 styles.goalTab,
                 {
                   borderColor: active ? statusColors(item.tone).borderMed : colours.borderSoft,
-                  backgroundColor: active ? statusColors(item.tone).bgMed : 'rgba(255,255,255,0.04)',
+                  backgroundColor: active ? statusColors(item.tone).bgMed : colours.surface,
                 },
               ]}
               onPress={() => setGoal(item.id)}
@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
     borderColor: colours.borderSoft,
     borderRadius: 12,
     padding: responsiveSpacing('sm'),
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colours.surface,
   },
   metricLabel: { ...typography.label, color: colours.muted, marginBottom: responsiveSpacing('xs') },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: responsiveSpacing('sm') },
@@ -628,11 +628,11 @@ const styles = StyleSheet.create({
     borderColor: colours.borderSoft,
     borderRadius: 12,
     padding: responsiveSpacing('md'),
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colours.surface,
   },
   macroValue: { color: colours.cyan, fontSize: 22, fontWeight: '900' },
   macroUnit: { fontSize: 12, color: colours.muted },
-  macroBarBg: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)', marginTop: 6, overflow: 'hidden' },
+  macroBarBg: { height: 4, borderRadius: 2, backgroundColor: colours.borderSoft, marginTop: 6, overflow: 'hidden' },
   macroBarFill: { height: 4, borderRadius: 2 },
   macroTarget: { ...typography.label, marginTop: 4 },
   macroLabel: { ...typography.label, color: colours.muted, marginTop: 3 },
@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
   mealTypeBtnActive: { backgroundColor: colours.cyan, borderColor: colours.cyan },
   mealTypeBtnText: { ...typography.label, color: colours.muted, fontSize: 10 },
   mealTypeBtnTextActive: { color: colours.background, fontWeight: '900' },
-  mealInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 10, padding: 10, color: colours.text, backgroundColor: 'rgba(255,255,255,0.04)', fontSize: 14 },
+  mealInput: { borderWidth: 1, borderColor: colours.borderSoft, borderRadius: 10, padding: 10, color: colours.text, backgroundColor: colours.inputBg, fontSize: 14 },
   mealInputLabel: {
     ...typography.label,
     color: colours.muted,

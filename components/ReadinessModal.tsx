@@ -252,7 +252,7 @@ export function ReadinessModal({ visible, onClose, onSave }: ReadinessModalProps
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.72)' },
+  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(11,15,14,0.75)' },
   modalPanel: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: { color: colours.text, fontSize: 20, fontWeight: '900' },
   modalSub: { ...typography.caption, color: colours.muted, marginTop: 2 },
-  closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.07)' },
+  closeBtn: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: colours.layer2 },
   scroll: { flexGrow: 0 },
   scrollContent: { padding: 20, gap: 16 },
 
@@ -284,7 +284,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: 'rgba(255,255,255,0.03)',
+    backgroundColor: colours.surface,
   },
   scorePreviewLabel: { ...typography.label, color: colours.muted, letterSpacing: 1.2 },
   scorePreviewValue: { fontSize: 32, fontWeight: '900' },
@@ -300,7 +300,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colours.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -312,7 +312,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colours.borderSoft,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: colours.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -326,7 +326,7 @@ const styles = StyleSheet.create({
     borderColor: colours.borderSoft,
     borderRadius: 10,
     color: colours.text,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: colours.inputBg,
     paddingHorizontal: 10,
     paddingVertical: 10,
     fontSize: 15,

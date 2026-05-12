@@ -1,5 +1,6 @@
 import React from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
+import { colours } from '../theme';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ReadinessScreen } from '../screens/ReadinessScreen';
@@ -386,6 +387,6 @@ export function AppRouter() {
 }
 
 const styles = StyleSheet.create({
-  app: { flex: 1, backgroundColor: '#121212' },
+  app: { flex: 1, backgroundColor: colours.background },
   screenContainer: { flex: 1 },
 });

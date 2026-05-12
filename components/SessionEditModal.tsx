@@ -77,7 +77,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: 'rgba(0,0,0,0.62)',
+    backgroundColor: colours.surface,
   },
   modalPanel: {
     borderWidth: 1,
@@ -103,7 +103,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: colours.layer2,
   },
   inputLabel: {
     color: colours.muted,
@@ -117,7 +117,7 @@ const styles = StyleSheet.create({
     borderColor: colours.borderSoft,
     borderRadius: 14,
     color: colours.text,
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: colours.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
     marginBottom: 16,

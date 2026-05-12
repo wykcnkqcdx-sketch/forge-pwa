@@ -79,7 +79,7 @@ export const textMuted: TextStyle = {
 
 // ── Card Helpers ───────────────────────────────────────────
 export const makeCardStyle = (accent?: string, hot?: boolean): ViewStyle => ({
-  backgroundColor: hot ? `${colours.cyan}06` : 'rgba(10, 20, 35, 0.80)',
+  backgroundColor: hot ? `${colours.cyan}06` : colours.panel,
   borderWidth: 1,
   borderColor: hot ? colours.border : colours.borderSoft,
   ...(hot && { borderLeftWidth: 2, borderLeftColor: colours.cyan }),

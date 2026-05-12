@@ -128,7 +128,7 @@ export function SquadMemberCard({ member, group, latestCompletion, latestReadine
 }
 
 const styles = StyleSheet.create({
-  memberCard: { borderColor: colours.border, borderWidth: 1, borderRadius: 18, padding: responsiveSpacing('md'), backgroundColor: 'rgba(0,0,0,0.18)', marginBottom: responsiveSpacing('sm') },
+  memberCard: { borderColor: colours.border, borderWidth: 1, borderRadius: 18, padding: responsiveSpacing('md'), backgroundColor: colours.panel, marginBottom: responsiveSpacing('sm') },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: responsiveSpacing('md') },
   memberCopy: { flex: 1 },
   memberTitleRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   lifecycleActionButton: { minHeight: 44, borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center' },
   lifecycleActionText: { ...typography.caption, fontWeight: '900' },
   factorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: responsiveSpacing('md') },
-  factorItem: { flex: 1, minWidth: '22%', backgroundColor: 'rgba(255,255,255,0.04)', borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
+  factorItem: { flex: 1, minWidth: '22%', backgroundColor: colours.surface, borderRadius: 8, paddingVertical: 8, alignItems: 'center' },
   factorLabel: { ...typography.label, color: colours.muted, marginBottom: 2 },
   factorValue: { ...typography.caption, color: colours.text, fontWeight: '900' },
   readinessStamp: { ...typography.caption, color: colours.muted, fontWeight: '700', marginTop: responsiveSpacing('sm') },

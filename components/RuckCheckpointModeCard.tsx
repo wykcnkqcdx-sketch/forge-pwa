@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   controlLabel: { color: colours.text, fontWeight: '800' },
   buttons: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   smallButton: { width: touchTarget, height: touchTarget, borderRadius: 8, backgroundColor: colours.cyan, alignItems: 'center', justifyContent: 'center' },
-  smallButtonText: { color: '#07111E', fontSize: 20, fontWeight: '900' },
+  smallButtonText: { color: colours.background, fontSize: 20, fontWeight: '900' },
   controlValue: { color: colours.text, fontWeight: '900', width: 55, textAlign: 'center' },
   navGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: responsiveSpacing('sm'), marginTop: responsiveSpacing('md') },
   navItem: {

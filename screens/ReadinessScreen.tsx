@@ -580,7 +580,7 @@ const styles = StyleSheet.create({
   input: { minHeight: touchTarget, borderWidth: 1, borderColor: colours.inputBorder, borderRadius: radius.sm, color: colours.text, backgroundColor: colours.inputBg, paddingHorizontal: 12, marginTop: 6, fontWeight: '900', textAlign: 'center' },
   textArea: { borderWidth: 1, borderColor: colours.inputBorder, borderRadius: radius.sm, color: colours.text, backgroundColor: colours.inputBg, paddingHorizontal: 12, paddingTop: 10, marginTop: 6, minHeight: 70, textAlignVertical: 'top', fontWeight: '700' },
   toggleRow: { minHeight: touchTarget, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 8 },
-  toggleKnob: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colours.borderHot, backgroundColor: 'rgba(0,0,0,0.24)' },
+  toggleKnob: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colours.borderHot, backgroundColor: colours.background },
   toggleKnobActive: { backgroundColor: colours.cyan, borderColor: colours.cyan },
   toggleText: { flex: 1, color: colours.textSoft, fontWeight: '800' },
   stampRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 12 },
