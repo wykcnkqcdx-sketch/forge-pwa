@@ -1,14 +1,14 @@
 {
-  "name": "FORGE Tactical Fitness",
-  "short_name": "FORGE",
-  "description": "Offline-first H2F tactical readiness, ruck load modeling, body composition, and injury reporting.",
-  "start_url": ".",
-  "scope": ".",
+  "name": "Tactical Performance Operating System",
+  "short_name": "TPOS",
+  "description": "Mission-ready tactical fitness, readiness, recovery, route, team, and performance command system.",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#121212",
-  "theme_color": "#121212",
-  "categories": ["fitness", "health", "sports"],
+  "background_color": "#0b0f0c",
+  "theme_color": "#0b0f0c",
+  "categories": ["fitness", "health", "sports", "productivity"],
   "icons": [
     {
       "src": "icons/icon.svg",
