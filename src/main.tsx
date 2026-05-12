@@ -254,20 +254,25 @@ function App() {
     return () => { supabase.removeChannel(channel); };
   }, [isSynced]);
 
-  const handleLogSession = (session: { type: string, title: string, volume: number, duration: number, effort: string }) => {
+const handleLogSession = (workout: { type: string, title: string, volume: number, duration: number, effort: string, note?: string }) => {
     const newActivityId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
     const title = appState.ghostMode ? 'A teammate logged activity' : `You finished ${session.title}`;
     const result = `${session.duration} min · +${session.volume} vol`;
+    const title = appState.ghostMode ? 'A teammate logged activity' : `You finished ${workout.title}`;
+    const result = `${workout.duration} min · +${workout.volume} vol`;
 
     // @ts-ignore
     setAppState(prev => ({
       ...prev,
       weeklyVolume: prev.weeklyVolume + session.volume,
       readiness: Math.min(100, Math.max(1, prev.readiness + (session.effort === 'Too Hard' ? -3 : session.effort === 'Too Easy' ? 2 : 1))),
+      weeklyVolume: prev.weeklyVolume + workout.volume,
+      readiness: Math.min(100, Math.max(1, prev.readiness + (workout.effort === 'Too Hard' ? -3 : workout.effort === 'Too Easy' ? 2 : 1))),
       activities: [
         {
           id: newActivityId,
           type: session.type,
+          type: workout.type,
           title,
           result,
           time: 'Just now',
@@ -279,6 +284,7 @@ function App() {
 
     // Push to Supabase if connected
     if (supabase && isSynced && membership) {
+    if (supabase && isSynced && membership && session) {
       // @ts-ignore
       supabase.from('team_activity').insert({
         id: newActivityId,
@@ -289,8 +295,29 @@ function App() {
         metadata: { 
           result,
           original_type: session.type
+          original_type: workout.type
         }
       });
+      }).catch(console.error);
+      
+      // Write to workout_completions so the coach sees it
+      supabase.from('workout_completions').insert({
+        id: newActivityId,
+        user_id: session.user.id,
+        squad_id: membership.squad_id,
+        membership_id: membership.id,
+        member_id: membership.id, // Fallback for legacy views
+        member_name: session.user.email || 'Member',
+        group_id: 'default',
+        completion_type: workout.title.startsWith('Quick Log') ? 'quick_log' : 'assigned',
+        session_kind: workout.type,
+        assignment: workout.title,
+        effort: workout.effort,
+        duration_minutes: workout.duration,
+        volume: workout.volume,
+        note: workout.note || null,
+        completed_at: new Date().toISOString()
+      }).catch(console.error);
     }
   };
 
@@ -730,7 +757,7 @@ function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced
   const [claiming, setClaiming] = useState(false);
   const handleSyncClick = async () => {
     setSyncing(true);
-    await onSync();
+    await onSync().catch(() => undefined);
     setSyncing(false);
   };
 
@@ -1017,6 +1044,8 @@ function QuickLog({ onLog }: { onLog: (data: any) => void }) {
       volume: parsedVolume,
       duration: parsedDuration,
       effort
+      effort,
+      note: note.trim() || undefined
     });
 
     setFeedback(`Logged ${kind.toLowerCase()} for ${parsedDuration} min. Data saved locally!`);
