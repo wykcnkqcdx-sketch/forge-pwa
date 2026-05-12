@@ -39,6 +39,7 @@ const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionic
 ];
 
 function deploymentMatchesCompletion(deployment: AssignmentDeployment, completion: WorkoutCompletion) {
+
   if (!deployment.targetMemberIds.includes(completion.memberId)) return false;
   if (deployment.title !== completion.assignment) return false;
   return new Date(completion.completedAt).getTime() >= new Date(deployment.assignedAt).getTime();
