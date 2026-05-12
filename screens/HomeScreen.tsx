@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from '../components/Card';
 import { ProgressBar } from '../components/ProgressBar';
@@ -7,6 +7,7 @@ import { Screen } from '../components/Screen';
 import { buildPerformanceProfile } from '../lib/performance';
 import { getLatestReadinessLog, isReadinessStale } from '../lib/readiness';
 import { getCurrentStreak, getLongestStreak, getLast7DayFlags, streakMilestoneLabel } from '../lib/streak';
+import { secureGetItem, secureSetItem, secureRemoveItem } from '../lib/secureStorage';
 import { colours, radius, shadow, touchTarget, typography } from '../theme';
 import type { SquadMember, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion } from '../data/domain';
@@ -89,6 +90,33 @@ export function HomeScreen({
   );
   const longestStreak = useMemo(() => getLongestStreak(sessions), [sessions]);
   const last7 = useMemo(() => getLast7DayFlags(sessions), [sessions]);
+
+  const [weeklyGoalKm, setWeeklyGoalKm] = useState<number | null>(null);
+  const [goalModalOpen, setGoalModalOpen]   = useState(false);
+  const [goalInput, setGoalInput]           = useState('');
+
+  useEffect(() => {
+    secureGetItem('forge:weeklyRuckGoalKm').then(val => {
+      const n = val ? Number(val) : null;
+      if (n && n > 0) setWeeklyGoalKm(n);
+    });
+  }, []);
+
+  async function handleSaveGoal() {
+    const km = Math.round(Number(goalInput));
+    if (!km || km <= 0 || km > 500) return;
+    await secureSetItem('forge:weeklyRuckGoalKm', String(km));
+    setWeeklyGoalKm(km);
+    setGoalModalOpen(false);
+    setGoalInput('');
+  }
+
+  async function handleClearGoal() {
+    await secureRemoveItem('forge:weeklyRuckGoalKm');
+    setWeeklyGoalKm(null);
+    setGoalModalOpen(false);
+    setGoalInput('');
+  }
 
   const orders = useMemo(() => {
     const assigned = member?.assignmentSession;
@@ -197,11 +225,37 @@ export function HomeScreen({
 
       {/* ── Stat tiles ───────────────────────────────────────── */}
       <View style={styles.statsRow}>
-        <View style={styles.statTile}>
+        <Pressable
+          style={[styles.statTile, styles.statTilePress]}
+          onPress={() => { setGoalInput(weeklyGoalKm ? String(weeklyGoalKm) : ''); setGoalModalOpen(true); }}
+        >
           <Text style={styles.tileLabel}>RUCK WEEK</Text>
-          <Text style={styles.tileValue}>{formatOneDecimal(weeklyRuckKm)}</Text>
-          <Text style={styles.tileUnit}>km</Text>
-        </View>
+          <Text style={[
+            styles.tileValue,
+            weeklyGoalKm != null && {
+              color: weeklyRuckKm >= weeklyGoalKm ? colours.green : colours.cyan,
+            },
+          ]}>
+            {formatOneDecimal(weeklyRuckKm)}
+          </Text>
+          <Text style={styles.tileUnit}>
+            {weeklyGoalKm != null ? `/ ${weeklyGoalKm} km` : 'km'}
+          </Text>
+          {weeklyGoalKm == null && (
+            <Text style={styles.tileHint}>SET GOAL</Text>
+          )}
+          {weeklyGoalKm != null && (
+            <View style={styles.goalBarBg}>
+              <View style={[
+                styles.goalBarFill,
+                {
+                  width: `${Math.min(100, (weeklyRuckKm / weeklyGoalKm) * 100)}%` as any,
+                  backgroundColor: weeklyRuckKm >= weeklyGoalKm ? colours.green : colours.cyan,
+                },
+              ]} />
+            </View>
+          )}
+        </Pressable>
         <View style={styles.statTile}>
           <Text style={styles.tileLabel}>LOAD MOVED</Text>
           <Text style={styles.tileValue}>{Math.round(loadMoved)}</Text>
@@ -272,6 +326,51 @@ export function HomeScreen({
         <Text style={styles.analyticsText}>Readiness + load analytics</Text>
         <Ionicons name="chevron-forward" size={14} color={colours.cyan} />
       </Pressable>
+
+      {/* ── Weekly goal modal ────────────────────────────────── */}
+      <Modal visible={goalModalOpen} transparent animationType="fade">
+        <Pressable style={gm.overlay} onPress={() => setGoalModalOpen(false)}>
+          <Pressable style={gm.panel} onPress={() => {}}>
+            <Text style={gm.kicker}>RUCK GOAL</Text>
+            <Text style={gm.title}>Weekly Distance</Text>
+            <Text style={gm.body}>Target km for the rolling 7-day window.</Text>
+
+            <View style={gm.presets}>
+              {[10, 15, 20, 25, 30].map(n => (
+                <Pressable
+                  key={n}
+                  style={[gm.preset, goalInput === String(n) && gm.presetActive]}
+                  onPress={() => setGoalInput(String(n))}
+                >
+                  <Text style={[gm.presetText, goalInput === String(n) && gm.presetTextActive]}>
+                    {n}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <TextInput
+              style={gm.input}
+              keyboardType="number-pad"
+              maxLength={3}
+              placeholder="Custom km"
+              placeholderTextColor={colours.soft}
+              value={goalInput}
+              onChangeText={setGoalInput}
+            />
+
+            <Pressable style={gm.saveBtn} onPress={handleSaveGoal}>
+              <Text style={gm.saveBtnText}>SET GOAL</Text>
+            </Pressable>
+
+            {weeklyGoalKm != null && (
+              <Pressable style={gm.clearBtn} onPress={handleClearGoal}>
+                <Text style={gm.clearBtnText}>Clear goal</Text>
+              </Pressable>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
     </Screen>
   );
 }
@@ -495,6 +594,27 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginTop: 2,
   },
+  statTilePress: {
+    overflow: 'hidden',
+  },
+  tileHint: {
+    fontSize: 7,
+    fontWeight: '900',
+    color: colours.muted,
+    letterSpacing: 1,
+    marginTop: 4,
+  },
+  goalBarBg: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: colours.border,
+  },
+  goalBarFill: {
+    height: 3,
+  },
   streakDots: {
     flexDirection: 'row',
     gap: 2,
@@ -602,5 +722,100 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 12,
     letterSpacing: 0.6,
+  },
+});
+
+// ── Goal modal styles ────────────────────────────────────────────
+
+const gm = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(11,15,14,0.80)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  panel: {
+    backgroundColor: colours.surface,
+    borderRadius: 22,
+    padding: 24,
+    margin: 24,
+    minWidth: 300,
+    maxWidth: 380,
+    gap: 12,
+  },
+  kicker: {
+    fontSize: 10,
+    fontWeight: '900',
+    color: colours.cyan,
+    letterSpacing: 2,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: colours.text,
+    marginTop: -4,
+  },
+  body: {
+    fontSize: 13,
+    color: colours.textSoft,
+    lineHeight: 19,
+  },
+  presets: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  preset: {
+    flex: 1,
+    minWidth: 44,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: colours.panel,
+    borderWidth: 1,
+    borderColor: colours.border,
+    alignItems: 'center',
+  },
+  presetActive: {
+    backgroundColor: `${colours.cyan}20`,
+    borderColor: colours.cyan,
+  },
+  presetText: {
+    fontSize: 15,
+    fontWeight: '900',
+    color: colours.muted,
+  },
+  presetTextActive: {
+    color: colours.cyan,
+  },
+  input: {
+    backgroundColor: colours.panel,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colours.border,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: colours.text,
+  },
+  saveBtn: {
+    backgroundColor: colours.cyan,
+    borderRadius: 12,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  saveBtnText: {
+    color: colours.background,
+    fontWeight: '900',
+    fontSize: 14,
+    letterSpacing: 1.2,
+  },
+  clearBtn: {
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  clearBtnText: {
+    color: colours.muted,
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
