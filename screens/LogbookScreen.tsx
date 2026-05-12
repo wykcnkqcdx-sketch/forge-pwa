@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Screen } from '../components/Screen';
 import { SessionCard, sessionTone } from '../components/SessionCard';
@@ -163,15 +163,24 @@ export type LogbookScreenProps = {
 };
 
 export function LogbookScreen({ sessions, addSession, deleteSession, editSession }: LogbookScreenProps) {
-  const [filter, setFilter]       = useState<Filter>('ALL');
+  const [filter, setFilter]         = useState<Filter>('ALL');
+  const [query, setQuery]           = useState('');
   const [editTarget, setEditTarget] = useState<TrainingSession | null>(null);
 
-  const sorted  = useMemo(() => sortedByDate(sessions), [sessions]);
+  const sorted       = useMemo(() => sortedByDate(sessions), [sessions]);
   const prSessionIds = useMemo(() => getPRSessionIds(sessions), [sessions]);
-  const filtered = useMemo(
-    () => filter === 'ALL' ? sorted : sorted.filter(s => s.type === filter),
-    [sorted, filter],
-  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    let result = filter === 'ALL' ? sorted : sorted.filter(s => s.type === filter);
+    if (q) {
+      result = result.filter(s =>
+        s.title.toLowerCase().includes(q) ||
+        (s.note ?? '').toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [sorted, filter, query]);
 
   const countFor = (key: Filter) =>
     key === 'ALL' ? sessions.length : sessions.filter(s => s.type === key).length;
@@ -240,6 +249,26 @@ export function LogbookScreen({ sessions, addSession, deleteSession, editSession
           </View>
         )}
 
+        {/* Search */}
+        <View style={styles.searchRow}>
+          <Ionicons name="search-outline" size={15} color={colours.muted} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search sessions..."
+            placeholderTextColor={colours.muted}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+            autoCorrect={false}
+          />
+          {query.length > 0 && (
+            <Pressable onPress={() => setQuery('')} hitSlop={8} style={styles.searchClear}>
+              <Ionicons name="close-circle" size={16} color={colours.muted} />
+            </Pressable>
+          )}
+        </View>
+
         {/* Activity heatmap — always shows all sessions regardless of filter */}
         {sessions.length > 0 && <TrainingHeatmap sessions={sessions} />}
 
@@ -267,9 +296,11 @@ export function LogbookScreen({ sessions, addSession, deleteSession, editSession
           <Ionicons name="book-outline" size={40} color={colours.border} />
           <Text style={styles.emptyTitle}>NO SESSIONS LOGGED</Text>
           <Text style={styles.emptyBody}>
-            {filter === 'ALL'
-              ? 'Complete a workout or ruck to start your logbook.'
-              : `No ${filter.toUpperCase()} sessions on record.`}
+            {query
+              ? `No sessions match "${query}".`
+              : filter === 'ALL'
+                ? 'Complete a workout or ruck to start your logbook.'
+                : `No ${filter.toUpperCase()} sessions on record.`}
           </Text>
         </View>
       ) : (
@@ -321,6 +352,29 @@ const styles = StyleSheet.create({
     backgroundColor: colours.border,
     marginHorizontal: 8,
     alignSelf: 'center',
+  },
+
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colours.panel,
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 12,
+    height: 42,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    flex: 1,
+    color: colours.text,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  searchClear: {
+    marginLeft: 6,
   },
 
   filterRow: {
