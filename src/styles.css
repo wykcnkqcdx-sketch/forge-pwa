@@ -339,6 +339,16 @@ p {
   background: linear-gradient(180deg, #a5d783, #77ac5e);
   font-weight: 900;
   box-shadow: 0 14px 34px rgba(80, 141, 73, 0.22);
+  transition: all 0.2s ease-in-out;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .quick-actions button:hover,
+  .primary-action:hover {
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 40px rgba(80, 141, 73, 0.35);
+  }
 }
 
 .mini-stat {
@@ -436,6 +446,7 @@ p {
 .quick-actions button:active,
 .primary-action:active {
   transform: scale(0.97);
+  filter: brightness(0.9);
 }
 
 .action-card span {
