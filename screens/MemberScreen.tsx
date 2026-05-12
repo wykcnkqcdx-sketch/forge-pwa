@@ -536,6 +536,8 @@ export function MemberScreen({
         </Pressable>
       </Card>
 
+      <PRRecordsCard records={member.personalRecords} />
+
       <Card>
         <Text style={styles.cardTitle}>Current Workout</Text>
         <Text style={styles.assignmentTitle}>{assignmentTitle}</Text>

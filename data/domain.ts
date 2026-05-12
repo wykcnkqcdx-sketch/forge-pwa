@@ -163,3 +163,13 @@ export type AssignmentDeployment = {
     completedAt: string;
   };
 };
+
+export type PersonalRecord = {
+  id: string;
+  memberId: string;
+  exerciseName: string;
+  value: number; // e.g. weight in kg, or time in seconds
+  unit: 'kg' | 'lbs' | 'seconds' | 'minutes' | 'meters' | 'reps';
+  dateAchieved: string;
+  note?: string;
+};
