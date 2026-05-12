@@ -39,6 +39,7 @@ import { CoordinateFormat, formatCoordinate, parseCoordinate } from '../utils/co
 import { buildVisibleTiles, getMercatorRoutePoints, latLonToWorldPixel, MapLayerKey, mapLayerOptions, MapViewport, worldPixelToLatLon, MapTile } from '../utils/mapTiles';
 import { appendActiveRoutePoints, clearActiveRoute, clearActiveRuckPlan, loadActiveRoute, loadActiveRuckPlan, replaceActiveRoute, resetActiveRoute, saveActiveRuckPlan } from '../lib/ruckRouteStore';
 import { calculateEnhancedPandolf } from '../lib/h2f';
+import { getSessionPRTypes, type PRType } from '../lib/personalRecords';
 import { secureGetItem, secureSetItem } from '../lib/secureStorage';
 import { LOCATION_TASK_NAME } from '../lib/backgroundTasks';
 import * as DocumentPicker from 'expo-document-picker';
@@ -1592,6 +1593,32 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     }),
     [activePace, bodyMassKg, currentDistance, distance, pace, plannedAscentM, plannedCheckpoints, splits.length, terrainFactor, weight]
   );
+  const newPRs = useMemo<PRType[]>(() => {
+    if (!reviewOpen) return [];
+    const duration = Math.max(1, elapsedSeconds / 60);
+    const draftSession: TrainingSession = {
+      id: '__draft__',
+      type: 'Ruck',
+      title: `${currentDistance.toFixed(1)}km GPS Ruck`,
+      score: activeRuckScore.score,
+      durationMinutes: Math.round(duration),
+      rpe: weight > 22 ? 8 : 6,
+      loadKg: weight,
+      ruckMission: {
+        targetDistanceKm,
+        targetMinutes,
+        checkpointIntervalKm,
+        checkpointIndex,
+        finishMode,
+        plannedCheckpoints,
+        selectedCheckpointId,
+        splits,
+      },
+      completedAt: new Date().toISOString(),
+    };
+    return getSessionPRTypes(draftSession, sessions);
+  }, [reviewOpen, elapsedSeconds, currentDistance, activeRuckScore.score, weight, targetDistanceKm, targetMinutes, checkpointIntervalKm, checkpointIndex, finishMode, plannedCheckpoints, selectedCheckpointId, splits, sessions]);
+
   const routeReview = useMemo(() => {
     const accuracyValues = routePoints
       .map((point) => point.accuracy)
@@ -3212,6 +3239,7 @@ function updateSelectedCheckpointHere() {
           checkpointsReached={plannedCheckpoints.filter(cp => cp.status === 'reached').length}
           checkpointsTotal={plannedCheckpoints.length}
           sessionTitle={`${currentDistance.toFixed(1)}km GPS Ruck`}
+          newPRs={newPRs}
           note={ruckReviewNote}
           onNoteChange={setRuckReviewNote}
           onSave={saveTrackedRuck}

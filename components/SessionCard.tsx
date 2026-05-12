@@ -93,6 +93,7 @@ export type SessionCardProps = {
   session: TrainingSession;
   onEdit: (session: TrainingSession) => void;
   onDelete: (id: string) => void;
+  isPR?: boolean;
 };
 
 function scoreTone(score: number) {
@@ -102,7 +103,7 @@ function scoreTone(score: number) {
   return colours.red;
 }
 
-export const SessionCard = React.memo(function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
+export const SessionCard = React.memo(function SessionCard({ session, onEdit, onDelete, isPR }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const mapPoints = getMapPoints(session.routePoints || []);
@@ -152,7 +153,15 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
           />
         </View>
         <View style={styles.sessionCopy}>
-          <Text style={styles.sessionTitle}>{session.title}</Text>
+          <View style={styles.sessionTitleRow}>
+            <Text style={styles.sessionTitle} numberOfLines={1}>{session.title}</Text>
+            {isPR && (
+              <View style={styles.prBadge}>
+                <Ionicons name="trophy-outline" size={9} color={colours.background} />
+                <Text style={styles.prBadgeText}>PR</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.sessionMeta}>
             {session.type} · {session.durationMinutes} min · RPE {session.rpe}
           </Text>
@@ -382,7 +391,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexShrink: 0,
   },
-  sessionCopy: { flex: 1 },
+  sessionCopy: { flex: 1, minWidth: 0 },
+  sessionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  prBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colours.cyan,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    flexShrink: 0,
+  },
+  prBadgeText: {
+    color: colours.background,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+  },
   sessionTitle: {
     color: colours.text,
     fontWeight: '900',

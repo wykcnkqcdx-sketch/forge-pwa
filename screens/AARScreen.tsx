@@ -11,6 +11,7 @@ import { colours, radius, shadow, touchTarget, typography } from '../theme';
 import { formatElapsed } from '../utils/ruck';
 import type { RuckScoreBreakdown } from '../utils/ruckScore';
 import { ForgeStamp } from '../components/ForgeStamp';
+import { PR_META, type PRType } from '../lib/personalRecords';
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -80,6 +81,7 @@ export type AARScreenProps = {
   checkpointsReached?: number;
   checkpointsTotal?:  number;
   sessionTitle?:      string;
+  newPRs?:            PRType[];
   note:               string;
   onNoteChange:       (note: string) => void;
   onSave:             () => void;
@@ -90,7 +92,7 @@ export type AARScreenProps = {
 export function AARScreen({
   ruckScore, distanceKm, elapsedSeconds, paceMinPerKm,
   loadKg, ascentM, checkpointsReached, checkpointsTotal,
-  sessionTitle, note, onNoteChange, onSave, onResume, onDiscard,
+  sessionTitle, newPRs, note, onNoteChange, onSave, onResume, onDiscard,
 }: AARScreenProps) {
   const shareCardRef  = useRef<View>(null);
   const [showStamp, setShowStamp] = useState(true);
@@ -172,6 +174,18 @@ export function AARScreen({
         <View style={styles.cpRow}>
           <Ionicons name="flag-outline" size={14} color={colours.cyan} />
           <Text style={styles.cpText}>{cpText} checkpoints reached · {time} total time</Text>
+        </View>
+      )}
+
+      {/* ── Personal Records ───────────────────────────────── */}
+      {newPRs && newPRs.length > 0 && (
+        <View style={styles.prRow}>
+          {newPRs.map(pr => (
+            <View key={pr} style={styles.prChip}>
+              <Ionicons name={PR_META[pr].icon as any} size={12} color={colours.background} />
+              <Text style={styles.prChipText}>{PR_META[pr].label.toUpperCase()}</Text>
+            </View>
+          ))}
         </View>
       )}
 
@@ -485,6 +499,28 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   cpText: { color: colours.muted, fontSize: 11, fontWeight: '700' },
+
+  // PR chips
+  prRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  prChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: colours.cyan,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  prChipText: {
+    color: colours.background,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
 
   // Finding
   findingCard: {

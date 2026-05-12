@@ -6,6 +6,7 @@ import { SessionCard, sessionTone } from '../components/SessionCard';
 import { SessionEditModal } from '../components/SessionEditModal';
 import { colours, radius, touchTarget, typography } from '../theme';
 import type { TrainingSession } from '../data/mockData';
+import { getPRSessionIds } from '../lib/personalRecords';
 
 type SessionType = TrainingSession['type'];
 type Filter = 'ALL' | SessionType;
@@ -165,6 +166,7 @@ export function LogbookScreen({ sessions, addSession, deleteSession, editSession
   const [editTarget, setEditTarget] = useState<TrainingSession | null>(null);
 
   const sorted  = useMemo(() => sortedByDate(sessions), [sessions]);
+  const prSessionIds = useMemo(() => getPRSessionIds(sessions), [sessions]);
   const filtered = useMemo(
     () => filter === 'ALL' ? sorted : sorted.filter(s => s.type === filter),
     [sorted, filter],
@@ -190,6 +192,7 @@ export function LogbookScreen({ sessions, addSession, deleteSession, editSession
         session={item.session}
         onEdit={setEditTarget}
         onDelete={deleteSession}
+        isPR={prSessionIds.has(item.session.id)}
       />
     );
   }
