@@ -19,12 +19,12 @@ import { fetchCloudMemberAssignments, syncAssignmentDeploymentActivity, syncSqua
 import type { AppNavigation, AppActions, Tab, MemberTab, PendingMemberInvite, ForgeBackup } from '../types/app';
 
 const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
-  { id: 'home',       label: 'Home',    icon: 'home-outline',       iconActive: 'home' },
-  { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
-  { id: 'train',      label: 'Train',   icon: 'barbell-outline',    iconActive: 'barbell' },
-  { id: 'logbook',    label: 'Logbook', icon: 'book-outline',       iconActive: 'book' },
-  { id: 'squad',      label: 'Squad',   icon: 'people-outline',     iconActive: 'people' },
-  { id: 'fieldGuide', label: 'Guide',   icon: 'map-outline',        iconActive: 'map' },
+  { id: 'home',         label: 'Home',    icon: 'home-outline',       iconActive: 'home' },
+  { id: 'routePlanner', label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
+  { id: 'train',        label: 'Train',   icon: 'barbell-outline',    iconActive: 'barbell' },
+  { id: 'logbook',      label: 'Logbook', icon: 'book-outline',       iconActive: 'book' },
+  { id: 'squad',        label: 'Squad',   icon: 'people-outline',     iconActive: 'people' },
+  { id: 'fieldGuide',   label: 'Guide',   icon: 'map-outline',        iconActive: 'map' },
 ];
 
 const memberTabs: Array<{ id: MemberTab; label: string; icon: keyof typeof Ionicons.glyphMap; iconActive: keyof typeof Ionicons.glyphMap }> = [
@@ -241,15 +241,16 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const currentIndex = tabs.findIndex((t) => t.id === activeTab);
     const prevIndex = prevTabIndex.current;
-    if (currentIndex !== prevIndex) {
-      const direction = currentIndex > prevIndex ? 1 : -1;
+    const resolvedIndex = currentIndex === -1 ? prevIndex : currentIndex;
+    if (resolvedIndex !== prevIndex) {
+      const direction = resolvedIndex > prevIndex ? 1 : -1;
       slideAnim.setValue(direction * 40);
       fadeAnim.setValue(0);
       Animated.parallel([
         Animated.timing(slideAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
         Animated.timing(fadeAnim, { toValue: 1, duration: 250, useNativeDriver: true }),
       ]).start();
-      prevTabIndex.current = currentIndex;
+      prevTabIndex.current = resolvedIndex;
     }
   }, [activeTab, slideAnim, fadeAnim]);
 
@@ -651,7 +652,8 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       onPanResponderRelease: (_, g) => {
         if (Math.abs(g.dx) > 60) {
           const idx = tabs.findIndex((t) => t.id === activeTab);
-          if (g.dx < 0 && idx < tabs.length - 1) {
+          if (idx === -1) { /* off-bar tab (e.g. live ruck), skip swipe */ }
+          else if (g.dx < 0 && idx < tabs.length - 1) {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             setActiveTab(tabs[idx + 1].id);
           }

@@ -5,6 +5,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { ReadinessScreen } from '../screens/ReadinessScreen';
 import { AnalyticsScreen } from '../screens/AnalyticsScreen';
 import { LogbookScreen } from '../screens/LogbookScreen';
+import { RoutePlannerScreen } from '../screens/RoutePlannerScreen';
 import { RuckScreen } from '../screens/RuckScreen';
 import { TrainScreen } from '../screens/TrainScreen';
 import { FuelScreen } from '../screens/FuelScreen';
@@ -67,6 +68,13 @@ export function AppRouter() {
     switch (navigation.activeTab) {
       case 'train': return <TrainScreen addSession={actions.addSession} sessions={sessions} />;
       case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={sessions} />;
+      case 'routePlanner':
+        return (
+          <RoutePlannerScreen
+            sessions={sessions}
+            onLaunchRuck={() => switchTab('ruck')}
+          />
+        );
       case 'squad':
         return (
           <SquadScreen
@@ -197,7 +205,7 @@ export function AppRouter() {
         return (
           <HomeScreen
             sessions={sessions}
-            goToRuck={() => switchTab('ruck')}
+            goToRuck={() => switchTab('routePlanner')}
             goToAnalytics={() => switchTab('analytics')}
             goToTrain={() => switchTab('train')}
             goToReadiness={() => switchTab('readiness')}
