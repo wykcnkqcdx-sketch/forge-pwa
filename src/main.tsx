@@ -220,7 +220,7 @@ function App() {
           result,
           original_type: session.type
         }
-      }).then(() => {}).catch(console.error);
+      });
     }
   };
 
