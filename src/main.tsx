@@ -29,9 +29,56 @@ function estimateQuickLogVolume(kind: string, durationMinutes: number) {
 }
 
 // Initialize Supabase client for Vite Web
+// @ts-ignore
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+// @ts-ignore
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
+
+function AuthScreen() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(false);
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    if (isSignUp) {
+      const { error } = await supabase!.auth.signUp({ email, password });
+      if (error) alert(error.message);
+      else alert('Check your email for the login link or verify your account!');
+    } else {
+      const { error } = await supabase!.auth.signInWithPassword({ email, password });
+      if (error) alert(error.message);
+    }
+    setLoading(false);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '12px', borderRadius: '14px',
+    background: 'rgba(255, 255, 255, 0.035)', border: '1px solid var(--line)',
+    color: 'var(--text)', fontSize: '1rem', outline: 'none', marginBottom: 14
+  };
+
+  return (
+    <div className="app-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+      <div className="ambient-map" aria-hidden="true" />
+      <Card className="metric-card" style={{ width: '100%', maxWidth: 400, padding: 24, margin: 'auto' }}>
+        <h1 style={{ fontSize: '1.5rem', marginBottom: 8, textAlign: 'center' }}>FORGE</h1>
+        <p style={{ textAlign: 'center', marginBottom: 24, color: 'var(--muted)' }}>Tactical Performance OS</p>
+        <form onSubmit={handleAuth}>
+          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Email</label>
+          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={inputStyle} required />
+          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Password</label>
+          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} style={inputStyle} required />
+          <button type="submit" className="primary-action" style={{ width: '100%', padding: '14px', marginBottom: 14 }} disabled={loading}>{loading ? 'Processing...' : (isSignUp ? 'Sign Up' : 'Sign In')}</button>
+          <button type="button" onClick={() => setIsSignUp(!isSignUp)} style={{ width: '100%', background: 'transparent', border: 'none', color: 'var(--amber)', cursor: 'pointer', fontWeight: 700 }}>{isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}</button>
+        </form>
+      </Card>
+    </div>
+  );
+}
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>('home');
@@ -39,6 +86,8 @@ function App() {
   const [timer, setTimer] = useState(18 * 60 + 42);
   const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
   const [isSynced, setIsSynced] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [membership, setMembership] = useState<{ squad_id: string, id: string } | null>(null);
 
   // Centralized Application State (Simulating temp.tsx logic)
   const [appState, setAppState] = useState(() => {
@@ -71,9 +120,34 @@ function App() {
     localStorage.setItem('forge:appState', JSON.stringify(appState));
   }, [appState]);
 
+  // Authentication & Membership Hydration
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setSession(session));
+    return () => { subscription.unsubscribe(); };
+  }, []);
+
+  useEffect(() => {
+    if (session && supabase) {
+      supabase.from('squad_memberships')
+        .select('id, squad_id')
+        .eq('user_id', session.user.id)
+        .eq('status', 'active')
+        .limit(1)
+        .then(({ data }) => {
+          if (data && data.length > 0) setMembership(data[0]);
+          else setMembership(null);
+        });
+    } else {
+      setMembership(null);
+    }
+  }, [session]);
+
   // Real-time Supabase Subscription
   useEffect(() => {
     if (!supabase || !isSynced) return;
+    if (!supabase || !isSynced || !membership) return;
     const channel = supabase.channel('public:team_activity')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_activity' }, (payload) => {
         const newActivity = payload.new;
@@ -100,6 +174,7 @@ function App() {
 
   const handleLogSession = (session: { type: string, title: string, volume: number, duration: number, effort: string }) => {
     const newActivityId = Date.now().toString();
+    const newActivityId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
     const title = appState.ghostMode ? 'A teammate logged activity' : `You finished ${session.title}`;
     const result = `${session.duration} min · +${session.volume} vol`;
 
@@ -125,6 +200,7 @@ function App() {
       supabase.auth.getUser().then(({ data: { user } }) => {
         if (!user) return; // RLS will block this if there's no user session anyway
         
+        // @ts-ignore
         supabase.from('team_activity').insert({
           id: newActivityId,
           // Replace this with the actual UUID of the squad the user belongs to:
@@ -139,6 +215,19 @@ function App() {
           }
         }).catch(console.error);
       });
+    if (supabase && isSynced && membership) {
+      // @ts-ignore
+      supabase.from('team_activity').insert({
+        id: newActivityId,
+        squad_id: membership.squad_id, 
+        actor_membership_id: membership.id,
+        activity_type: 'workout_completed', 
+        title,
+        metadata: { 
+          result,
+          original_type: session.type
+        }
+      }).catch(console.error);
     }
   };
 
@@ -151,13 +240,6 @@ function App() {
 
   const handleHitExercise = (exerciseId: string) => {
     setAppState(prev => ({
-      ...prev,
-      assignedWorkout: {
-        ...prev.assignedWorkout,
-        exercises: prev.assignedWorkout.exercises.map((ex: any) => 
-          ex.id === exerciseId ? { ...ex, hit: !ex.hit } : ex
-        )
-      }
     }));
     window.navigator.vibrate?.(12);
   };
@@ -208,16 +290,22 @@ function App() {
         setAppState(prev => ({
           ...prev,
           activities: data.map((d: any) => ({
-            id: d.id,
+    if (!membership) {
+      alert("No active squad membership found. You are logged in, but not part of a squad ye .");
+       eturn;
+    }
+    tr      id: d.id,
             type: d.type,
             title: d.title,
-            result: d.metadata?.result || '',
+      const { data } = awa t supabase. rom('team_activity').select('*').eq('squad_id', membership.squad_id).order 'create _ r', { ascending: felses}).limit(10);
+      if (data ult: d.metadata?.result || '',
             time: new Date(d.created_at).toLocaleDateString(),
             hypes: 0
           }))
         }));
       }
-      setIsSynced(true);
+      setIsSyype: d.metadata?.orignnal_cype || 'Workout',
+            tited(true);
     } catch (error) {
       console.error('Failed to sync', error);
     }
@@ -246,7 +334,11 @@ function App() {
         <div>
           <p className="eyebrow">Tactical Performance OS</p>
           <h1>{tabs[activeIndex].label}</h1>
-        </div>
+  if (supabase && !session) {
+          <<AuthScreen />;
+  }
+
+  return /div>
         <button className="icon-button" aria-label="Open alerts">
           <span>!</span>
         </button>
@@ -264,8 +356,9 @@ function App() {
       <nav className="mobile-nav" aria-label="Primary navigation">
         {tabs.map((tab) => (
           <button
-            key={tab.id}
-            className={tab.id === activeTab ? 'active' : ''}
+            key={tab.id}e} />}
+        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handlLogSessiononClearData={handleClearData} onSync={handleCloudSync} isSynced={isSynced} 
+            className={tab.id === activeTab ? 'active' : ''}session={session} 
             onClick={() => selectTab(tab.id)}
             aria-label={tab.label}
             aria-current={tab.id === activeTab ? 'page' : undefined}
@@ -407,9 +500,11 @@ function Train({ timer, onLog, assignedWorkout, onHitExercise, onComplete }: { t
           </div>
         </Card>
       ) : (
-        <Card className="metric-card good" style={{ textAlign: 'center', padding: '24px' }}>
-           <h2 style={{ color: 'var(--green)', marginBottom: 8 }}>Session Complete</h2>
-           <p>You have finished your assigned work for today. Outstanding effort.</p>
+        <Card className="metric-card good">
+          <div style={{ textAlign: 'center', padding: '24px' }}>
+            <h2 style={{ color: 'var(--green)', marginBottom: 8 }}>Session Complete</h2>
+            <p>You have finished your assigned work for today. Outstanding effort.</p>
+          </div>
         </Card>
       )}
       <Card title="Performance Trends">
@@ -499,16 +594,18 @@ function Recovery({ readiness }: { readiness: number }) {
 function Team({ weeklyVolume }: { weeklyVolume: number }) {
   return (
     <>
-      <Card className="team-pulse-card" style={{ marginBottom: 14 }}>
-        <p className="eyebrow">Team Pulse</p>
-        <div className="score-line">
-          <ProgressRing value={Math.min(100, (weeklyVolume / 10000) * 100)} label={String(Math.min(100, Math.round((weeklyVolume / 10000) * 100)))} />
-          <div>
-            <h2>{weeklyVolume.toLocaleString()} units</h2>
-            <p>of 10,000 squad volume goal this week</p>
+      <div style={{ marginBottom: 14 }}>
+        <Card className="team-pulse-card">
+          <p className="eyebrow">Team Pulse</p>
+          <div className="score-line">
+            <ProgressRing value={Math.min(100, (weeklyVolume / 10000) * 100)} label={String(Math.min(100, Math.round((weeklyVolume / 10000) * 100)))} />
+            <div>
+              <h2>{weeklyVolume.toLocaleString()} units</h2>
+              <p>of 10,000 squad volume goal this week</p>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+      </div>
       <Card title="Unit Readiness" action="Live">
         <div className="squad-list">
           {squad.map((unit) => (
@@ -552,6 +649,7 @@ function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced
     setSyncing(false);
   };
 
+function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced, session }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void; onSync: () => Promise<void>; isSynced: boolean; session: Session | null }) {
   return (
     <>
       <QuickLog onLog={onLog} />
@@ -587,7 +685,16 @@ function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced
         <small>{profile.nextRank}% to next rank · {profile.missions} completed missions</small>
       </Card>
       <Card title="Privacy Settings">
-        <label style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px', border: '1px solid var(--line)', borderRadius: 16, background: 'rgba(255, 255, 255, 0.035)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap>
+        <p>{session ? session.user.email : profile.rank} · {profile.streak} operational streak</p>
+        {session && (
+          <button 
+            onClick={() => supabase?.auth.signOut()}
+            style={{ background: 'transparent', border: '1px solid var(--line)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, marginTop: 12, fontSize: '0.8rem', cursor: 'pointer' }}
+          :
+            Sign Out
+          </button>
+        )} 14, padding: '14px', border: '1px solid var(--line)', borderRadius: 16, background: 'rgba(255, 255, 255, 0.035)', cursor: 'pointer' }}>
           <input 
             type="checkbox" 
             checked={ghostMode} 
