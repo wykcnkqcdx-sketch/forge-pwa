@@ -28,6 +28,8 @@ function estimateQuickLogVolume(kind: string, durationMinutes: number) {
 }
 
 function App() {
+  // NOTE: This file contains a separate web prototype. Any accidental text injection will break TypeScript.
+
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [expanded, setExpanded] = useState('mission');
   const [timer, setTimer] = useState(18 * 60 + 42);
