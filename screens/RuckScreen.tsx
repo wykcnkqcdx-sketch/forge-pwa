@@ -3670,8 +3670,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  crosshairHorizontal: { width: 30, height: 1, backgroundColor: 'rgba(255,255,255,0.82)' },
-  crosshairVertical: { position: 'absolute', width: 1, height: 30, backgroundColor: 'rgba(255,255,255,0.82)' },
+  crosshairHorizontal: { width: 30, height: 1, backgroundColor: colours.textSoft },
+  crosshairVertical: { position: 'absolute', width: 1, height: 30, backgroundColor: colours.textSoft },
   mapAttribution: {
     position: 'absolute',
     right: 8,
@@ -3747,10 +3747,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colours.cyan,
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.44)',
+    borderColor: colours.borderGlass,
   },
   mapCompassValue: { ...typography.label, color: colours.background, marginTop: 1 },
-  mapCompassLabel: { color: 'rgba(7,17,30,0.72)', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  mapCompassLabel: { color: colours.background, fontSize: 8, fontWeight: '900', letterSpacing: 1 },
   mapTelemetry: {
     position: 'absolute',
     left: 10,
