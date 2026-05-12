@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { createClient } from '@supabase/supabase-js';
+import { createClient, Session } from '@supabase/supabase-js';
 import {
   challenges,
   dailyMission,
@@ -29,9 +29,7 @@ function estimateQuickLogVolume(kind: string, durationMinutes: number) {
 }
 
 // Initialize Supabase client for Vite Web
-// @ts-ignore
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
-// @ts-ignore
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl && supabaseKey ? createClient(supabaseUrl, supabaseKey) : null;
 
@@ -146,7 +144,6 @@ function App() {
 
   // Real-time Supabase Subscription
   useEffect(() => {
-    if (!supabase || !isSynced) return;
     if (!supabase || !isSynced || !membership) return;
     const channel = supabase.channel('public:team_activity')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_activity' }, (payload) => {
@@ -173,7 +170,6 @@ function App() {
   }, [isSynced]);
 
   const handleLogSession = (session: { type: string, title: string, volume: number, duration: number, effort: string }) => {
-    const newActivityId = Date.now().toString();
     const newActivityId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString();
     const title = appState.ghostMode ? 'A teammate logged activity' : `You finished ${session.title}`;
     const result = `${session.duration} min · +${session.volume} vol`;
@@ -196,27 +192,7 @@ function App() {
     }));
 
     // Push to Supabase if connected
-    if (supabase && isSynced) {
-      supabase.auth.getUser().then(({ data: { user } }) => {
-        if (!user) return; // RLS will block this if there's no user session anyway
-        
-        // @ts-ignore
-        supabase.from('team_activity').insert({
-          id: newActivityId,
-          // Replace this with the actual UUID of the squad the user belongs to:
-          squad_id: '11111111-1111-4111-8111-111111111111', 
-          
-          // Schema expects 'activity_type' with a strict check constraint:
-          activity_type: 'workout_completed', 
-          title,
-          metadata: { 
-            result,
-            original_type: session.type // Store "Ruck", "Run", etc. safely in metadata
-          }
-        }).catch(console.error);
-      });
     if (supabase && isSynced && membership) {
-      // @ts-ignore
       supabase.from('team_activity').insert({
         id: newActivityId,
         squad_id: membership.squad_id, 
@@ -240,6 +216,13 @@ function App() {
 
   const handleHitExercise = (exerciseId: string) => {
     setAppState(prev => ({
+      ...prev,
+      assignedWorkout: {
+        ...prev.assignedWorkout,
+        exercises: prev.assignedWorkout.exercises.map((ex: any) => 
+          ex.id === exerciseId ? { ...ex, hit: !ex.hit } : ex
+        )
+      }
     }));
     window.navigator.vibrate?.(12);
   };
@@ -283,29 +266,27 @@ function App() {
       alert("Supabase is missing! Create a .env file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
       return;
     }
+    if (!membership) {
+      alert("No active squad membership found. You are logged in, but not part of a squad yet.");
+      return;
+    }
     try {
       // Pull the latest 10 activities to hydrate the feed
-      const { data } = await supabase.from('team_activity').select('*').order('created_at', { ascending: false }).limit(10);
+      const { data } = await supabase.from('team_activity').select('*').eq('squad_id', membership.squad_id).order('created_at', { ascending: false }).limit(10);
       if (data && data.length > 0) {
         setAppState(prev => ({
           ...prev,
           activities: data.map((d: any) => ({
-    if (!membership) {
-      alert("No active squad membership found. You are logged in, but not part of a squad ye .");
-       eturn;
-    }
-    tr      id: d.id,
-            type: d.type,
+            id: d.id,
+            type: d.metadata?.original_type || 'Workout',
             title: d.title,
-      const { data } = awa t supabase. rom('team_activity').select('*').eq('squad_id', membership.squad_id).order 'create _ r', { ascending: felses}).limit(10);
-      if (data ult: d.metadata?.result || '',
+            result: d.metadata?.result || '',
             time: new Date(d.created_at).toLocaleDateString(),
             hypes: 0
           }))
         }));
       }
-      setIsSyype: d.metadata?.orignnal_cype || 'Workout',
-            tited(true);
+      setIsSynced(true);
     } catch (error) {
       console.error('Failed to sync', error);
     }
@@ -327,6 +308,10 @@ function App() {
     window.navigator.vibrate?.(12);
   }
 
+  if (supabase && !session) {
+    return <AuthScreen />;
+  }
+
   return (
     <div className="app-shell">
       <div className="ambient-map" aria-hidden="true" />
@@ -334,11 +319,7 @@ function App() {
         <div>
           <p className="eyebrow">Tactical Performance OS</p>
           <h1>{tabs[activeIndex].label}</h1>
-  if (supabase && !session) {
-          <<AuthScreen />;
-  }
-
-  return /div>
+        </div>
         <button className="icon-button" aria-label="Open alerts">
           <span>!</span>
         </button>
@@ -350,15 +331,14 @@ function App() {
         {activeTab === 'tactical' && <Tactical timer={timer} />}
         {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
         {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
-        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} onClearData={handleClearData} onSync={handleCloudSync} isSynced={isSynced} />}
+        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} onClearData={handleClearData} onSync={handleCloudSync} isSynced={isSynced} session={session} />}
       </main>
 
       <nav className="mobile-nav" aria-label="Primary navigation">
         {tabs.map((tab) => (
           <button
-            key={tab.id}e} />}
-        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handlLogSessiononClearData={handleClearData} onSync={handleCloudSync} isSynced={isSynced} 
-            className={tab.id === activeTab ? 'active' : ''}session={session} 
+            key={tab.id}
+            className={tab.id === activeTab ? 'active' : ''}
             onClick={() => selectTab(tab.id)}
             aria-label={tab.label}
             aria-current={tab.id === activeTab ? 'page' : undefined}
@@ -500,11 +480,9 @@ function Train({ timer, onLog, assignedWorkout, onHitExercise, onComplete }: { t
           </div>
         </Card>
       ) : (
-        <Card className="metric-card good">
-          <div style={{ textAlign: 'center', padding: '24px' }}>
-            <h2 style={{ color: 'var(--green)', marginBottom: 8 }}>Session Complete</h2>
-            <p>You have finished your assigned work for today. Outstanding effort.</p>
-          </div>
+        <Card className="metric-card good" style={{ textAlign: 'center', padding: '24px' }}>
+           <h2 style={{ color: 'var(--green)', marginBottom: 8 }}>Session Complete</h2>
+           <p>You have finished your assigned work for today. Outstanding effort.</p>
         </Card>
       )}
       <Card title="Performance Trends">
@@ -594,18 +572,16 @@ function Recovery({ readiness }: { readiness: number }) {
 function Team({ weeklyVolume }: { weeklyVolume: number }) {
   return (
     <>
-      <div style={{ marginBottom: 14 }}>
-        <Card className="team-pulse-card">
-          <p className="eyebrow">Team Pulse</p>
-          <div className="score-line">
-            <ProgressRing value={Math.min(100, (weeklyVolume / 10000) * 100)} label={String(Math.min(100, Math.round((weeklyVolume / 10000) * 100)))} />
-            <div>
-              <h2>{weeklyVolume.toLocaleString()} units</h2>
-              <p>of 10,000 squad volume goal this week</p>
-            </div>
+      <Card className="team-pulse-card" style={{ marginBottom: 14 }}>
+        <p className="eyebrow">Team Pulse</p>
+        <div className="score-line">
+          <ProgressRing value={Math.min(100, (weeklyVolume / 10000) * 100)} label={String(Math.min(100, Math.round((weeklyVolume / 10000) * 100)))} />
+          <div>
+            <h2>{weeklyVolume.toLocaleString()} units</h2>
+            <p>of 10,000 squad volume goal this week</p>
           </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
       <Card title="Unit Readiness" action="Live">
         <div className="squad-list">
           {squad.map((unit) => (
@@ -641,7 +617,7 @@ function Team({ weeklyVolume }: { weeklyVolume: number }) {
   );
 }
 
-function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void; onSync: () => Promise<void>; isSynced: boolean }) {
+function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced, session }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void; onSync: () => Promise<void>; isSynced: boolean; session: Session | null }) {
   const [syncing, setSyncing] = useState(false);
   const handleSyncClick = async () => {
     setSyncing(true);
@@ -649,7 +625,6 @@ function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced
     setSyncing(false);
   };
 
-function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced, session }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void; onSync: () => Promise<void>; isSynced: boolean; session: Session | null }) {
   return (
     <>
       <QuickLog onLog={onLog} />
@@ -678,23 +653,22 @@ function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced
       <Card className="profile-card">
         <p className="eyebrow">Operator Profile</p>
         <h2>{profile.name}</h2>
-        <p>{profile.rank} · {profile.streak} operational streak</p>
+        <p>{session ? session.user.email : profile.rank} · {profile.streak} operational streak</p>
+        {session && (
+          <button 
+            onClick={() => supabase?.auth.signOut()}
+            style={{ background: 'transparent', border: '1px solid var(--line)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, marginTop: 12, fontSize: '0.8rem', cursor: 'pointer' }}
+          >
+            Sign Out
+          </button>
+        )}
         <div className="rank-track">
           <ProgressBar progress={profile.nextRank} />
         </div>
         <small>{profile.nextRank}% to next rank · {profile.missions} completed missions</small>
       </Card>
       <Card title="Privacy Settings">
-        <label style={{ display: 'flex', alignItems: 'center', gap>
-        <p>{session ? session.user.email : profile.rank} · {profile.streak} operational streak</p>
-        {session && (
-          <button 
-            onClick={() => supabase?.auth.signOut()}
-            style={{ background: 'transparent', border: '1px solid var(--line)', color: 'var(--text)', padding: '6px 12px', borderRadius: 8, marginTop: 12, fontSize: '0.8rem', cursor: 'pointer' }}
-          :
-            Sign Out
-          </button>
-        )} 14, padding: '14px', border: '1px solid var(--line)', borderRadius: 16, background: 'rgba(255, 255, 255, 0.035)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px', border: '1px solid var(--line)', borderRadius: 16, background: 'rgba(255, 255, 255, 0.035)', cursor: 'pointer' }}>
           <input 
             type="checkbox" 
             checked={ghostMode} 
