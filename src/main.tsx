@@ -81,6 +81,86 @@ function App() {
   function selectTab(tab: TabId) {
     setActiveTab(tab);
     window.navigator.vibrate?.(12);
+The first upgrade is now live in the repo. I redesigned the bottom navigation into a cleaner tactical command-bar style with:
+
+* reduced visual clutter
+* larger active-state focus
+* glass-panel military aesthetic
+* better thumb usability
+* more premium spacing and contrast
+
+Updated file:
+[TabBar.tsx](https://github.com/wykcnkqcdx-sketch/forge-pwa/blob/main/components/TabBar.tsx?utm_source=chatgpt.com)
+
+Commit:
+`d657ecb417ae19be585f4aa70ba9d79dd40f2b44`
+
+Next upgrades I recommend implementing directly into the app are:
+
+1. Tactical command dashboard
+   Transform the current Home screen into:
+
+* “Today’s Mission”
+* readiness dial
+* quick-launch actions
+* operational weather block
+* active streak panel
+* recovery warnings
+* live squad pulse
+
+2. Smart adaptive layout
+   Right now there is a lot of information density. The next step is:
+
+* collapsible cards
+* swipeable dashboard modules
+* contextual buttons instead of static tiles
+* floating action system
+
+3. Military-grade visual identity
+   The app already has a strong theme system in:
+   [theme.ts](https://github.com/wykcnkqcdx-sketch/forge-pwa/blob/main/theme.ts?utm_source=chatgpt.com)
+
+I would extend it with:
+
+* thermal-map gradients
+* glass tactical overlays
+* subtle grid textures
+* AMOLED true black mode
+* live readiness colour transitions
+
+4. Features that make it stand out against fitness apps
+   Your advantage is not competing with normal fitness apps. The advantage is:
+
+* operational readiness
+* ruck-specific tracking
+* squad accountability
+* field performance
+* deployment-style planning
+
+The features that would genuinely separate it from apps like Strava or Hevy are:
+
+* fatigue-risk engine
+* mission planner
+* tactical route overlays
+* squad readiness board
+* offline field mode
+* GPS breadcrumb extraction
+* convoy/waypoint navigation
+* ATAK-inspired map overlays
+* “command brief” daily dashboard
+* after-action review system
+
+The repo already has strong foundations for this:
+
+* cloud sync
+* readiness tracking
+* squad architecture
+* route planning
+* secure wipe/PIN
+* PWA support
+* export/import systems
+
+So this is now more about refining experience and identity rather than rebuilding the app.
   }
 
   return (
