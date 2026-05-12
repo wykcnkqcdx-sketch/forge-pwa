@@ -184,7 +184,33 @@ function App() {
         window.history.replaceState({}, '', url.toString());
         
         setInviteToken(null);
-        if (data) setMembership({ id: data.id, squad_id: data.squad_id });
+        if (data) {
+          setMembership({ id: data.id, squad_id: data.squad_id });
+          
+          // Automatically sync the assigned workout
+          const { data: assignments } = await supabase
+            .from('assignments')
+            .select('*, assignment_exercises(*)')
+            .eq('assignee_membership_id', data.id)
+            .eq('status', 'assigned')
+            .order('created_at', { ascending: false })
+            .limit(1);
+            
+          if (assignments && assignments.length > 0) {
+            const assignment = assignments[0];
+            // @ts-ignore
+            setAppState(prev => ({
+              ...prev,
+              assignedWorkout: {
+                title: assignment.title,
+                status: 'assigned',
+                exercises: (assignment.assignment_exercises || [])
+                  .sort((a: any, b: any) => a.order_index - b.order_index)
+                  .map((ex: any) => ({ id: ex.id, name: ex.name, dose: ex.dose, hit: false, coachPick: ex.coach_pinned }))
+              }
+            }));
+          }
+        }
       } catch (err: any) {
         alert('Failed to claim invite: ' + err.message);
         setInviteToken(null);
@@ -322,12 +348,22 @@ function App() {
     }
     try {
       // Pull the latest 10 activities to hydrate the feed
-      const { data } = await supabase.from('team_activity').select('*').eq('squad_id', membership.squad_id).order('created_at', { ascending: false }).limit(10);
-      if (data && data.length > 0) {
-        // @ts-ignore
-        setAppState(prev => ({
-          ...prev,
-          activities: data.map((d: any) => ({
+      const { data: activityData } = await supabase.from('team_activity').select('*').eq('squad_id', membership.squad_id).order('created_at', { ascending: false }).limit(10);
+      
+      // Pull the latest assigned workout
+      const { data: assignments } = await supabase
+        .from('assignments')
+        .select('*, assignment_exercises(*)')
+        .eq('assignee_membership_id', membership.id)
+        .eq('status', 'assigned')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      // @ts-ignore
+      setAppState(prev => ({
+        ...prev,
+        ...(activityData && activityData.length > 0 ? {
+          activities: activityData.map((d: any) => ({
             id: d.id,
             type: d.metadata?.original_type || 'Workout',
             title: d.title,
@@ -335,8 +371,17 @@ function App() {
             time: new Date(d.created_at).toLocaleDateString(),
             hypes: 0
           }))
-        }));
-      }
+        } : {}),
+        ...(assignments && assignments.length > 0 ? {
+          assignedWorkout: {
+            title: assignments[0].title,
+            status: 'assigned',
+            exercises: (assignments[0].assignment_exercises || [])
+              .sort((a: any, b: any) => a.order_index - b.order_index)
+              .map((ex: any) => ({ id: ex.id, name: ex.name, dose: ex.dose, hit: false, coachPick: ex.coach_pinned }))
+          }
+        } : {})
+      }));
       setIsSynced(true);
     } catch (error) {
       console.error('Failed to sync', error);
