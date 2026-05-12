@@ -153,15 +153,20 @@ function App() {
 
   useEffect(() => {
     if (session && supabase) {
-      supabase.from('squad_memberships')
-        .select('id, squad_id')
-        .eq('user_id', session.user.id)
-        .eq('status', 'active')
-        .limit(1)
-        .then(({ data }) => {
+      const fetchMembership = async () => {
+        try {
+          const { data } = await supabase.from('squad_memberships')
+            .select('id, squad_id')
+            .eq('user_id', session.user.id)
+            .eq('status', 'active')
+            .limit(1);
           if (data && data.length > 0) setMembership(data[0]);
           else setMembership(null);
-        });
+        } catch (error) {
+          console.error('Failed to load membership', error);
+        }
+      };
+      fetchMembership();
     } else {
       setMembership(null);
     }
