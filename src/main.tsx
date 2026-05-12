@@ -53,7 +53,7 @@ function App() {
       </header>
 
       <main className="screen" key={activeTab}>
-        {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} />}
+        {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} onNavigate={selectTab} />}
         {activeTab === 'train' && <Train timer={timer} />}
         {activeTab === 'tactical' && <Tactical timer={timer} />}
         {activeTab === 'recovery' && <Recovery />}
@@ -79,14 +79,21 @@ function App() {
   );
 }
 
-function Home({ expanded, setExpanded }: { expanded: string; setExpanded: (id: string) => void }) {
+function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpanded: (id: string) => void; onNavigate: (tab: TabId) => void }) {
   return (
     <>
       <section className="hero-grid">
         <ReadinessCard />
         <MissionCard expanded={expanded === 'mission'} onToggle={() => setExpanded(expanded === 'mission' ? '' : 'mission')} />
       </section>
-      <QuickActions />
+      <QuickActions onAction={(action) => {
+        switch (action) {
+          case 'Start': onNavigate('train'); break;
+          case 'Route': onNavigate('tactical'); break;
+          case 'Recover': onNavigate('recovery'); break;
+          case 'Log': onNavigate('profile'); break;
+        }
+      }} />
       <div className="stats-row">
         <MiniStat label="HRV" value={readiness.hrv} />
         <MiniStat label="Sleep" value={readiness.sleep} />
@@ -307,11 +314,11 @@ function MissionCard({ expanded, onToggle }: { expanded: boolean; onToggle: () =
   );
 }
 
-function QuickActions() {
+function QuickActions({ onAction }: { onAction: (action: string) => void }) {
   return (
     <div className="quick-actions">
       {['Start', 'Log', 'Route', 'Recover'].map((action) => (
-        <button key={action}>{action}</button>
+        <button key={action} onClick={() => onAction(action)}>{action}</button>
       ))}
     </div>
   );

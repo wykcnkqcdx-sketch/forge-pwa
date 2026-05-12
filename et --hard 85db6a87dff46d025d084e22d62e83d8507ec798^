@@ -1,0 +1,394 @@
+[33mf45eae9[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31mupstream/main[m[33m, [m[1;31mupstream/HEAD[m[33m, [m[1;31morigin/main[m[33m)[m `Added resolve and optimizeDeps configurations to vite.config.ts`
+[33mfdf61c8[m `Update App.test.tsx to mock GestureHandlerRootView`
+[33med1fa86[m Merge branch 'main' of https://github.com/wykcnkqcdx-sketch/forge-pwa
+[33m9ad7d27[m `Added GestureHandlerRootView to App component`
+[33ma0912d4[m `Update index.html and manifest.webmanifest files with minor changes`
+[33m6c23748[m `Revert "forceConsistentCasingInFileNames" option and add it again`
+[33mb0803e0[m `Refactor: Replace inline styles with reusable components`
+[33m27e6a91[m `Updated package.json, tsconfig.json, and public files to reflect name change from "FORGE Tactical Fitness" to "Tactical Performance Operating System" and updated dependencies.`
+[33md1ad2cf[m `Clean up TypeScript config and remove unused code`
+[33m85db6a8[m `Refactor PRRecordsCard component to use new PersonalRecord type and remove unused imports`
+[33m709df57[m `Added Squad Leaderboard view and updated ModeSwitch component`
+[33m4bf8c60[m `Added getBestSessions function and PRRecordsCard component`
+[33m78b89e4[m `Added ReadinessTrendCard component to ReadinessScreen`
+[33mb7b6c93[m `Added search functionality to LogbookScreen`
+[33m8dcc3a0[m `Added weekly ruck goal feature with modal input and progress bar`
+[33mf36ccff[m `Added WeeklyLoadChart component to AnalyticsScreen`
+[33m7f31303[m `Added TrainingHeatmap component and rendered it on LogbookScreen`
+[33m2493a6b[m `Added streak and longest streak functionality to HomeScreen`
+[33mc46d19b[m `Added personal records (PR) feature: display PR badges on session cards and show new PRs on AAR and Logbook screens`
+[33m76508f4[m `Update theme colors and styles throughout the application`
+[33m9e01d87[m `Updated SessionCard component with new theme variables and color functions`
+[33m1451dfe[m `Added Last Ruck Card component and related styles`
+[33m003775b[m `Added mock implementations for new screens and Expo modules`
+[33ma9bf4e1[m `Added import of useState and ForgeStamp component, updated useRef and added state variable to AARScreen component`
+[33m41ba3fa[m `Added shareable AAR card with image capture and sharing functionality`
+[33meed57dc[m `Added onSessionSaved prop to RuckScreen and AARScreen`ok
+[33m46ea6f2[m `Update TODO.md: remove completed tasks and add new TypeScript config cleanup tasks`
+[33m9f35b98[m `Added Ruck Ring screen and link to RoutePlannerScreen`
+[33ma7f8a19[m `Refactor SplashScreen component to include animated rings, glow effect, and typewriter text animation`
+[33m7284562[m `Refactor: Rename 'Ruck' tab to 'RoutePlanner' in AppProviders and AppRouter`
+[33mdbe89c9[m `Added Logbook screen and updated Squad screen to include Logbook tab`
+[33mbb909fe[m `Update tsconfig.json files to add "ignoreDeprecations" option`
+[33m63433a5[m `Updated theme imports and styles in various components`
+[33m087662b[m ai
+[33m7878ad6[m `Added rich card data, category display config, and updated FieldGuideScreen component`
+[33m3c19428[m `Refactor HomeScreen and Card components with various UI changes and new functionality`
+[33m2cb9939[m `Update theme.ts with new design system colors and gradients`
+[33mf833e93[m `Added delivery focus feature to InstructorScreen`
+[33m96692bd[m `feat: add delivery health local and pending chips with assignment navigation`
+[33m2d399e5[m `Added Assignment History delivery health summary to InstructorScreen`
+[33ma193d50[m `Update TODO.md with latest verification results`
+[33m46a3edb[m `Added countCloudInvites function and updated related code`
+[33m6ba2f94[m `Refactor cloud invite queue logic and update InstructorScreen`
+[33m8b06c81[m `Update InstructorScreen to display stale invite labels`
+[33m8de58ce[m `Added Resend First Stale action to Invite Health`
+[33m13993de[m `Added Invite Health "Copy First Stale" action and related tests and code`
+[33m02a3f55[m `Added stale-pending queue filter and updated invite health logic`
+[33mbf55f65[m `Added invite health chips to filter cloud invite queue`
+[33m2cba9d8[m `Added invite health summary and updated InstructorScreen`
+[33mb0444b0[m `Update TODO.md with latest verification status`
+[33m8e54549[m `Added clear latest invite link action and test`
+[33m49d40ff[m `feat: persist latest invite link with expiry-aware loading and cleanup`
+[33md304b81[m `Move latest invite recovery row rendering to InstructorScreen`
+[33m8a8d98d[m `Added latest invite link state and functionality to InstructorScreen`
+[33mba3245b[m `Added cloud invite search functionality to InstructorScreen`
+[33m2471c5b[m `Added copy link actions to invite operations and updated InstructorScreen to handle them`
+[33mb76f9d3[m `Refactor invite creation and testing in InstructorScreen`
+[33m2a91c75[m `Update TODO.md and vitest.config.ts with new changes`
+[33m78e8c2a[m `Added cloud invite filtering and incremental expansion to InstructorScreen`
+[33me2701b9[m `Expose Resend action for expired and revoked cloud invite rows`
+[33mb1b0eac[m `feat: add revoke cloud invite feature`
+[33m7a645e6[m `feat: add cloud invite counts and recent invite rows to instructor screen`
+[33m3252c1c[m `Added cloud invites to useCloudSync and related components`
+[33ma884985[m `Added "Mark Manual" option to invite operations and updated InstructorScreen to display it`
+[33m99755e3[m `Added invite operations for pending/manual members and improved instructor screen`
+[33m6efc316[m `Refactor addMember function and createSecureInviteForMember function`
+[33m1528952[m `Added invite lifecycle grouping to InstructorScreen`
+[33me7df896[m `feat: update InstructorScreen to display assignment delivery status and history`
+[33m60b4aee[m `Added actionable "Sync Now" button to Coach roster cards and updated SquadMemberCard to display it`
+[33m327db04[m `feat: add cloud team activity features`
+[33m69b95c1[m `Update TODO.md with completed tasks and new tests`
+[33m2e7b038[m `feat: implement Ghost Mode in cloud team activity display`
+[33m3c9a150[m `feat: reconcile cloud membership targets with local roster members`
+[33m93f8a05[m `feat: hydrate accepted memberships into the member portal from cloud assignments`
+[33m9cd6a7e[m `feat: implement pending invite token handling and onboarding`
+[33m7fb567c[m `Added membershipId to workout completions, updated syncSquadWorkoutCompletion to include membershipId, and updated MemberScreen to display membershipId`
+[33maae3865[m `Update README and TODO files to reflect current state of FORGE project`
+[33m53aff74[m `Refactor InstructorScreen: replace assignment scope and label setting with loadCoachNudge calls`
+[33mcd4a8c6[m `Added coach nudge templates and related functionality`
+[33m79933c1[m `Added logic to infer assignment type, display priority label and steps, and adjust workout volume and duration based on assignment type`
+[33m2968972[m `Added review member selection and detail panel to instructor screen`
+[33mf013f96[m `Refactor membersNeedingReview logic and UI`
+[33mc9a3bec[m `Added deployment key selection and detail panel to InstructorScreen`
+[33m5304e10[m `Added effort counts and latest feedback to assignment deployments`
+[33m2e1058a[m `Added syncAssignmentDeploymentActivity and fetchCloudAssignmentDeployments to squadCloud library`
+[33mdfc729e[m `Added AssignmentDeployment type and related code changes`
+[33m12db0c4[m `Added assignment history feature to InstructorScreen`
+[33m8b31135[m `Added assignment scope selection and updated assignment logic`
+[33m383b833[m `Added assignment target state display and logic`
+[33mdd0ea6c[m `Added cloud-enabled member lifecycle tracking and display`
+[33mfc9ac55[m `Added cloudMembershipId to SquadMember type and updated related code to handle it`
+[33m5347f52[m `feat: update AppProviders and useCloudSync to handle claimed invite tokens and refresh cloud member assignments`
+[33ma2af08c[m `Added cloud team pulse feature and updated related components`
+[33m97b57c3[m `feat: add squad cloud sync functionality`
+[33m3199bb8[m `Added cloudSquadId prop to AppRouter and related components, and implemented ensureDefaultCloudSquad function in lib/squadCloud.ts`
+[33m40eb4bf[m `Added invite token handling and secure invite URL generation`
+[33mecd50e6[m `Added production squad foundation tables and row level security policies`
+[33m7131f4e[m `Added team pulse and member review features to InstructorScreen and MemberScreen`
+[33m023bffe[m `Added Ruck Score breakdown and display in Ruck Performance Panel, Ruck Review Card, and Ruck Screen`
+[33m79fd650[m `Updated AppProviders, AppRouter, AppRouter.test, screens/HomeScreen, screens/InstructorScreen, and types/app to reflect changes in tab navigation and screen routing`
+[33m8b674a3[m `Refactor RuckSessionSetupCard to include load zone and route parameters`
+[33m54e42db[m `Removed RuckScoreCard and RuckPandolfCard components from RuckScreen`
+[33m1fdb8cb[m `Added team comms feature with messaging and sending functionality`
+[33m52c2ff0[m `Added RuckOpsPanel component and updated state and logic to support it`
+[33mc42a879[m `Refactor RuckMetricSummary and RuckScreen components`
+[33m98c6853[m RUCK
+[33mc0216db[m `Refactor Card component and RuckScreen component`
+[33m72888d6[m `Refactor RuckScreen to use a tabbed interface`
+[33m789d7df[m `Refactor RuckTrackingControls and RuckScreen to update UI and styles`
+[33m135a7c9[m `Refactor map controls in RuckScreen: simplify and reorder buttons`
+[33m16e38bd[m `Refactor RuckScreen and related components to remove Card component and simplify styles`
+[33m8adffb1[m `Refactor RuckScreen: Extract map header and live stats into separate components`
+[33mcab0976[m `Refactor RuckScreen.tsx to use RuckTacticalOptionsDrawer component`
+[33m4f7c3af[m `Replace manual mission mode selector with RuckMissionModeSelector component`
+[33m9e632ba[m `Removed RuckFieldMarkTypePicker and RuckSelectedCheckpointPanel components, replaced with RuckFieldMarksCard component`
+[33me05be82[m `Refactor RuckScreen to use RuckSelectedCheckpointPanel component`
+[33meefc568[m `Refactor: Replace custom mark type grid with RuckFieldMarkTypePicker component`
+[33m75824ea[m `Refactored checkpoint mode UI to use RuckCheckpointModeCard component`
+[33m5202fc0[m `Refactor RuckScreen.tsx to use RuckMissionPaceCard component`
+[33m5023e98[m `Removed MetricCard components and replaced with RuckMetricSummary component`
+[33m5a52585[m `Refactor session setup controls to use RuckSessionSetupCard component`
+[33mebff313[m `Refactor Navigation Guide section to use RuckNavigationGuideCard component`
+[33meca773e[m `Refactor: Replace hardcoded score card with RuckScoreCard component`
+[33m3ebd1ac[m `Refactor: Replace Enhanced Pandolf Load Model Card with RuckPandolfCard`
+[33md5004e8[m `Refactor Route Readiness section to use RuckReadinessCard component`
+[33m3eb8641[m `Added RuckSplitsCard component and removed 1km splits display`
+[33m47ae64b[m `Refactor tracking controls to use RuckTrackingControls component`
+[33m9acc644[m `Refactor RuckScreen: replace inline review card with RuckReviewCard component`
+[33m98fac53[m `Removed Ruck History Card and replaced with RuckHistoryCard component`
+[33m44b5cd6[m `Removed AI Mission Brief feature and replaced with RuckMissionBriefCard component`
+[33m76adb91[m `Removed unused import and code, added import of LiveTimerText component`
+[33m50d935b[m `Removed unused functions and imports from RuckScreen.tsx`
+[33m035c66f[m `Added expandable programme sections and updated programme result display`
+[33m135a632[m `Added mission mode selection and tactical options to RuckScreen`
+[33m0fa52da[m `Updated imports and usage of date utility functions`
+[33m3d5229f[m `Update import and usage of date utility functions`
+[33m055799d[m `Refactor date handling in AnalyticsScreen and MemberScreen`
+[33mdb46906[m `Added date utility functions and updated MemberScreen to use them`
+[33m24d3f84[m `Added leaderboard, analytics, and actionable insights to MemberScreen`
+[33m97349e1[m `Added date navigation and filtering to AnalyticsScreen and MemberScreen`
+[33mcbc0a29[m `Refactor FuelScreen to use latest readiness log on selected date instead of latest overall log`
+[33m0473ae3[m `Added refresh button to hydration logged value on FuelScreen`
+[33mc57e35d[m `Added hydration logging by date and date navigation to FuelScreen`
+[33m580ed7b[m `Added swipeable delete functionality to meal rows`
+[33mf766637[m `Added loading indicator to AuthScreen and implemented pie chart for macro distribution in FuelScreen`
+[33m292fe73[m `Added ActivityIndicator to meal save button and improved meal input layout`
+[33m5324ff7[m `Refactor AuthScreen and OnboardingScreen components to use new theme and responsive utility functions`
+[33m5735f88[m `Refactor code to match updated design tokens and responsive styling`
+[33mc9057af[m `Refactor TrainScreen component with responsive design and typography`
+[33madb3847[m `Added new functionality to TrainingCalendar and AnalyticsScreen to display day-specific details and allow adding new sessions on a specific day`
+[33m0b340da[m `Refactor components and add new features: ProgrammeBuilder, ReadinessModal, SessionCard, FuelScreen`
+[33me642b8e[m `Added new features and styles to various components`
+[33mbf794e2[m `Refactor TrainingCalendar component to display week load and session count`
+[33mdf92a68[m `Added injury protocol display to AnalyticsScreen`
+[33m01b0d27[m AS
+[33med642b5[m `Removed "ignoreDeprecations" option from tsconfig.json`
+[33mdcadf99[m `Refactor FuelScreen and ProgrammeBuilder components to update calorie and load calculations`
+[33m8c12af9[m `Refactor RuckScreen layout and styles`
+[33m40d7be3[m `Refactor FuelScreen to use Katch-McArdle BMR and TRIMP-based calorie calculations`
+[33m8b0b3be[m `Refactor FuelScreen and RuckScreen: Update calculations and styles`
+[33m4046625[m `Update tsconfig.json to include "ignoreDeprecations" option`
+[33m8d08962[m `Updated SessionCard and AnalyticsScreen components with various styling changes`
+[33m09ae535[m `Added status colors to TrainingCalendar component`
+[33m11e5a95[m `Added PieChart component for training distribution and insight panel with readiness information`
+[33m568055c[m `Added pie chart for training distribution and insight panel with compliance and performance feedback`
+[33m6e9a67b[m `Updated RuckScreen layout and content`
+[33m91d44bb[m `Added ops tab functionality to RuckScreen`
+[33m5bdd933[m `Added 'ops' option to Atak tab state and updated related code`
+[33m3063c66[m `Removed unused code and functions from RuckScreen.tsx`
+[33m9bac601[m `Added shared field objects to team presence and updated RuckScreen to handle sharing and displaying shared objects`
+[33maff2322[m `Added emergency beacon feature to RuckScreen`
+[33m4c4074c[m `Added navigation target functionality and UI elements`
+[33m172a51d[m `Added fflate library and related functionality for importing KMZ files and measuring distances/areas on the map`
+[33m26e9eee[m `Added support for importing KML files and displaying their contents as map overlays`
+[33mca635fb[m `Added GeoJSON import and overlay management features`
+[33mdd45b84[m `Added field mark types and related functionality to RuckScreen`
+[33m112ee63[m `Added AI-powered mission brief feature and active programme management`
+[33ma7c6cad[m `Added team presence and GPX import features to RuckScreen`
+[33mf7c7e7e[m `Added expo-document-picker and expo-file-system dependencies and implemented GPX import functionality`
+[33m9cc969e[m `Added ATAK fullscreen UI and telemetry HUD`
+[33m8242619[m `Added meal tracking and injury logging features`
+[33m104b120[m Fix RuckScreen map gestures and float zoom tile URLs
+[33md0781b6[m Add store submission config, assets, and privacy policy
+[33mfc27575[m Add Supabase browser client and protect env files
+[33m0a65dee[m Add @supabase/supabase-js and @supabase/ssr packages
+[33m9233824[m Add AI Programme Builder, Claude coaching, and Supabase setup
+[33m52cb41f[m Update Expo SDK 55 packages to latest compatible versions
+[33m4352842[m Fix TypeScript errors and remove dead code
+[33m53df664[m Remove duplicate BodyMap and domain files
+[33mc105cb8[m `Added session type icon for 'Run' and updated session metadata display`
+[33m04dba45[m Merge pull request #3 from wigee2023/main
+[33m5d0915f[m Merge remote-tracking branch 'upstream/main'
+[33mf2b91ef[m `Updated various components and styles to remove hardcoded color values and use theme variables instead`
+[33me75a3af[m `Updated styles and mocks for MemberScreen and AppRouter tests`
+[33m96d7b73[m `Updated Jest and Vitest configurations to use `vi` instead of `jest` for mocking and spying`
+[33m37ea476[m `Refactor theme imports and add responsive spacing utilities`
+[33m8da65f5[m `Refactor styles to use statusColors utility`
+[33mdc13b3a[m `Removed unused import and updated styles to use new theme variables`
+[33m5cce712[m `Updated AnalyticsScreen.tsx with new theme imports and responsive styling`
+[33md0ce3e7[m `Added responsive spacing and typography utilities to HomeScreen component`
+[33m0bb177c[m `Added haptic feedback to tab switching and navigation`
+[33m08f3cda[m `Refactored AnalyticsScreen and SessionCard components to use new SessionEditModal and ReadinessModal components`
+[33m5dc49e5[m `Updated AnalyticsScreen and InstructorScreen to use FlatList instead of ScrollView`
+[33m6342430[m `Refactor dialogs to use new `showAlert` and `showConfirm` functions`
+[33m402ed30[m `Added support for file sharing and import/export of FORGE backup data`
+[33m28391aa[m `Added confirmClearOfflineMap function and Clear button to RuckScreen`
+[33mdfb5617[m `Added offline map download feature and updated map rendering to use Expo Image`
+[33md174d97[m `Added cachePolicy="disk" to Image component in RuckScreen`
+[33mc364a38[m `Added background tasks registration and refactored location handling`
+[33mb0508ea[m `Update h2f.ts and RuckScreen.tsx with minor changes`
+[33mec88ac8[m `Refactor read-many-files.ts to use concurrency limit and promise queueing`
+[33m056a7f5[m `Refactor read-many-files.ts to process files in batches`
+[33m606e55c[m `Refactor usePhraseCycler and GitService to use execFile instead of exec`
+[33m78efe2f[m `Removed unused imports and code, simplified App component`
+[33m9eb1351[m `Added map rotation and north-up mode`
+[33me2ad153[m `Refactor map zoom gestures and add zoom animation`
+[33mfa767f1[m `Added double tap gesture to zoom map to 15`
+[33m7c55c93[m `Added react-native-gesture-handler and updated code to use it`
+[33mb749410[m `Added map zoom level state and controls`
+[33m5abbd5e[m `Remove haptic feedback on web platform`
+[33m2ae5bb6[m `Re-enabled expo-haptics import`
+[33m0cfbba8[m `Refactor map center handling in RuckScreen`
+[33mdf7f577[m `Refactor tracking reducer and add LiveTimerText component`
+[33m2e0bcb6[m `Update Ionicons name from "location-off" to "locate-outline" in RuckScreen`
+[33m8c1f239[m fix(ruck): enable always-on map panning with GPS follow toggle
+[33m27ac666[m `Updated RuckScreen.tsx to enable pan responder always, added isPanning state, and updated UI to reflect GPS follow mode`
+[33m8f520b2[m `Added Ruck History feature to RuckScreen and HomeScreen`
+[33md0db92c[m `Added Ruck Review feature with session review and note input`
+[33med3cb39[m `Refactor OnboardingScreen to accept onComplete callback and add demo button`
+[33m29232cc[m `Update import statements and styles for web and mobile platforms`
+[33m658a15d[m `Added map selection and recentering functionality`
+[33meead84f[m `Update styles to use flexWrap: 'wrap' instead of gap for layout adjustments`
+[33md3ad515[m `Updated styles in AnalyticsScreen component`
+[33mcf61836[m `Fixed typo in AnalyticsScreen: 'Compliant —' to 'Compliant -'`
+[33m8f8a96c[m `Update import and useWindowDimensions usage in AnalyticsScreen`
+[33m1b93bff[m `Added flexWrap: 'wrap' to various styles in FuelScreen.tsx and ReadinessScreen.tsx`
+[33m19b0adb[m `Added minWidth property to MetricCard styles`
+[33mafdb945[m `Added GPS tracking status display and resume tracking button`
+[33me08f3f0[m `Added tracking status panel and resume button to RuckScreen`
+[33me853fdd[m `Added new actions and reducer cases for resuming tracking`
+[33m054b735[m `Added setMapFullscreen(true) and setMapFullscreen(false) calls in start and stop tracking logic`
+[33madee474[m `Updated RuckScreen to request background location permission and start location updates in the background`
+[33m413fcf3[m `Refactor UI components and styles`
+[33m4ce3bfa[m `Added fullscreen map mode and related UI components`
+[33m22fd47f[m `Updated HomeScreen and OnboardingScreen with minor styling changes`
+[33mc017f9f[m `Added error handling to useCloudSync`
+[33m8ac2d8b[m `Removed unused if statement and added alternative condition`
+[33m99b0755[m `Refactor App.tsx to add OnboardingScreen and SettingsScreen, update Tab type, and add hasSeenOnboarding flag to useLocalStore`
+[33m6cd803c[m `Added optional override to startTracking function to bypass readiness checks`
+[33m4b16a05[m `Added route readiness checks and display on RuckScreen`
+[33mf31acaa[m `Added custom ruck templates feature`
+[33mf218275[m `Update RuckScreen and AnalyticsScreen to handle null coordinates in RuckCheckpoint`
+[33m01f1dc2[m `Added Ruck template selection feature`
+[33m339fcac[m `Added copy and share functionality for Ruck AAR and updated AnalyticsScreen`
+[33m078aae8[m `Refactor AnalyticsScreen to display ruck mission details in a collapsible format`
+[33m76d8cb9[m `Added finish mode and metrics to RuckScreen`
+[33mdaa1a8f[m `Added bearing guidance and panel to RuckScreen`
+[33m05b3a71[m `Added checkpoint arrival radius and updated UI to reflect arrival status`
+[33mcc4290a[m `Added checkpoint status, label, and bulk import functionality to RuckScreen`
+[33m08474a6[m `Added RuckMissionPlan and related types, updated ruckRouteStore to store and load active RuckMissionPlan, and updated RuckScreen to display and interact with RuckMissionPlan`
+[33m48566ab[m `Added undo functionality for checkpoint marks and checkpoint list`
+[33m437baf9[m `Added checkpoint planning feature with coordinate input and parsing`
+[33m4708ff8[m `Added mission pace and checkpoint features to RuckScreen`
+[33mfcc15e7[m `Updated secureStorage.test.ts to expect '2' instead of '3' in secureGetItem('y') test`
+[33m2bfb726[m `Updated RuckScreen to show expanded map based on active GPS session instead of tracking mode`
+[33m7ad2e39[m `Added map expansion feature and telemetry display`
+[33m9347020[m `Refactor lib/cloud.ts and update dependencies`
+[33mdafe42d[m `Update package-lock.json and package.json to include new dependencies for testing`
+[33m64336e7[m `Refactor secure storage and Supabase schema validation using zod`
+[33m23bdc19[m `Refactor App component to remove unused imports and functions, simplify state management, and update hooks and styles`
+[33mc07497f[m `Refactor: Remove unused imports, add safe JSON parsing and error handling`
+[33mc2992fa[m `feat: Add workout completions and assigned workout display to HomeScreen`
+[33m7ce5648[m `Refactor App component to use HomeScreen instead of MemberScreen`
+[33m3afe1b2[m `Refactor HomeScreen to use daily decision logic and remove nextActionForReadiness function`
+[33mccaee39[m `Refactor HomeScreen to handle readiness log and stale check-in`
+[33m5b02a3d[m `Update GitHub Actions workflow to use latest versions of actions`
+[33m90a484f[m `Added readiness logs and stale check-in indicators to various screens`
+[33meb03dc4[m `Refactor HomeScreen component with useMemo and accessibility improvements`
+[33mbc50f0c[m `Added FuelLog type definition`
+[33m5fe8d65[m `Added readiness tab and functionality`
+[33mc7d5ab2[m `Added 7-day activity strip, warning banners, and recommended session card to HomeScreen`
+[33m2ff3aad[m `Added fuel domain and readiness logs to HomeScreen`
+[33mbbe4f36[m `Refactor HomeScreen and AnalyticsScreen to remove unused code and simplify functionality`
+[33maefd808[m `Added next action guidance and command tiles to HomeScreen`
+[33m055ffb9[m `Added map layer selector and attribution, updated map rendering`
+[33ma0d9dcc[m `Added coordinate format selection and formatting to RuckScreen`
+[33md572397[m `Remove AsyncStorage usage and replace with ruckRouteStore functions`
+[33m807a4cd[m `Updated package-lock.json and package.json with new dependencies and versions`
+[33m10d712a[m `Added GPS quality indicators and route point filtering`
+[33ma7b1e4f[m `Added updatedAt timestamp to database tables and updated code to handle it`
+[33m8b5c563[m `Added offline queue management and pending sync count tracking`
+[33m5fdbe6b[m `Refactor RuckScreen to use useReducer for tracking state`
+[33m8eb562b[m `Added decimation of route points for map rendering and updated SVG map rendering`
+[33m2cb5036[m `Added offline sync handling and toast notifications`
+[33m521e2f6[m `Added route point compression and simplification logic`
+[33m4a46efe[m NPM UPDATE
+[33m2b7cbc6[m `Added offline queue processing and cloud mutation handling`
+[33m55eac26[m `Refactor: Update AsyncStorage removal, add new cloud functions, and refactor pan responder`
+[33m02b0647[m `Added lastPointRef to track last recorded location and updated distance calculation`
+[33m5ca2f07[m `feat: add body weight state and load from AsyncStorage`
+[33m06e79a5[m `Update TrainingSession terrain options and add calibration factor for RuckScreen`
+[33m5ca3f3a[m `Added readiness logs feature and related code`
+[33m4572548[m `Added new metrics and charts to dashboard sheet`
+[33m01739df[m `Added Google Sheets export status indicators and disabled button during export`
+[33m82eea68[m `Update Google Sheets export functionality to handle different response types`
+[33ma3382f9[m `Update README.md with changes to Google Apps Script deployment instructions`
+[33m784b03f[m `Added spreadsheet ID extraction and validation`
+[33mb4b2b27[m `Added initializeWorkbook_ function and writeMetaStatusOnly_ function`
+[33m2732c78[m `Added dashboard tabs and charts to Google Apps Script receiver`
+[33m84978d5[m `Added Google Apps Script receiver template`
+[33m31e07a3[m `Added Google Sheets export feature to FORGE app`
+[33m11b1640[m `Added evidence pack metadata to programme recommendations and instructor screen`
+[33m9da7326[m `Added programme templates to mock data and updated App, InstructorScreen, and data/mockData to handle programme templates`
+[33mf0c6c0c[m `Added AI-assisted programme planning feature to InstructorScreen`
+[33m3ce5228[m `Refactor: Extract exercise block building logic into separate function`
+[33m9c4c301[m `Added exercise prescription and tracking features to InstructorScreen and MemberScreen`
+[33m0408899[m `Update AssignedExerciseBlock type with new properties`
+[33m6766f92[m `Added assignment session data to squad members and updated related code`
+[33me06e484[m `Added Apple Health integration to HomeScreen and InstructorScreen`
+[33mf75ab19[m `Added readiness logs feature to the app, including data model, API endpoints, and UI components`
+[33m419e5d3[m `Added coach notes feature and updated member cards with latest completion information`
+[33med54064[m `Added completed duration input field and validation`
+[33mb0c79c0[m `feat: add quick log feature and related changes`
+[33m7577427[m `Added cloud sync functionality and UI elements`
+[33m902b691[m `Added WorkoutCompletion type and updated App component to include workout completions`
+[33macb9566[m `Added pending member invite state and logic to App.tsx and InstructorScreen.tsx`
+[33m8fcc90e[m `Added extensive documentation for FORGE Tactical Fitness project`
+[33m3c46ecc[m `Added optional `pattern` field to Exercise type, updated exercise library, and modified related code to accommodate the change`
+[33m2e1c505[m `Added new properties to SquadMember and Exercise types, and updated teamMessages and TrainingMode types`
+[33m42c880a[m `Added target minutes selection and feedback to TrainScreen`
+[33m8f16b0b[m `Added gym name, ghost mode, streak days, weekly volume, last workout title, last workout at, last workout note, and hype count to squad member data`
+[33mb78f227[m `Added functionality to show blocking messages and improved OPSEC WIPE functionality`
+[33ma2728ac[m `Added MemberScreen and related functionality`
+[33m2872cac[m `Added styles for assignment feedback and summary`
+[33m6aa6fcd[m `Added invite subject and body variables and updated email invitation logic`
+[33m6021b77[m `Added delete member confirmation on web platform`
+[33ma7f2783[m `Added support for training groups and updated related code`
+[33m9434f5d[m `Refactor local storage to use secure storage with encryption`
+[33me879cde[m `Updated theme colors and constants`
+[33me270e53[m `Moved TrainingSession type to domain module and updated imports`
+[33m065d46d[m `Removed unused code and updated import statement`
+[33m75518ea[m `Added readiness data to squad members and updated InstructorScreen to display it`
+[33md416f64[m `Added readiness logs feature to AnalyticsScreen and App components`
+[33m768760c[m `Added factor grid to InstructorScreen`
+[33m0bc94fe[m `Refactor AnalyticsScreen to display score trends and readiness factors`
+[33m8ae09c9[m `feat: Add weather, terrain, and foot care checklist to RuckScreen`
+[33m5654282[m `Added toggle between training and assessment views`
+[33m3dc26a6[m `Added onboarding feature and related state management`
+[33ma6fcb4e[m `feat: add type checking, linting, and testing to CI/CD pipeline, and implement secure storage for app data`
+[33m7aec20e[m Remove .claude from git tracking and add to gitignore
+[33ma2ec443[m Fix: remove nested .git folders from cli and forge-pwa directories
+[33m60c7d1e[m `Updated TODO.md with new tasks and completion status`
+[33m912b51c[m `Update sessionDate function to use numeric ID as fallback date when completedAt is missing`
+[33m2b469e3[m `feat: add completedAt field to training_sessions table and update related code`
+[33m0d872b0[m `feat: add completedAt field to TrainingSession and update AI guidance logic`
+[33mf534413[m `Fixed meta tag attribute name from "httpEquiv" to "http-equiv"`
+[33m8f86519[m Fix styling shadow alias conflict
+[33mec8375e[m Fix typecheck issues for cloud rollout
+[33mc6120d7[m Fix home screen modal JSX
+[33m8bf24d1[m Add cloud auth, AI guidance, and coach assignments
+[33md96dbb7[m `Update import and usage of theme variables in styling.ts`
+[33me167ecd[m `Refactor components to use new theme and styling utilities`
+[33m2d7821e[m `Removed unused import statement`
+[33mbc2c1a6[m `Updated types and mock data to remove Ionicons import and add TrainingModeIcon type`
+[33mb43367b[m `Added new dependencies and updated existing ones in package-lock.json`
+[33m9b38fe5[m `feat: add background location support and platform-specific notes`
+[33m89aa535[m `Update code to use type annotations for TrackPoint and number`
+[33m6eb0445[m `Added unlock level to training modes, updated analytics screen to display weekly load chart, and added unlock alert for elite training block in train screen`
+[33m6e21313[m `Updated AnalyticsScreen styles to use dynamic badge colors based on current level`
+[33m858a807[m `Added map points calculation and display, operator level tracking, and filtering to AnalyticsScreen and other screens`
+[33me10d1c4[m `Added edit functionality to AnalyticsScreen and updated RuckScreen to include route points in session data`
+[33mc2c5b60[m `Added delete and edit functionality for training sessions`
+[33m351b2a9[m `Refactor code to use useMemo hook for memoization`
+[33m4f3bca5[m `Added AI Insights Card to HomeScreen and updated InstructorScreen to display Assign button with alert`
+[33m8dca58f[m Add mountain navigation and email invites
+[33mfbc186d[m Add body metrics and training guidance
+[33mee1f8e7[m Add fuel recovery and team chat hub
+[33m0dd075a[m Add selectable exercise library and member entry
+[33mb2cda57[m Expand training modes and team operations
+[33m6655df7[m Add real PIN setup and data backup controls
+[33md8717f8[m Add installable PWA shell and live GPS map
+[33mff43946[m Publish web app for GitHub Pages
+[33mc0a002d[m Deploy Expo web app to GitHub Pages
+[33mb780e89[m Enhance Analytics and Home screens with improved session metrics and risk monitoring
+[33me09b579[m main errors
+[33mc641050[m `Added instructor screen with pin and wipe buttons and updated RuckScreen to calculate distance between two GPS coordinates`
+[33mef46e54[m Save local changes
+[33m258197b[m style
+[33m6ca22c6[m done
+[33m2db656c[m updated
+[33mfb0ac29[m Redesign UI with military glassmorphism design system
+[33m057c91c[m fix
+[33m1681db5[m Remove ProfileScreen example from README
+[33m77fdd32[m Add files via upload
