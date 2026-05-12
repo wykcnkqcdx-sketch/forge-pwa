@@ -15,11 +15,7 @@ import {
   trainingBlocks,
   trendMetrics,
 } from './data';
-// Web-only stylesheet (Expo/RN cannot import .css)
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-if (typeof document !== 'undefined') {
-  require('./styles.css');
-}
+import './styles.css';
 
 const quickLogKinds = ['Run', 'Ruck', 'Cardio', 'Strength', 'Workout', 'Mobility'];
 const efforts = ['Too Easy', 'About Right', 'Too Hard'];
@@ -32,20 +28,32 @@ function estimateQuickLogVolume(kind: string, durationMinutes: number) {
 }
 
 function App() {
-  // NOTE: This file contains a separate web prototype. Any accidental text injection will break TypeScript.
-
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [expanded, setExpanded] = useState('mission');
   const [timer, setTimer] = useState(18 * 60 + 42);
   const activeIndex = tabs.findIndex((tab) => tab.id === activeTab);
 
   // Centralized Application State (Simulating temp.tsx logic)
-  const [appState, setAppState] = useState({
-    readiness: readiness.score || 82,
-    weeklyVolume: 8200,
-    ghostMode: false,
-    activities: recentActivity.map((a, i) => ({ ...a, id: String(i), hypes: 0 }))
+  const [appState, setAppState] = useState(() => {
+    const savedState = localStorage.getItem('forge:appState');
+    if (savedState) {
+      try {
+        return JSON.parse(savedState);
+      } catch (e) {
+        console.error('Failed to load saved state', e);
+      }
+    }
+    return {
+      readiness: readiness.score || 82,
+      weeklyVolume: 8200,
+      ghostMode: false,
+      activities: recentActivity.map((a, i) => ({ ...a, id: String(i), hypes: 0 }))
+    };
   });
+
+  useEffect(() => {
+    localStorage.setItem('forge:appState', JSON.stringify(appState));
+  }, [appState]);
 
   const handleLogSession = (session: { type: string, title: string, volume: number, duration: number, effort: string }) => {
     setAppState(prev => ({
@@ -87,7 +95,6 @@ function App() {
   function selectTab(tab: TabId) {
     setActiveTab(tab);
     window.navigator.vibrate?.(12);
-
   }
 
   return (
@@ -107,8 +114,6 @@ function App() {
         {activeTab === 'home' && <Home expanded={expanded} setExpanded={setExpanded} onNavigate={selectTab} appState={appState} onHype={handleHype} />}
         {activeTab === 'train' && <Train timer={timer} onLog={handleLogSession} />}
         {activeTab === 'tactical' && <Tactical timer={timer} />}
-
-
         {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
         {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
         {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState(p => ({...p, ghostMode: val}))} onLog={handleLogSession} />}
@@ -480,17 +485,15 @@ function Card({
   title,
   action,
   className = '',
-  style,
   children,
 }: {
   title?: string;
   action?: string;
   className?: string;
-  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
   return (
-    <section className={`card ${className}`} style={style}>
+    <section className={`card ${className}`}>
       {title && (
         <header className="card-header">
           <h2>{title}</h2>
@@ -501,7 +504,6 @@ function Card({
     </section>
   );
 }
-
 
 function MetricGrid({ metrics }: { metrics: Array<{ label: string; value: string; detail: string; tone?: string }> }) {
   return (
