@@ -318,7 +318,11 @@ function QuickActions({ onAction }: { onAction: (action: string) => void }) {
   return (
     <div className="quick-actions">
       {['Start', 'Log', 'Route', 'Recover'].map((action) => (
-        <button key={action} onClick={() => onAction(action)}>{action}</button>
+        <button key={action} onClick={() => {
+          // Triggers a custom double-tap (15ms on, 30ms off, 15ms on)
+          window.navigator.vibrate?.([15, 30, 15]);
+          onAction(action);
+        }}>{action}</button>
       ))}
     </div>
   );
