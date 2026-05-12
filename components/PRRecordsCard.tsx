@@ -1,107 +1,88 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { colours, radius } from '../theme';
-import { getBestSessions, PR_META, type PRType } from '../lib/personalRecords';
-import type { TrainingSession } from '../data/domain';
+import React from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import { Card } from './Card';
+import { colours, typography } from '../theme';
+import { responsiveSpacing } from '../utils/styling';
+import type { PersonalRecord } from '../data/domain';
 
-const PR_ORDER: PRType[] = [
-  'bestRuckDistance',
-  'bestRuckLoad',
-  'bestRuckScore',
-  'bestRuckPace',
-  'bestSessionScore',
-  'longestSession',
-];
+type Props = {
+  records?: PersonalRecord[];
+};
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
-}
-
-export function PRRecordsCard({ sessions }: { sessions: TrainingSession[] }) {
-  const records = useMemo(() => getBestSessions(sessions), [sessions]);
-  const entries = PR_ORDER.map(type => ({ type, record: records[type] })).filter(e => e.record != null);
-
-  if (entries.length === 0) return null;
+export function PRRecordsCard({ records }: Props) {
+  if (!records || records.length === 0) return null;
 
   return (
-    <View style={st.root}>
-      <Text style={st.title}>PERSONAL RECORDS</Text>
-      <View style={st.grid}>
-        {entries.map(({ type, record }) => {
-          const meta = PR_META[type];
+    <Card>
+      <Text style={styles.cardTitle}>Personal Records</Text>
+      <View style={styles.list}>
+        {records.map((pr) => {
+          const dateStr = new Date(pr.dateAchieved).toLocaleDateString(undefined, {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric'
+          });
           return (
-            <View key={type} style={st.cell}>
-              <View style={st.iconWrap}>
-                <Ionicons name={meta.icon as any} size={14} color={colours.cyan} />
+            <View key={pr.id} style={styles.prRow}>
+              <View style={styles.prLeft}>
+                <Text style={styles.exerciseName}>{pr.exerciseName}</Text>
+                <Text style={styles.dateAchieved}>{dateStr}</Text>
               </View>
-              <Text style={st.value}>{record!.formattedValue}</Text>
-              <Text style={st.label}>{meta.label.toUpperCase()}</Text>
-              <Text style={st.sessionTitle} numberOfLines={1}>{record!.session.title}</Text>
-              <Text style={st.date}>{formatDate(record!.session.completedAt)}</Text>
+              <View style={styles.prRight}>
+                <Text style={styles.prValue}>
+                  {pr.value} <Text style={styles.prUnit}>{pr.unit}</Text>
+                </Text>
+              </View>
             </View>
           );
         })}
       </View>
-    </View>
+    </Card>
   );
 }
 
-const st = StyleSheet.create({
-  root: { gap: 10 },
-  title: {
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.6,
-    color: colours.muted,
+const styles = StyleSheet.create({
+  cardTitle: {
+    ...typography.h4,
+    color: colours.text,
+    marginBottom: responsiveSpacing('md'),
   },
-  grid: {
+  list: {
+    gap: responsiveSpacing('sm'),
+  },
+  prRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  cell: {
-    width: '47%',
-    backgroundColor: colours.surface,
-    borderWidth: 1,
-    borderColor: colours.border,
-    borderRadius: radius.sm,
-    padding: 10,
-    gap: 3,
-  },
-  iconWrap: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: `${colours.cyan}20`,
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 2,
+    justifyContent: 'space-between',
+    paddingVertical: responsiveSpacing('sm'),
+    borderBottomWidth: 1,
+    borderColor: colours.borderSoft,
   },
-  value: {
+  prLeft: {
+    flex: 1,
+  },
+  exerciseName: {
+    color: colours.cyan,
+    fontSize: 15,
+    fontWeight: '900',
+  },
+  dateAchieved: {
+    ...typography.caption,
+    color: colours.textSoft,
+    marginTop: 2,
+    fontWeight: '800',
+  },
+  prRight: {
+    alignItems: 'flex-end',
+  },
+  prValue: {
+    color: colours.text,
     fontSize: 20,
     fontWeight: '900',
-    color: colours.cyan,
-    fontVariant: ['tabular-nums'],
-    lineHeight: 24,
   },
-  label: {
-    fontSize: 7,
-    fontWeight: '900',
-    letterSpacing: 1.2,
+  prUnit: {
     color: colours.muted,
-  },
-  sessionTitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colours.text,
-    marginTop: 4,
-  },
-  date: {
-    fontSize: 9,
-    fontWeight: '600',
-    color: colours.soft,
+    fontSize: 14,
+    fontWeight: '800',
   },
 });

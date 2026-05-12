@@ -3,7 +3,9 @@ import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import App from './App';
 
-vi.mock('react-native-gesture-handler', () => ({}));
+vi.mock('react-native-gesture-handler', () => ({
+  GestureHandlerRootView: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+}));
 vi.mock('./lib/backgroundTasks', () => ({}));
 
 vi.mock('./components/AppProviders', () => ({

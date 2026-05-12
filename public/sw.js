@@ -1,4 +1,4 @@
-const CACHE_NAME = 'forge-h2f-shell-v2';
+const CACHE_NAME = 'tpos-shell-v1';
 const OFFLINE_URL = './';
 const CORE_ASSETS = ['./', './manifest.webmanifest', './icons/icon.svg'];
 
