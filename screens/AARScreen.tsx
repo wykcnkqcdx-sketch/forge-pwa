@@ -3,6 +3,8 @@ import {
   Pressable, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { captureRef } from 'react-native-view-shot';
+import * as Sharing from 'expo-sharing';
 import { RuckRing } from '../components/graphics/RuckRing';
 import { Screen } from '../components/Screen';
 import { colours, radius, shadow, touchTarget, typography } from '../theme';
@@ -28,6 +30,13 @@ function ruckRingValues(factors: RuckScoreBreakdown['factors']) {
     pace:      get('Pace',      20),
     elevation: get('Elevation', 16),
   };
+}
+
+function scoreColour(score: number) {
+  if (score >= 80) return colours.green;
+  if (score >= 65) return colours.cyan;
+  if (score >= 50) return colours.amber;
+  return colours.red;
 }
 
 // ── Score bar ────────────────────────────────────────────────────
@@ -82,14 +91,35 @@ export function AARScreen({
   loadKg, ascentM, checkpointsReached, checkpointsTotal,
   sessionTitle, note, onNoteChange, onSave, onResume, onDiscard,
 }: AARScreenProps) {
-  const ring = ruckRingValues(ruckScore.factors);
-  const pace = formatPace(paceMinPerKm);
-  const time = formatElapsed(elapsedSeconds);
-  const cpText = checkpointsTotal
+  const shareCardRef = useRef<View>(null);
+
+  const ring     = ruckRingValues(ruckScore.factors);
+  const pace     = formatPace(paceMinPerKm);
+  const time     = formatElapsed(elapsedSeconds);
+  const cpText   = checkpointsTotal
     ? `${checkpointsReached ?? 0}/${checkpointsTotal} CP`
     : null;
+  const sTone    = scoreColour(ruckScore.score);
 
   async function handleShare() {
+    try {
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare && shareCardRef.current) {
+        const uri = await captureRef(shareCardRef, {
+          format: 'png',
+          quality: 1.0,
+          result: 'tmpfile',
+        });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Share your FORGE AAR',
+          UTI: 'public.png',
+        });
+        return;
+      }
+    } catch {
+      // fall through to text share
+    }
     const text = [
       '◈ FORGE AFTER ACTION REVIEW',
       '─────────────────────────',
@@ -171,35 +201,67 @@ export function AARScreen({
         })}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>RUCK SCORE</Text>
-          <Text style={[styles.totalValue, { color: colours.cyan }]}>{ruckScore.score}</Text>
+          <Text style={[styles.totalValue, { color: sTone }]}>{ruckScore.score}</Text>
         </View>
       </View>
 
-      {/* ── FORGE AAR shareable card ───────────────────────── */}
-      <View style={styles.shareCard}>
-        <View style={styles.shareCardInner}>
-          <View style={styles.shareCardHeader}>
-            <Text style={styles.shareCardBrand}>◈ FORGE</Text>
-            <Text style={styles.shareCardLabel}>AFTER ACTION REVIEW</Text>
-          </View>
-          <View style={styles.shareStatRow}>
-            <Text style={styles.shareStat}>{distanceKm.toFixed(2)} KM</Text>
-            <Text style={styles.shareStatSep}>·</Text>
-            <Text style={styles.shareStat}>{loadKg} KG</Text>
-            <Text style={styles.shareStatSep}>·</Text>
-            <Text style={styles.shareStat}>{pace}/KM</Text>
-          </View>
-          <View style={styles.shareScoreRow}>
-            <Text style={styles.shareScoreLabel}>RUCK SCORE</Text>
-            <Text style={styles.shareScoreValue}>{ruckScore.score}</Text>
-          </View>
-          <Text style={styles.shareFinding} numberOfLines={2}>{ruckScore.finding}</Text>
+      {/* ── Shareable AAR card ─────────────────────────────── */}
+      <View
+        ref={shareCardRef}
+        collapsable={false}
+        style={card.root}
+      >
+        {/* Card header */}
+        <View style={card.header}>
+          <Text style={card.brand}>◈ FORGE</Text>
+          <Text style={card.subtitle}>AFTER ACTION REVIEW</Text>
         </View>
-        <Pressable style={styles.shareButton} onPress={handleShare}>
-          <Ionicons name="share-outline" size={16} color={colours.background} />
-          <Text style={styles.shareButtonText}>SHARE AAR CARD</Text>
-        </Pressable>
+
+        {/* Ring + score */}
+        <View style={card.hero}>
+          <RuckRing
+            score={ruckScore.score}
+            distance={ring.distance}
+            load={ring.load}
+            pace={ring.pace}
+            elevation={ring.elevation}
+            size={130}
+            showLabels={false}
+            animate={false}
+          />
+          <View style={card.heroRight}>
+            <Text style={card.scoreLabel}>RUCK SCORE</Text>
+            <Text style={[card.scoreValue, { color: sTone }]}>{ruckScore.score}</Text>
+            <Text style={card.scoreMax}>/100</Text>
+            <Text style={card.timeText}>{time}</Text>
+          </View>
+        </View>
+
+        {/* Stats row */}
+        <View style={card.statsRow}>
+          <CardStat value={`${distanceKm.toFixed(1)}`} unit="KM"   />
+          <View style={card.statDivider} />
+          <CardStat value={`${loadKg}`}                unit="KG"   />
+          <View style={card.statDivider} />
+          <CardStat value={pace}                       unit="/KM"  />
+          <View style={card.statDivider} />
+          <CardStat value={`${Math.round(ascentM)}`}  unit="M ELV"/>
+        </View>
+
+        {/* Finding */}
+        <Text style={card.finding} numberOfLines={2}>{ruckScore.finding}</Text>
+
+        {/* Footer */}
+        <View style={card.footer}>
+          <Text style={card.footerText}>FIELD READY · FORGE RUCK READINESS</Text>
+        </View>
       </View>
+
+      {/* Share button — outside captured area */}
+      <Pressable style={styles.shareBtn} onPress={handleShare}>
+        <Ionicons name="share-outline" size={16} color={colours.background} />
+        <Text style={styles.shareBtnText}>SHARE AAR CARD</Text>
+      </Pressable>
 
       {/* ── Session note ───────────────────────────────────── */}
       <TextInput
@@ -231,6 +293,17 @@ export function AARScreen({
   );
 }
 
+// ── Card stat sub-component ──────────────────────────────────────
+
+function CardStat({ value, unit }: { value: string; unit: string }) {
+  return (
+    <View style={card.statCell}>
+      <Text style={card.statValue}>{value}</Text>
+      <Text style={card.statUnit}>{unit}</Text>
+    </View>
+  );
+}
+
 // ── Stat tile sub-component ──────────────────────────────────────
 
 function StatTile({ value, unit, label, mono = false }: {
@@ -256,7 +329,136 @@ const tile = StyleSheet.create({
   unit:   { fontSize: 10, fontWeight: '700', color: colours.soft },
 });
 
-// ── Styles ───────────────────────────────────────────────────────
+// ── Share card styles ────────────────────────────────────────────
+
+const GOLD = colours.cyan; // sand/gold primary
+
+const card = StyleSheet.create({
+  root: {
+    backgroundColor: colours.background,
+    borderWidth: 1.5,
+    borderColor: GOLD,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    ...shadow.glow,
+  },
+  header: {
+    backgroundColor: '#0D1412',
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: `${GOLD}30`,
+  },
+  brand: {
+    color: GOLD,
+    fontSize: 17,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+  },
+  subtitle: {
+    color: colours.muted,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+    marginTop: 3,
+  },
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+    gap: 16,
+  },
+  heroRight: {
+    flex: 1,
+    alignItems: 'flex-end',
+    gap: 1,
+  },
+  scoreLabel: {
+    color: colours.muted,
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  scoreValue: {
+    fontSize: 64,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+    lineHeight: 66,
+  },
+  scoreMax: {
+    color: colours.muted,
+    fontSize: 11,
+    fontWeight: '700',
+    marginTop: -4,
+  },
+  timeText: {
+    color: colours.textSoft,
+    fontSize: 13,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+    marginTop: 6,
+    letterSpacing: 0.5,
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    borderTopColor: colours.border,
+    paddingVertical: 12,
+  },
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  statDivider: {
+    width: 1,
+    height: 26,
+    backgroundColor: colours.border,
+  },
+  statValue: {
+    color: colours.text,
+    fontSize: 17,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
+  },
+  statUnit: {
+    color: colours.muted,
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  finding: {
+    color: colours.textSoft,
+    fontSize: 11,
+    fontWeight: '700',
+    lineHeight: 17,
+    paddingHorizontal: 18,
+    paddingBottom: 14,
+  },
+  footer: {
+    backgroundColor: `${GOLD}10`,
+    borderTopWidth: 1,
+    borderTopColor: `${GOLD}28`,
+    paddingHorizontal: 18,
+    paddingVertical: 9,
+    alignItems: 'center',
+  },
+  footerText: {
+    color: `${GOLD}80`,
+    fontSize: 7,
+    fontWeight: '900',
+    letterSpacing: 2.5,
+    textTransform: 'uppercase',
+  },
+});
+
+// ── Screen styles ────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   // Header
@@ -302,33 +504,17 @@ const styles = StyleSheet.create({
   totalLabel:{ fontSize: 10, fontWeight: '900', letterSpacing: 1.6, color: colours.muted, textTransform: 'uppercase' },
   totalValue:{ fontSize: 28, fontWeight: '900', fontVariant: ['tabular-nums'] },
 
-  // Share card
-  shareCard: {
-    borderWidth: 1,
-    borderColor: colours.borderHot,
-    borderRadius: radius.md,
-    overflow: 'hidden',
-    ...shadow.glow,
-  },
-  shareCardInner: {
-    backgroundColor: colours.background,
-    padding: 18,
+  // Share button
+  shareBtn: {
+    minHeight: touchTarget,
+    backgroundColor: colours.cyan,
+    borderRadius: radius.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colours.border,
   },
-  shareCardHeader: { gap: 2 },
-  shareCardBrand:  { color: colours.cyan, fontSize: 14, fontWeight: '900', letterSpacing: 1.5 },
-  shareCardLabel:  { ...typography.label, color: colours.muted },
-  shareStatRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  shareStat:       { color: colours.text, fontSize: 16, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  shareStatSep:    { color: colours.border, fontSize: 14, fontWeight: '900' },
-  shareScoreRow:   { flexDirection: 'row', alignItems: 'baseline', gap: 10 },
-  shareScoreLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 2, color: colours.muted, textTransform: 'uppercase' },
-  shareScoreValue: { color: colours.cyan, fontSize: 40, fontWeight: '900', fontVariant: ['tabular-nums'], lineHeight: 44 },
-  shareFinding:    { color: colours.textSoft, fontSize: 11, fontWeight: '700', lineHeight: 17 },
-  shareButton:     { minHeight: touchTarget, backgroundColor: colours.cyan, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
-  shareButtonText: { color: colours.background, fontWeight: '900', fontSize: 12, letterSpacing: 1.2 },
+  shareBtnText: { color: colours.background, fontWeight: '900', fontSize: 12, letterSpacing: 1.4 },
 
   // Note
   noteInput: {
