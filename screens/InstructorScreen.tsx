@@ -57,7 +57,6 @@ interface InstructorScreenProps {
 }
 
 const appInviteUrl = 'https://wykcnkqcdx-sketch.github.io/forge-pwa/';
-const assignmentTemplates = [...new Set([...trainingModes.map((mode) => mode.title), 'Recovery Walk', 'Mobility Reset'])];
 const assignmentCategories: Array<'All' | ExerciseCategory> = ['All', 'Strength', 'Resistance', 'Cardio', 'Workout', 'Mobility'];
 const coachNudgeTemplates = {
   recovery: {
@@ -843,6 +842,12 @@ export function InstructorScreen({
     if (nudge) {
       setAssignmentNote(nudge.note);
       setStagedAssignmentExercises(buildExerciseBlocksFromIds([...nudge.exerciseIds]));
+      return;
+    }
+    const template = programmeTemplates.find((t) => t.name === nextLabel);
+    if (template) {
+      setStagedAssignmentExercises(template.exercises);
+      setAssignmentNote(template.coachNote ?? '');
       return;
     }
     const mode = trainingModes.find((item) => item.title === nextLabel);
