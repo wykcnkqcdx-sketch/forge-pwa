@@ -471,13 +471,29 @@ function Card({
   title,
   action,
   className = '',
+  style,
   children,
 }: {
   title?: string;
   action?: string;
   className?: string;
+  style?: React.CSSProperties;
   children: React.ReactNode;
 }) {
+  return (
+    <section className={`card ${className}`} style={style}>
+      {title && (
+        <header className="card-header">
+          <h2>{title}</h2>
+          {action && <span>{action}</span>}
+        </header>
+      )}
+      {children}
+    </section>
+  );
+}
+
+
   return (
     <section className={`card ${className}`}>
       {title && (
