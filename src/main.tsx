@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
   challenges,
@@ -231,7 +231,7 @@ function Team() {
                 <span>{challenge.progress}% complete</span>
               </div>
               <div className="progress-track">
-                <span style={{ width: `${challenge.progress}%` }} />
+                <ProgressBar progress={challenge.progress} />
               </div>
             </div>
           ))}
@@ -249,7 +249,7 @@ function Profile() {
         <h2>{profile.name}</h2>
         <p>{profile.rank} · {profile.streak} operational streak</p>
         <div className="rank-track">
-          <span style={{ width: `${profile.nextRank}%` }} />
+          <ProgressBar progress={profile.nextRank} />
         </div>
         <small>{profile.nextRank}% to next rank · {profile.missions} completed missions</small>
       </Card>
@@ -364,10 +364,21 @@ function MiniStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ProgressBar({ progress }: { progress: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.style.width = `${progress}%`;
+  }, [progress]);
+  return <span ref={ref} />;
+}
+
 function ProgressRing({ value, label }: { value: number; label: string }) {
-  const style = useMemo(() => ({ '--value': `${value * 3.6}deg` }) as React.CSSProperties, [value]);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.style.setProperty('--value', `${value * 3.6}deg`);
+  }, [value]);
   return (
-    <div className="progress-ring" style={style}>
+    <div className="progress-ring" ref={ref}>
       <div>
         <strong>{label}</strong>
         <span>%</span>
@@ -380,10 +391,18 @@ function TrendBars() {
   return (
     <div className="trend-bars" aria-label="Seven day performance trend">
       {[58, 72, 64, 78, 88, 70, 92].map((value, index) => (
-        <span key={index} style={{ height: `${value}%` }} />
+        <TrendBar key={index} value={value} />
       ))}
     </div>
   );
+}
+
+function TrendBar({ value }: { value: number }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.style.height = `${value}%`;
+  }, [value]);
+  return <span ref={ref} />;
 }
 
 function formatTimer(totalSeconds: number) {
