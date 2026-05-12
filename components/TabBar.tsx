@@ -22,119 +22,122 @@ export function TabBar<TTab extends Tab | MemberTab>({ tabs, activeTab, onTabPre
   const { isTablet, fs } = useResponsive();
 
   return (
-    <View style={[styles.wrapper, shadow.elevated]}>
-      {/* Glass top highlight */}
-      <View style={styles.topHighlight} />
-
-      {tabs.map((tab) => {
-        const isActive = tab.id === activeTab;
-        return (
-          <Pressable
-            key={String(tab.id)}
-            style={({ pressed }) => [
-              styles.tabItem,
-              pressed && styles.tabItemPressed,
-            ]}
-            onPress={() => onTabPress(tab.id)}
-            accessibilityRole="tab"
-            accessibilityLabel={tab.label}
-            accessibilityState={{ selected: isActive }}
-          >
-            {isActive ? (
-              <View style={styles.activePill}>
+    <View style={styles.outerShell}>
+      <View style={[styles.wrapper, shadow.elevated]}>
+        <View style={styles.topHighlight} />
+        {tabs.map((tab) => {
+          const isActive = tab.id === activeTab;
+          return (
+            <Pressable
+              key={String(tab.id)}
+              style={({ pressed }) => [
+                styles.tabItem,
+                isActive && styles.tabItemActive,
+                pressed && styles.tabItemPressed,
+              ]}
+              onPress={() => onTabPress(tab.id)}
+              accessibilityRole="tab"
+              accessibilityLabel={tab.label}
+              accessibilityState={{ selected: isActive }}
+            >
+              <View style={[styles.iconDock, isActive && styles.iconDockActive]}>
                 <Ionicons
-                  name={tab.iconActive}
-                  size={isTablet ? 18 : 16}
-                  color={colours.background}
+                  name={isActive ? tab.iconActive : tab.icon}
+                  size={isActive ? (isTablet ? 21 : 19) : (isTablet ? 20 : 18)}
+                  color={isActive ? colours.background : colours.muted}
                 />
-                <Text style={[styles.activePillLabel, { fontSize: fs(11, { min: 10, max: 13 }) }]}>
-                  {tab.label}
-                </Text>
               </View>
-            ) : (
-              <View style={styles.inactiveItem}>
-                <Ionicons
-                  name={tab.icon}
-                  size={isTablet ? 22 : 20}
-                  color={colours.muted}
-                />
-                <Text style={[styles.inactiveLabel, { fontSize: fs(10, { min: 9, max: 12 }) }]}>
-                  {tab.label}
-                </Text>
-              </View>
-            )}
-          </Pressable>
-        );
-      })}
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.label,
+                  { fontSize: fs(9, { min: 8, max: 11 }) },
+                  isActive && styles.labelActive,
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  outerShell: {
+    backgroundColor: colours.background,
+    paddingHorizontal: 10,
+    paddingBottom: Platform.OS === 'ios' ? 18 : 10,
+  },
   wrapper: {
     flexDirection: 'row',
-    backgroundColor: colours.surface,
-    borderTopWidth: 1,
-    borderTopColor: colours.borderSoft,
-    paddingBottom: Platform.OS === 'ios' ? 22 : 14,
-    paddingTop: 10,
+    backgroundColor: colours.nav,
+    borderWidth: 1,
+    borderColor: colours.borderGlass,
+    borderRadius: radius.xl,
+    paddingVertical: 8,
     paddingHorizontal: 6,
     position: 'relative',
+    overflow: 'hidden',
     ...Platform.select({
       web: {
         // @ts-ignore: web-only
-        backdropFilter: 'blur(12px)',
+        backdropFilter: 'blur(18px)',
       },
     }),
   },
   topHighlight: {
     position: 'absolute',
     top: 0,
-    left: 0,
-    right: 0,
+    left: 18,
+    right: 18,
     height: 1,
     backgroundColor: colours.borderGlass,
-    opacity: 0.9,
+    opacity: 0.95,
   },
   tabItem: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: touchTarget,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
+    gap: 4,
+    borderRadius: radius.lg,
+  },
+  tabItemActive: {
+    backgroundColor: colours.layer2,
   },
   tabItemPressed: {
-    opacity: 0.6,
+    opacity: 0.65,
+    transform: [{ scale: 0.98 }],
   },
-  activePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colours.cyan,
-    paddingHorizontal: 10,
-    paddingVertical: 7,
+  iconDock: {
+    width: 34,
+    height: 30,
     borderRadius: radius.pill,
-    minWidth: 68,
-    justifyContent: 'center',
-    shadowColor: colours.cyan,
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.24,
-    shadowRadius: 12,
-    elevation: 7,
-  },
-  activePillLabel: {
-    fontWeight: '900',
-    color: colours.background,
-    letterSpacing: 0.3,
-  },
-  inactiveItem: {
     alignItems: 'center',
-    gap: 3,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
-  inactiveLabel: {
-    color: colours.muted,
-    fontWeight: '700',
-    marginTop: 1,
-    letterSpacing: 0.2,
+  iconDockActive: {
+    backgroundColor: colours.cyan,
+    borderColor: colours.cyan,
+    shadowColor: colours.cyan,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.34,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  label: {
+    color: colours.soft,
+    fontWeight: '800',
+    letterSpacing: 0.15,
+  },
+  labelActive: {
+    color: colours.text,
+    fontWeight: '900',
   },
 });
