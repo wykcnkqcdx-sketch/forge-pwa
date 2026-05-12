@@ -73,3 +73,73 @@ export function getPRSessionIds(sessions: TrainingSession[]): Set<string> {
   }
   return ids;
 }
+
+export type PRRecord = {
+  session: TrainingSession;
+  value: number;
+  formattedValue: string;
+};
+
+export function getBestSessions(
+  sessions: TrainingSession[],
+): Partial<Record<PRType, PRRecord>> {
+  const result: Partial<Record<PRType, PRRecord>> = {};
+
+  const rucks = sessions.filter(s => s.type === 'Ruck');
+
+  // bestRuckDistance
+  if (rucks.length > 0) {
+    const best = rucks.reduce((a, b) => ruckDistanceKm(a) >= ruckDistanceKm(b) ? a : b);
+    const dist = ruckDistanceKm(best);
+    result.bestRuckDistance = { session: best, value: dist, formattedValue: `${dist.toFixed(1)} km` };
+  }
+
+  // bestRuckLoad
+  const rucksWithLoad = rucks.filter(s => s.loadKg != null);
+  if (rucksWithLoad.length > 0) {
+    const best = rucksWithLoad.reduce((a, b) => a.loadKg! >= b.loadKg! ? a : b);
+    result.bestRuckLoad = { session: best, value: best.loadKg!, formattedValue: `${best.loadKg} kg` };
+  }
+
+  // bestRuckScore
+  if (rucks.length > 0) {
+    const best = rucks.reduce((a, b) => a.score >= b.score ? a : b);
+    result.bestRuckScore = { session: best, value: best.score, formattedValue: String(best.score) };
+  }
+
+  // bestSessionScore (non-ruck only)
+  const nonRucks = sessions.filter(s => s.type !== 'Ruck');
+  if (nonRucks.length > 0) {
+    const best = nonRucks.reduce((a, b) => a.score >= b.score ? a : b);
+    result.bestSessionScore = { session: best, value: best.score, formattedValue: String(best.score) };
+  }
+
+  // longestSession
+  if (sessions.length > 0) {
+    const best = sessions.reduce((a, b) => a.durationMinutes >= b.durationMinutes ? a : b);
+    const h = Math.floor(best.durationMinutes / 60);
+    const m = best.durationMinutes % 60;
+    result.longestSession = {
+      session: best,
+      value: best.durationMinutes,
+      formattedValue: h > 0 ? `${h}h ${m}m` : `${m}m`,
+    };
+  }
+
+  // bestRuckPace (lower is better)
+  if (rucks.length > 0) {
+    const best = rucks.reduce((a, b) => ruckPaceMinPerKm(a) <= ruckPaceMinPerKm(b) ? a : b);
+    const pace = ruckPaceMinPerKm(best);
+    if (isFinite(pace)) {
+      const pMin = Math.floor(pace);
+      const pSec = Math.round((pace - pMin) * 60);
+      result.bestRuckPace = {
+        session: best,
+        value: pace,
+        formattedValue: `${pMin}:${String(pSec).padStart(2, '0')} /km`,
+      };
+    }
+  }
+
+  return result;
+}
