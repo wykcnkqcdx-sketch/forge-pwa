@@ -18,6 +18,20 @@ import {
 } from './data';
 import './styles.css';
 
+/// <reference types="vite/client" />
+
+interface AppState {
+  readiness: number;
+  weeklyVolume: number;
+  ghostMode: boolean;
+  activities: Array<{ id: string; hypes: number; [key: string]: any }>;
+  assignedWorkout: {
+    title: string;
+    status: string;
+    exercises: Array<{ id: string; name: string; dose: string; hit: boolean; coachPick: boolean }>;
+  };
+}
+
 const quickLogKinds = ['Run', 'Ruck', 'Cardio', 'Strength', 'Workout', 'Mobility'];
 const efforts = ['Too Easy', 'About Right', 'Too Hard'];
 
@@ -205,7 +219,7 @@ function App() {
           result,
           original_type: session.type
         }
-      }).catch(console.error);
+      }).then(() => {}).catch(console.error);
     }
   };
 
@@ -213,7 +227,7 @@ function App() {
     // @ts-ignore
     setAppState(prev => ({
       ...prev,
-      activities: prev.activities.map(a => a.id === id ? { ...a, hypes: a.hypes + 1 } : a)
+      activities: prev.activities.map((a: any) => a.id === id ? { ...a, hypes: a.hypes + 1 } : a)
     }));
   };
 
@@ -769,14 +783,16 @@ function Card({
   action,
   className = '',
   children,
+  style,
 }: {
   title?: string;
   action?: string;
   className?: string;
   children: React.ReactNode;
+  style?: React.CSSProperties;
 }) {
   return (
-    <section className={`card ${className}`}>
+    <section className={`card ${className}`} style={style}>
       {title && (
         <header className="card-header">
           <h2>{title}</h2>
