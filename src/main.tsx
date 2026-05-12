@@ -17,6 +17,16 @@ import {
 } from './data';
 import './styles.css';
 
+const quickLogKinds = ['Run', 'Ruck', 'Cardio', 'Strength', 'Workout', 'Mobility'];
+const efforts = ['Too Easy', 'About Right', 'Too Hard'];
+
+function estimateQuickLogVolume(kind: string, durationMinutes: number) {
+  const rate = kind === 'Strength' || kind === 'Workout' ? 10
+    : kind === 'Ruck' ? 8
+    : kind === 'Run' || kind === 'Cardio' ? 6 : 2;
+  return Math.max(rate * Math.max(durationMinutes, 1), kind === 'Mobility' ? 20 : 60);
+}
+
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>('home');
   const [expanded, setExpanded] = useState('mission');
@@ -118,21 +128,34 @@ function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpa
 }
 
 function Train({ timer }: { timer: number }) {
+  const [isTraining, setIsTraining] = useState(false);
+  const [selectedBlock, setSelectedBlock] = useState<string | null>(null);
+
   return (
     <>
       <Card className="timer-card">
         <p className="eyebrow">Live Training Window</p>
         <div className="timer-row">
           <div>
-            <h2>{formatTimer(timer)}</h2>
-            <p>Zone 3 ruck intervals active</p>
+            <h2>{isTraining ? formatTimer(timer) : '0:00'}</h2>
+            <p>{isTraining ? 'Zone 3 ruck intervals active' : 'Ready to begin'}</p>
           </div>
-          <button className="primary-action">Start</button>
+          <button 
+            className="primary-action" 
+            onClick={() => setIsTraining(!isTraining)}
+          >
+            {isTraining ? 'Stop' : 'Start'}
+          </button>
         </div>
       </Card>
       <div className="action-grid">
         {trainingBlocks.map((block) => (
-          <button className="action-card" key={block.name}>
+          <button 
+            className="action-card" 
+            key={block.name}
+            onClick={() => setSelectedBlock(block.name)}
+            style={{ borderColor: selectedBlock === block.name ? '#8fc96f' : undefined }}
+          >
             <span>{block.action}</span>
             <strong>{block.name}</strong>
             <p>{block.detail}</p>
@@ -183,12 +206,21 @@ function Tactical({ timer }: { timer: number }) {
 }
 
 function Recovery() {
+  const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
+
+  const toggleTask = (task: string) => {
+    const next = new Set(completedTasks);
+    if (next.has(task)) next.delete(task);
+    else next.add(task);
+    setCompletedTasks(next);
+  };
+
   return (
     <>
       <Card className="recovery-score">
         <p className="eyebrow">Recovery Score</p>
         <div className="score-line">
-          <ProgressRing value={82} label="82" />
+          <ProgressRing value={82 + (completedTasks.size * 6)} label={String(82 + (completedTasks.size * 6))} />
           <div>
             <h2>Ready with guardrails</h2>
             <p>Push aerobic work. Cap heavy eccentrics until calf soreness drops.</p>
@@ -199,8 +231,12 @@ function Recovery() {
       <Card title="Suggested Recovery Actions">
         <div className="task-list">
           {recoveryActions.map((action) => (
-            <label key={action}>
-              <input type="checkbox" />
+            <label key={action} style={{ opacity: completedTasks.has(action) ? 0.5 : 1 }}>
+              <input 
+                type="checkbox" 
+                checked={completedTasks.has(action)} 
+                onChange={() => toggleTask(action)} 
+              />
               <span>{action}</span>
             </label>
           ))}
@@ -251,6 +287,7 @@ function Team() {
 function Profile() {
   return (
     <>
+      <QuickLog />
       <Card className="profile-card">
         <p className="eyebrow">Operator Profile</p>
         <h2>{profile.name}</h2>
@@ -414,6 +451,114 @@ function TrendBar({ value }: { value: number }) {
     if (ref.current) ref.current.style.height = `${value}%`;
   }, [value]);
   return <span ref={ref} />;
+}
+
+function QuickLog() {
+  const [kind, setKind] = useState('Run');
+  const [duration, setDuration] = useState('30');
+  const [volume, setVolume] = useState('');
+  const [effort, setEffort] = useState('About Right');
+  const [note, setNote] = useState('');
+  const [feedback, setFeedback] = useState('');
+
+  function submitQuickLog() {
+    const parsedDuration = Number.parseInt(duration, 10);
+    if (!Number.isFinite(parsedDuration) || parsedDuration <= 0) {
+      setFeedback('Enter a valid duration in minutes.');
+      return;
+    }
+
+    const parsedVolume = volume.trim()
+      ? Number.parseInt(volume, 10)
+      : estimateQuickLogVolume(kind, parsedDuration);
+
+    if (!Number.isFinite(parsedVolume) || parsedVolume <= 0) {
+      setFeedback('Enter a valid volume or leave it blank to auto-calculate.');
+      return;
+    }
+
+    setFeedback(`Logged ${kind.toLowerCase()} for ${parsedDuration} min. Data saved locally!`);
+    
+    // Reset the form
+    setDuration('30');
+    setVolume('');
+    setNote('');
+    setEffort('About Right');
+    setTimeout(() => setFeedback(''), 4000);
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px',
+    borderRadius: '14px',
+    background: 'rgba(255, 255, 255, 0.035)',
+    border: '1px solid var(--line)',
+    color: 'var(--text)',
+    fontSize: '1rem',
+    outline: 'none',
+  };
+
+  return (
+    <Card title="Quick Log">
+      <p style={{ marginBottom: 16 }}>Record a run, ruck, mobility block, or extra session.</p>
+      
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+        {quickLogKinds.map((k) => (
+          <button
+            key={k}
+            onClick={() => setKind(k)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 999,
+              border: `1px solid ${kind === k ? 'rgba(217, 142, 58, 0.48)' : 'var(--line)'}`,
+              background: kind === k ? 'rgba(217, 142, 58, 0.11)' : 'rgba(255, 255, 255, 0.035)',
+              color: kind === k ? 'var(--amber)' : 'var(--soft)',
+              fontSize: '0.8rem',
+              fontWeight: 750,
+            }}
+          >
+            {k}
+          </button>
+        ))}
+      </div>
+
+      <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Duration (min)</label>
+          <input type="number" value={duration} onChange={(e) => setDuration(e.target.value)} placeholder="30" style={inputStyle} />
+        </div>
+        <div style={{ flex: 1 }}>
+          <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--muted)', fontWeight: 800, textTransform: 'uppercase', marginBottom: 6 }}>Volume</label>
+          <input type="number" value={volume} onChange={(e) => setVolume(e.target.value)} placeholder={String(estimateQuickLogVolume(kind, Number.parseInt(duration || '0', 10) || 30))} style={inputStyle} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+        {efforts.map((e) => (
+          <button
+            key={e}
+            onClick={() => setEffort(e)}
+            style={{
+              flex: 1,
+              padding: '12px 4px',
+              borderRadius: '12px',
+              border: `1px solid ${effort === e ? 'rgba(143, 201, 111, 0.36)' : 'var(--line)'}`,
+              background: effort === e ? 'rgba(143, 201, 111, 0.12)' : 'rgba(255, 255, 255, 0.035)',
+              color: effort === e ? 'var(--green)' : 'var(--soft)',
+              fontSize: '0.8rem',
+              fontWeight: 800,
+            }}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+
+      <textarea value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional note for coach" style={{ ...inputStyle, minHeight: '80px', marginBottom: 16, resize: 'none' }} />
+      <button className="primary-action" style={{ width: '100%', padding: '14px' }} onClick={submitQuickLog}>Log Session</button>
+      {feedback && <p style={{ color: 'var(--green)', marginTop: 14, textAlign: 'center', fontWeight: 700 }}>{feedback}</p>}
+    </Card>
+  );
 }
 
 function formatTimer(totalSeconds: number) {
