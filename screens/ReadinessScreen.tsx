@@ -15,6 +15,7 @@ import { SquadMember } from '../data/mockData';
 import type { ReadinessLog, InjuryLog } from '../data/domain';
 import { getLatestReadinessLog, isReadinessCheckedInToday, isReadinessStale } from '../lib/readiness';
 import { showAlert } from '../lib/dialogs';
+import { ReadinessTrendCard } from '../components/ReadinessTrendCard';
 
 function calculateMemberReadiness(check: {
   sleepQuality: number;
@@ -262,6 +263,13 @@ export function ReadinessScreen({
           </View>
         </View>
       </Card>
+
+      {/* ── 14-day trend ────────────────────────────────────── */}
+      {readinessLogs.length >= 2 && (
+        <Card>
+          <ReadinessTrendCard readinessLogs={readinessLogs} memberId={member.id} />
+        </Card>
+      )}
 
       {/* ── Tactical System Check ───────────────────────────── */}
       <Card accent={colours.amber}>
