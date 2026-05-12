@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState, useEffect, useRef, useReducer } from 'react';
-import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView } from 'react-native';
+import { Text, View, StyleSheet, Pressable, DeviceEventEmitter, Animated, Platform, TextInput, SafeAreaView, Modal } from 'react-native';
 import { Image as ExpoImage } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import * as Location from 'expo-location';
@@ -12,6 +12,7 @@ import { LiveTimerText } from '../components/LiveTimerText';
 import { RuckMissionBriefCard } from '../components/RuckMissionBriefCard';
 import { RuckHistoryCard } from '../components/RuckHistoryCard';
 import { RuckReviewCard } from '../components/RuckReviewCard';
+import { AARScreen } from './AARScreen';
 import { RuckTrackingControls } from '../components/RuckTrackingControls';
 import { RuckSplitsCard } from '../components/RuckSplitsCard';
 import { RuckReadinessCard } from '../components/RuckReadinessCard';
@@ -104,9 +105,11 @@ type PersistedFieldState = {
 export function RuckScreen({
   addSession,
   sessions = [],
+  onSessionSaved,
 }: {
   addSession: (session: TrainingSession) => void;
   sessions?: TrainingSession[];
+  onSessionSaved?: () => void;
 }) {
   const [weight, setWeight] = useState(18);
   const [bodyMassKg, setBodyMassKg] = useState(82);
@@ -1516,7 +1519,6 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
       completedAt: new Date().toISOString(),
     };
     addSession(session);
-    showAlert('Ruck saved', 'Your GPS-tracked ruck has been logged.');
     dispatchTracking({ type: 'reset' });
     setCheckpointIndex(0);
     setPlannedCheckpoints([]);
@@ -1526,6 +1528,7 @@ const [gpsFollowMode, setGpsFollowMode] = useState(true); // true = follow GPS, 
     setRuckReviewNote('');
     clearActiveRoute();
     clearActiveRuckPlan();
+    onSessionSaved?.();
   };
 
   const discardTrackedRuck = () => {
@@ -3198,23 +3201,24 @@ function updateSelectedCheckpointHere() {
         <RuckMapGuidePanel visible={guideOpen} onClose={() => setGuideOpen(false)} />
       </View>
 
-      {reviewOpen && startTime ? (
-        <RuckReviewCard
-          currentDistance={currentDistance}
-          elapsedSeconds={elapsedSeconds}
-          activePace={activePace}
-          weight={weight}
-          routeReview={routeReview}
-          rejectedPointCount={rejectedPointCount}
-          splitCount={splits.length}
+      <Modal visible={reviewOpen && !!startTime} animationType="slide">
+        <AARScreen
           ruckScore={activeRuckScore}
+          distanceKm={currentDistance}
+          elapsedSeconds={elapsedSeconds}
+          paceMinPerKm={activePace === '--' ? Number(pace) : Number(activePace)}
+          loadKg={weight}
+          ascentM={currentDistance > 0.02 ? Math.round((plannedAscentM / Math.max(distance, 0.1)) * currentDistance) : plannedAscentM}
+          checkpointsReached={plannedCheckpoints.filter(cp => cp.status === 'reached').length}
+          checkpointsTotal={plannedCheckpoints.length}
+          sessionTitle={`${currentDistance.toFixed(1)}km GPS Ruck`}
           note={ruckReviewNote}
           onNoteChange={setRuckReviewNote}
           onSave={saveTrackedRuck}
           onResume={resumeTracking}
           onDiscard={discardTrackedRuck}
         />
-      ) : null}
+      </Modal>
 
       {!reviewOpen ? (
         <RuckTrackingControls

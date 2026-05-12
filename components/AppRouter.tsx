@@ -68,7 +68,7 @@ export function AppRouter() {
   function renderScreen() {
     switch (navigation.activeTab) {
       case 'train': return <TrainScreen addSession={actions.addSession} sessions={sessions} />;
-      case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={sessions} />;
+      case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={sessions} onSessionSaved={() => switchTab('logbook')} />;
       case 'routePlanner':
         return (
           <RoutePlannerScreen
@@ -231,7 +231,7 @@ export function AppRouter() {
 
     switch (navigation.activeMemberTab) {
       case 'train': return <TrainScreen addSession={actions.addSession} sessions={visibleSessions} />;
-      case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={visibleSessions} />;
+      case 'ruck':  return <RuckScreen addSession={actions.addSession} sessions={visibleSessions} onSessionSaved={() => navigation.setActiveMemberTab('train')} />;
       case 'fuel':
         return (
           <FuelScreen
