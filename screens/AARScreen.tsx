@@ -1,4 +1,4 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Pressable, Share, StyleSheet, Text, TextInput, View,
 } from 'react-native';
@@ -10,6 +10,7 @@ import { Screen } from '../components/Screen';
 import { colours, radius, shadow, touchTarget, typography } from '../theme';
 import { formatElapsed } from '../utils/ruck';
 import type { RuckScoreBreakdown } from '../utils/ruckScore';
+import { ForgeStamp } from '../components/ForgeStamp';
 
 // ── Helpers ─────────────────────────────────────────────────────
 
@@ -91,7 +92,8 @@ export function AARScreen({
   loadKg, ascentM, checkpointsReached, checkpointsTotal,
   sessionTitle, note, onNoteChange, onSave, onResume, onDiscard,
 }: AARScreenProps) {
-  const shareCardRef = useRef<View>(null);
+  const shareCardRef  = useRef<View>(null);
+  const [showStamp, setShowStamp] = useState(true);
 
   const ring     = ruckRingValues(ruckScore.factors);
   const pace     = formatPace(paceMinPerKm);
@@ -137,6 +139,7 @@ export function AARScreen({
   }
 
   return (
+    <View style={styles.container}>
     <Screen>
       {/* ── Header ─────────────────────────────────────────── */}
       <View style={styles.header}>
@@ -290,6 +293,10 @@ export function AARScreen({
         </Pressable>
       </View>
     </Screen>
+    {showStamp && (
+      <ForgeStamp score={ruckScore.score} onDone={() => setShowStamp(false)} />
+    )}
+    </View>
   );
 }
 
@@ -461,6 +468,8 @@ const card = StyleSheet.create({
 // ── Screen styles ────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  container: { flex: 1 },
+
   // Header
   header:  { gap: 4 },
   kicker:  { ...typography.label, color: colours.cyan },
