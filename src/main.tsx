@@ -122,14 +122,6 @@ function App() {
 
     // Push to Supabase if connected
     if (supabase && isSynced) {
-      supabase.from('team_activity').insert({
-        id: newActivityId,
-        squad_id: 'alpha', // Map to your squad ID
-        member_id: 'current-user', 
-        type: session.type,
-        title,
-        metadata: { result }
-      }).catch(console.error);
       supabase.auth.getUser().then(({ data: { user } }) => {
         if (!user) return; // RLS will block this if there's no user session anyway
         
