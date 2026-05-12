@@ -36,6 +36,7 @@ export function HomeScreen({
   goToAnalytics,
   goToTrain,
   goToReadiness,
+  goToLogbook,
   readinessLogs = [],
   workoutCompletions = [],
   member,
@@ -46,6 +47,7 @@ export function HomeScreen({
   goToFuel?: () => void;
   goToTrain?: () => void;
   goToReadiness?: () => void;
+  goToLogbook?: () => void;
   readinessLogs?: ReadinessLog[];
   workoutCompletions?: WorkoutCompletion[];
   member?: SquadMember | null;
@@ -155,6 +157,13 @@ export function HomeScreen({
       : [{ label: 'No injury flags', tone: colours.green, icon: 'shield-checkmark-outline' as const }];
   }, [latestReadiness, performance.loadRisk, readinessStale]);
 
+  const lastRuck = useMemo(() =>
+    sessions
+      .filter(s => s.type === 'Ruck' && s.completedAt)
+      .sort((a, b) => new Date(b.completedAt!).getTime() - new Date(a.completedAt!).getTime())[0] ?? null,
+    [sessions],
+  );
+
   const squadCompliance = member ? Math.round(member.compliance) : null;
   const lastCompletion = workoutCompletions[0];
 
@@ -209,6 +218,9 @@ export function HomeScreen({
         </View>
       </View>
 
+      {/* ── Last ruck ────────────────────────────────────────── */}
+      {lastRuck && <LastRuckCard session={lastRuck} onPress={goToLogbook} />}
+
       {/* ── Squad Pulse ──────────────────────────────────────── */}
       {squadCompliance !== null && (
         <Card>
@@ -254,6 +266,107 @@ export function HomeScreen({
     </Screen>
   );
 }
+
+// ── Last Ruck Card ───────────────────────────────────────────────
+
+function scoreTone(score: number) {
+  if (score >= 80) return colours.green;
+  if (score >= 65) return colours.cyan;
+  if (score >= 50) return colours.amber;
+  return colours.red;
+}
+
+function formatRuckDate(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) return 'TODAY';
+  if (diffDays === 1) return 'YESTERDAY';
+  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase();
+  return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }).toUpperCase();
+}
+
+function formatPaceShort(session: TrainingSession) {
+  const km = session.ruckMission?.targetDistanceKm ?? (session.durationMinutes / 60) * 5.2;
+  if (km <= 0) return '--';
+  const minPerKm = session.durationMinutes / km;
+  const m = Math.floor(minPerKm);
+  const s = Math.round((minPerKm - m) * 60);
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+function LastRuckCard({ session, onPress }: { session: TrainingSession; onPress?: () => void }) {
+  const tone = scoreTone(session.score);
+  const km = (session.ruckMission?.targetDistanceKm ?? (session.durationMinutes / 60) * 5.2).toFixed(1);
+  const pace = formatPaceShort(session);
+  const date = session.completedAt ? formatRuckDate(session.completedAt) : '';
+
+  return (
+    <Pressable style={lr.card} onPress={onPress} disabled={!onPress}>
+      <View style={lr.left}>
+        <Text style={lr.label}>LAST RUCK</Text>
+        <Text style={lr.title} numberOfLines={1}>{session.title}</Text>
+        <View style={lr.metaRow}>
+          <Text style={lr.meta}>{km} km</Text>
+          {session.loadKg ? <><Text style={lr.dot}>·</Text><Text style={lr.meta}>{session.loadKg} kg</Text></> : null}
+          <Text style={lr.dot}>·</Text>
+          <Text style={lr.meta}>{pace}/km</Text>
+        </View>
+      </View>
+      <View style={lr.right}>
+        <View style={[lr.scoreBadge, { borderColor: `${tone}45`, backgroundColor: `${tone}10` }]}>
+          <Text style={[lr.scoreVal, { color: tone }]}>{session.score}</Text>
+          <Text style={lr.scoreUnit}>SCORE</Text>
+        </View>
+        <Text style={lr.date}>{date}</Text>
+        {onPress && <Ionicons name="chevron-forward" size={14} color={colours.muted} />}
+      </View>
+    </Pressable>
+  );
+}
+
+const lr = StyleSheet.create({
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colours.panel,
+    borderWidth: 1,
+    borderColor: colours.border,
+    borderRadius: radius.sm,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  left: { flex: 1, gap: 3 },
+  label: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 2,
+    color: colours.muted,
+    textTransform: 'uppercase',
+  },
+  title: {
+    color: colours.text,
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 19,
+  },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, flexWrap: 'wrap' },
+  meta: { color: colours.muted, fontSize: 11, fontWeight: '700', fontVariant: ['tabular-nums'] },
+  dot: { color: colours.border, fontSize: 11, fontWeight: '900' },
+  right: { alignItems: 'flex-end', gap: 4 },
+  scoreBadge: {
+    width: 52,
+    height: 52,
+    borderRadius: radius.xs,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  scoreVal: { fontSize: 22, fontWeight: '900', fontVariant: ['tabular-nums'], lineHeight: 24 },
+  scoreUnit: { color: colours.muted, fontSize: 6, fontWeight: '900', letterSpacing: 1.5 },
+  date: { color: colours.soft, fontSize: 9, fontWeight: '900', letterSpacing: 1.2 },
+});
 
 const styles = StyleSheet.create({
   // Header

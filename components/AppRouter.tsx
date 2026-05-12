@@ -218,6 +218,7 @@ export function AppRouter() {
             goToAnalytics={() => switchTab('analytics')}
             goToTrain={() => switchTab('train')}
             goToReadiness={() => switchTab('readiness')}
+            goToLogbook={() => switchTab('logbook')}
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
           />
