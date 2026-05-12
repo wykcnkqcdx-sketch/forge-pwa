@@ -285,6 +285,8 @@ function Team() {
 }
 
 function Profile() {
+  const [ghostMode, setGhostMode] = useState(false);
+
   return (
     <>
       <QuickLog />
@@ -296,6 +298,22 @@ function Profile() {
           <ProgressBar progress={profile.nextRank} />
         </div>
         <small>{profile.nextRank}% to next rank · {profile.missions} completed missions</small>
+      </Card>
+      <Card title="Privacy Settings">
+        <label style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px', border: '1px solid var(--line)', borderRadius: 16, background: 'rgba(255, 255, 255, 0.035)', cursor: 'pointer' }}>
+          <input 
+            type="checkbox" 
+            checked={ghostMode} 
+            onChange={(e) => setGhostMode(e.target.checked)} 
+            style={{ width: 24, height: 24, accentColor: 'var(--green)', cursor: 'pointer' }} 
+          />
+          <div>
+            <strong style={{ display: 'block', color: 'var(--text)', fontSize: '0.95rem', marginBottom: 4 }}>Ghost Mode</strong>
+            <span style={{ display: 'block', color: 'var(--muted)', fontSize: '0.8rem', lineHeight: 1.4 }}>
+              {ghostMode ? 'Your activity is hidden from the team feed.' : 'Teammates can see your activity in the feed.'}
+            </span>
+          </div>
+        </label>
       </Card>
       <Card title="Deployment Badges">
         <div className="badge-grid">
