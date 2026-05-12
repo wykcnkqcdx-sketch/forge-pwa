@@ -1,7 +1,7 @@
 import type { ProgrammeTemplate, SquadMember, TrainingGroup, TrainingSession } from '../data/mockData';
 import type { ReadinessLog, WorkoutCompletion, MealEntry, InjuryLog, AssignmentDeployment } from '../data/domain';
 
-export type Tab = 'home' | 'ruck' | 'train' | 'squad' | 'fieldGuide' | 'fuel' | 'analytics' | 'settings' | 'readiness';
+export type Tab = 'home' | 'ruck' | 'train' | 'squad' | 'fieldGuide' | 'fuel' | 'analytics' | 'logbook' | 'settings' | 'readiness';
 export type MemberTab = 'portal' | 'train' | 'ruck' | 'fuel' | 'readiness';
 
 export type PendingMemberInvite = {

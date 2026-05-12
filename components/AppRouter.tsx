@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { HomeScreen } from '../screens/HomeScreen';
 import { ReadinessScreen } from '../screens/ReadinessScreen';
 import { AnalyticsScreen } from '../screens/AnalyticsScreen';
+import { LogbookScreen } from '../screens/LogbookScreen';
 import { RuckScreen } from '../screens/RuckScreen';
 import { TrainScreen } from '../screens/TrainScreen';
 import { FuelScreen } from '../screens/FuelScreen';
@@ -126,6 +127,15 @@ export function AppRouter() {
             readinessLogs={readinessLogs}
             workoutCompletions={workoutCompletions}
             addReadinessLog={actions.addReadinessLog}
+            addSession={actions.addSession}
+            deleteSession={actions.deleteSession}
+            editSession={actions.editSession}
+          />
+        );
+      case 'logbook':
+        return (
+          <LogbookScreen
+            sessions={sessions}
             addSession={actions.addSession}
             deleteSession={actions.deleteSession}
             editSession={actions.editSession}

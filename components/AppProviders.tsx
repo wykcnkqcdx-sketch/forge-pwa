@@ -22,6 +22,7 @@ const tabs: Array<{ id: Tab; label: string; icon: keyof typeof Ionicons.glyphMap
   { id: 'home',       label: 'Home',    icon: 'home-outline',       iconActive: 'home' },
   { id: 'ruck',       label: 'Ruck',    icon: 'footsteps-outline',  iconActive: 'footsteps' },
   { id: 'train',      label: 'Train',   icon: 'barbell-outline',    iconActive: 'barbell' },
+  { id: 'logbook',    label: 'Logbook', icon: 'book-outline',       iconActive: 'book' },
   { id: 'squad',      label: 'Squad',   icon: 'people-outline',     iconActive: 'people' },
   { id: 'fieldGuide', label: 'Guide',   icon: 'map-outline',        iconActive: 'map' },
 ];
