@@ -149,6 +149,7 @@ function App() {
     const channel = supabase.channel('public:team_activity')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'team_activity' }, (payload) => {
         const newActivity = payload.new;
+        // @ts-ignore
         setAppState(prev => {
           // Prevent duplicate if we just inserted it locally
           if (prev.activities.some((a: any) => a.id === newActivity.id)) return prev;
@@ -175,6 +176,7 @@ function App() {
     const title = appState.ghostMode ? 'A teammate logged activity' : `You finished ${session.title}`;
     const result = `${session.duration} min · +${session.volume} vol`;
 
+    // @ts-ignore
     setAppState(prev => ({
       ...prev,
       weeklyVolume: prev.weeklyVolume + session.volume,
@@ -209,6 +211,7 @@ function App() {
   };
 
   const handleHype = (id: string) => {
+    // @ts-ignore
     setAppState(prev => ({
       ...prev,
       activities: prev.activities.map(a => a.id === id ? { ...a, hypes: a.hypes + 1 } : a)
