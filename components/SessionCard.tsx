@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Pressable, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { colours, shadow } from '../theme';
+import { colours, radius, shadow } from '../theme';
 import { TrainingSession, TrackPoint } from '../data/mockData';
 import { distanceBetween, getMapPoints } from '../utils/mapUtils';
 import { formatCoordinate } from '../utils/coordinates';
@@ -95,6 +95,13 @@ export type SessionCardProps = {
   onDelete: (id: string) => void;
 };
 
+function scoreTone(score: number) {
+  if (score >= 80) return colours.green;
+  if (score >= 65) return colours.cyan;
+  if (score >= 50) return colours.amber;
+  return colours.red;
+}
+
 export const SessionCard = React.memo(function SessionCard({ session, onEdit, onDelete }: SessionCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
@@ -102,6 +109,8 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
 
   const actualDistanceKm = routeDistanceKm(session.routePoints);
   const actualPace = actualDistanceKm > 0 ? session.durationMinutes / actualDistanceKm : 0;
+  const typeTone  = sessionTone(session.type);
+  const sTone     = scoreTone(session.score);
   
   async function copyRuckAar() {
     const text = buildRuckAar(session);
@@ -135,11 +144,11 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
   return (
     <View style={[styles.sessionCard, shadow.subtle]}>
       <View style={styles.sessionRow}>
-        <View style={[styles.sessionIconWrap, { backgroundColor: colours.cyanDim, borderColor: colours.border }]}>
+        <View style={[styles.sessionIconWrap, { backgroundColor: `${typeTone}15`, borderColor: `${typeTone}35` }]}>
           <Ionicons
             name={sessionIcon(session.type)}
             size={18}
-            color={colours.cyan}
+            color={typeTone}
           />
         </View>
         <View style={styles.sessionCopy}>
@@ -149,7 +158,7 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
           </Text>
         </View>
         <View style={styles.sessionRight}>
-          <Text style={styles.score}>{session.score}</Text>
+          <Text style={[styles.score, { color: sTone }]}>{session.score}</Text>
           <Text style={styles.scoreLabel}>SCORE</Text>
         </View>
         <View style={styles.actions}>
@@ -169,7 +178,6 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
 
       {detailOpen && !session.ruckMission && (() => {
         const trimp = session.durationMinutes * session.rpe;
-        const tone = sessionTone(session.type);
         const scorePct = Math.min(100, Math.round((session.score / 500) * 100));
         const dateStr = session.completedAt
           ? new Date(session.completedAt).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })
@@ -178,25 +186,25 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
           <View style={styles.sessionDetail}>
             <View style={styles.sessionDetailGrid}>
               <View style={styles.sessionDetailItem}>
-                <Text style={[styles.sessionDetailValue, { color: tone }]}>{session.durationMinutes}</Text>
+                <Text style={[styles.sessionDetailValue, { color: typeTone }]}>{session.durationMinutes}</Text>
                 <Text style={styles.sessionDetailLabel}>MINUTES</Text>
               </View>
               <View style={styles.sessionDetailItem}>
-                <Text style={[styles.sessionDetailValue, { color: tone }]}>{session.rpe}</Text>
+                <Text style={[styles.sessionDetailValue, { color: typeTone }]}>{session.rpe}</Text>
                 <Text style={styles.sessionDetailLabel}>RPE</Text>
               </View>
               <View style={styles.sessionDetailItem}>
-                <Text style={[styles.sessionDetailValue, { color: tone }]}>{trimp}</Text>
+                <Text style={[styles.sessionDetailValue, { color: typeTone }]}>{trimp}</Text>
                 <Text style={styles.sessionDetailLabel}>TRIMP</Text>
               </View>
               <View style={styles.sessionDetailItem}>
-                <Text style={[styles.sessionDetailValue, { color: tone }]}>{session.score}</Text>
+                <Text style={[styles.sessionDetailValue, { color: sTone }]}>{session.score}</Text>
                 <Text style={styles.sessionDetailLabel}>SCORE</Text>
               </View>
             </View>
             <View style={styles.sessionDetailScoreRow}>
               <View style={styles.sessionDetailBarBg}>
-                <View style={[styles.sessionDetailBarFill, { width: `${scorePct}%`, backgroundColor: tone }]} />
+                <View style={[styles.sessionDetailBarFill, { width: `${scorePct}%`, backgroundColor: typeTone }]} />
               </View>
               <Text style={styles.sessionDetailBarLabel}>{scorePct}% to next level</Text>
             </View>
@@ -353,9 +361,9 @@ export const SessionCard = React.memo(function SessionCard({ session, onEdit, on
 const styles = StyleSheet.create({
   sessionCard: {
     borderWidth: 1,
-    borderColor: colours.borderSoft,
-    borderRadius: 10,
-    backgroundColor: 'rgba(10, 20, 35, 0.70)',
+    borderColor: colours.border,
+    borderRadius: radius.sm,
+    backgroundColor: colours.panel,
     marginBottom: 10,
     overflow: 'hidden',
   },
@@ -411,9 +419,9 @@ const styles = StyleSheet.create({
   },
   miniMapStage: {
     height: 80,
-    backgroundColor: 'rgba(4,8,15,0.4)',
+    backgroundColor: colours.surface,
     borderTopWidth: 1,
-    borderColor: colours.borderSoft,
+    borderColor: colours.border,
     position: 'relative',
   },
   trailDot: {
@@ -426,40 +434,40 @@ const styles = StyleSheet.create({
     backgroundColor: colours.cyan,
     opacity: 0.8,
   },
-  ruckReview: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderColor: colours.borderSoft, padding: 12, backgroundColor: 'rgba(0,0,0,0.2)' },
-  ruckReviewItem: { flex: 1, minHeight: 46, borderRadius: 6, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.02)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  ruckReview: { flexDirection: 'row', gap: 8, borderTopWidth: 1, borderColor: colours.border, padding: 12, backgroundColor: colours.surface },
+  ruckReviewItem: { flex: 1, minHeight: 46, borderRadius: radius.xs, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.background, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   ruckReviewValue: { color: colours.cyan, fontSize: 14, fontWeight: '900' },
   ruckReviewLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
-  ruckDetail: { borderTopWidth: 1, borderColor: colours.borderSoft, padding: 12, gap: 12, backgroundColor: 'rgba(0,0,0,0.3)' },
+  ruckDetail: { borderTopWidth: 1, borderColor: colours.border, padding: 12, gap: 12, backgroundColor: colours.surface },
   ruckDetailGrid: { flexDirection: 'row', gap: 8 },
-  ruckDetailItem: { flex: 1, minHeight: 48, borderRadius: 6, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.02)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  ruckDetailItem: { flex: 1, minHeight: 48, borderRadius: radius.xs, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.background, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
   ruckDetailValue: { color: colours.text, fontSize: 14, fontWeight: '900' },
   aarActions: { flexDirection: 'row', gap: 8, marginTop: 4 },
-  aarButton: { flex: 1, minHeight: 44, borderRadius: 6, backgroundColor: colours.cyan, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  aarButton: { flex: 1, minHeight: 44, borderRadius: radius.xs, backgroundColor: colours.cyan, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
   aarButtonText: { color: colours.background, fontSize: 13, fontWeight: '900' },
-  ruckSection: { borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.02)', overflow: 'hidden', marginTop: 4 },
+  ruckSection: { borderRadius: radius.xs, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.background, overflow: 'hidden', marginTop: 4 },
   ruckSectionTitle: { color: colours.text, fontSize: 12, fontWeight: '900', paddingHorizontal: 12, paddingTop: 12, paddingBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 },
-  ruckCheckpointRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderColor: colours.borderSoft },
+  ruckCheckpointRow: { minHeight: 48, flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderColor: colours.border },
   statusDot: { width: 8, height: 8, borderRadius: 4 },
   ruckCheckpointCopy: { flex: 1 },
   ruckCheckpointTitle: { color: colours.text, fontSize: 13, fontWeight: '900' },
   ruckCheckpointCoord: { color: colours.muted, fontSize: 11, fontWeight: '800', marginTop: 3 },
   ruckCheckpointStatus: { color: colours.muted, fontSize: 10, fontWeight: '900', letterSpacing: 0.5 },
-  ruckSplitRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingHorizontal: 12, borderTopWidth: 1, borderColor: colours.borderSoft },
+  ruckSplitRow: { minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingHorizontal: 12, borderTopWidth: 1, borderColor: colours.border },
   ruckSplitKm: { color: colours.text, fontSize: 12, fontWeight: '900', width: 56 },
   ruckSplitValue: { color: colours.cyan, fontSize: 14, fontWeight: '900', flex: 1, textAlign: 'center' },
   ruckSplitMeta: { color: colours.muted, fontSize: 11, fontWeight: '800', width: 90, textAlign: 'right' },
-  sessionDetail: { borderTopWidth: 1, borderColor: colours.borderSoft, padding: 12, gap: 10, backgroundColor: 'rgba(0,0,0,0.25)' },
+  sessionDetail: { borderTopWidth: 1, borderColor: colours.border, padding: 12, gap: 10, backgroundColor: colours.surface },
   sessionDetailGrid: { flexDirection: 'row', gap: 8 },
-  sessionDetailItem: { flex: 1, borderRadius: 8, borderWidth: 1, borderColor: colours.borderSoft, backgroundColor: 'rgba(255,255,255,0.03)', alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  sessionDetailItem: { flex: 1, borderRadius: radius.xs, borderWidth: 1, borderColor: colours.border, backgroundColor: colours.background, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
   sessionDetailValue: { fontSize: 18, fontWeight: '900' },
   sessionDetailLabel: { color: colours.muted, fontSize: 9, fontWeight: '900', letterSpacing: 0.8, marginTop: 2 },
   sessionDetailScoreRow: { gap: 4 },
-  sessionDetailBarBg: { height: 4, borderRadius: 2, backgroundColor: 'rgba(255,255,255,0.07)', overflow: 'hidden' },
+  sessionDetailBarBg: { height: 4, borderRadius: 2, backgroundColor: colours.border, overflow: 'hidden' },
   sessionDetailBarFill: { height: 4, borderRadius: 2 },
   sessionDetailBarLabel: { color: colours.muted, fontSize: 10, fontWeight: '800' },
   sessionDetailDate: { color: colours.textSoft, fontSize: 11, fontWeight: '800' },
   sessionDetailMeta: { color: colours.muted, fontSize: 11, fontWeight: '700' },
-  sessionDetailNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: colours.borderSoft },
+  sessionDetailNote: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, padding: 10, borderRadius: radius.xs, backgroundColor: colours.background, borderWidth: 1, borderColor: colours.border },
   sessionDetailNoteText: { flex: 1, color: colours.textSoft, fontSize: 12, lineHeight: 17 },
 });
