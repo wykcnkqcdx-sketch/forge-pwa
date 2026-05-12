@@ -168,55 +168,62 @@ function App() {
   }, [session]);
 
   // Invite Claiming Flow
-  useEffect(() => {
-    async function claimInvite() {
-      if (!session || !inviteToken || !supabase) return;
+  const handleClaimInvite = async (token: string) => {
+    if (!session || !supabase) return false;
+    
+    try {
+      const { data, error } = await supabase.rpc('claim_member_invite', { p_token: token });
+      if (error) throw error;
       
-      try {
-        const { data, error } = await supabase.rpc('claim_member_invite', { p_token: inviteToken });
-        if (error) throw error;
-        
-        alert('Successfully joined the squad!');
-        
-        // Clean up the URL so it doesn't try to claim again on refresh
-        const url = new URL(window.location.href);
+      alert('Successfully joined the squad!');
+      
+      // Clean up the URL so it doesn't try to claim again on refresh
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('invite')) {
         url.searchParams.delete('invite');
         window.history.replaceState({}, '', url.toString());
-        
-        setInviteToken(null);
-        if (data) {
-          setMembership({ id: data.id, squad_id: data.squad_id });
-          
-          // Automatically sync the assigned workout
-          const { data: assignments } = await supabase
-            .from('assignments')
-            .select('*, assignment_exercises(*)')
-            .eq('assignee_membership_id', data.id)
-            .eq('status', 'assigned')
-            .order('created_at', { ascending: false })
-            .limit(1);
-            
-          if (assignments && assignments.length > 0) {
-            const assignment = assignments[0];
-            // @ts-ignore
-            setAppState(prev => ({
-              ...prev,
-              assignedWorkout: {
-                title: assignment.title,
-                status: 'assigned',
-                exercises: (assignment.assignment_exercises || [])
-                  .sort((a: any, b: any) => a.order_index - b.order_index)
-                  .map((ex: any) => ({ id: ex.id, name: ex.name, dose: ex.dose, hit: false, coachPick: ex.coach_pinned }))
-              }
-            }));
-          }
-        }
-      } catch (err: any) {
-        alert('Failed to claim invite: ' + err.message);
         setInviteToken(null);
       }
+      
+      if (data) {
+        setMembership({ id: data.id, squad_id: data.squad_id });
+        
+        // Automatically sync the assigned workout
+        const { data: assignments } = await supabase
+          .from('assignments')
+          .select('*, assignment_exercises(*)')
+          .eq('assignee_membership_id', data.id)
+          .eq('status', 'assigned')
+          .order('created_at', { ascending: false })
+          .limit(1);
+          
+        if (assignments && assignments.length > 0) {
+          const assignment = assignments[0];
+          // @ts-ignore
+          setAppState(prev => ({
+            ...prev,
+            assignedWorkout: {
+              title: assignment.title,
+              status: 'assigned',
+              exercises: (assignment.assignment_exercises || [])
+                .sort((a: any, b: any) => a.order_index - b.order_index)
+                .map((ex: any) => ({ id: ex.id, name: ex.name, dose: ex.dose, hit: false, coachPick: ex.coach_pinned }))
+            }
+          }));
+        }
+      }
+      return true;
+    } catch (err: any) {
+      alert('Failed to claim invite: ' + err.message);
+      if (inviteToken) setInviteToken(null);
+      return false;
     }
-    claimInvite();
+  };
+
+  useEffect(() => {
+    if (session && inviteToken) {
+      handleClaimInvite(inviteToken);
+    }
   }, [session, inviteToken]);
 
   // Real-time Supabase Subscription
@@ -427,7 +434,7 @@ function App() {
         {activeTab === 'tactical' && <Tactical timer={timer} />}
         {activeTab === 'recovery' && <Recovery readiness={appState.readiness} />}
         {activeTab === 'team' && <Team weeklyVolume={appState.weeklyVolume} />}
-        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState((p: AppState) => ({...p, ghostMode: val}))} onLog={handleLogSession} onClearData={handleClearData} onSync={handleCloudSync} isSynced={isSynced} session={session} />}
+        {activeTab === 'profile' && <Profile ghostMode={appState.ghostMode} setGhostMode={(val: boolean) => setAppState((p: AppState) => ({...p, ghostMode: val}))} onLog={handleLogSession} onClearData={handleClearData} onSync={handleCloudSync} isSynced={isSynced} session={session} membership={membership} onClaimInvite={handleClaimInvite} />}
       </main>
 
       <nav className="mobile-nav" aria-label="Primary navigation">
@@ -717,8 +724,10 @@ function Team({ weeklyVolume }: { weeklyVolume: number }) {
   );
 }
 
-function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced, session }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void; onSync: () => Promise<void>; isSynced: boolean; session: Session | null }) {
+function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced, session, membership, onClaimInvite }: { ghostMode: boolean; setGhostMode: (val: boolean) => void; onLog: (data: any) => void; onClearData: () => void; onSync: () => Promise<void>; isSynced: boolean; session: Session | null; membership: { squad_id: string, id: string } | null; onClaimInvite: (token: string) => Promise<boolean> }) {
   const [syncing, setSyncing] = useState(false);
+  const [inviteCode, setInviteCode] = useState('');
+  const [claiming, setClaiming] = useState(false);
   const handleSyncClick = async () => {
     setSyncing(true);
     await onSync();
@@ -728,6 +737,33 @@ function Profile({ ghostMode, setGhostMode, onLog, onClearData, onSync, isSynced
   return (
     <>
       <QuickLog onLog={onLog} />
+      {session && !membership && (
+        <Card title="Join a Squad" className="metric-card warn">
+          <p style={{ fontSize: '0.85rem', color: 'var(--muted)', marginBottom: 12, marginTop: 4 }}>You have an account but aren't in a squad yet. Enter an invite code to join.</p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input 
+              type="text" 
+              value={inviteCode} 
+              onChange={(e) => setInviteCode(e.target.value)} 
+              placeholder="Invite Code (e.g. 1234-5678...)" 
+              style={{ flex: 1, padding: '10px 12px', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.035)', border: '1px solid var(--line)', color: 'var(--text)', outline: 'none' }}
+            />
+            <button 
+              onClick={async () => {
+                if (!inviteCode.trim()) return;
+                setClaiming(true);
+                const success = await onClaimInvite(inviteCode.trim());
+                if (success) setInviteCode('');
+                setClaiming(false);
+              }}
+              disabled={claiming}
+              style={{ background: 'var(--amber)', color: '#000', padding: '0 16px', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', border: 'none', opacity: claiming ? 0.7 : 1 }}
+            >
+              {claiming ? '...' : 'Join'}
+            </button>
+          </div>
+        </Card>
+      )}
       <Card title="Cloud Sync">
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14 }}>
           <div style={{ flex: 1 }}>
