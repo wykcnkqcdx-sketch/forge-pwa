@@ -16,6 +16,8 @@ import {
   trendMetrics,
 } from './data';
 import './styles.css';
+import { BodyMap, choirSegments } from '../components/BodyMap';
+import { getProtocol } from '../lib/injuryProtocols';
 
 function App() {
   const [activeTab, setActiveTab] = useState<TabId>('home');
@@ -99,6 +101,7 @@ function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpa
         <MiniStat label="Sleep" value={readiness.sleep} />
         <MiniStat label="Strain" value={readiness.strain} />
       </div>
+      <InjuryReport />
       <Card title="Recent Activity" action="All logs">
         <div className="activity-list">
           {recentActivity.map((item) => (
@@ -114,6 +117,123 @@ function Home({ expanded, setExpanded, onNavigate }: { expanded: string; setExpa
         </div>
       </Card>
     </>
+  );
+}
+
+function InjuryReport() {
+  const [selectedSegment, setSelectedSegment] = useState<string | null>(null);
+  const [bodyMapView, setBodyMapView] = useState<any>('anterior');
+  const [selectedPainLevel, setSelectedPainLevel] = useState(4);
+  const [painMap, setPainMap] = useState<Record<string, number>>({});
+
+  const hotspots = (choirSegments || [])
+    .map((seg: any) => ({ ...seg, level: painMap[seg.id] ?? 0 }))
+    .filter((seg: any) => seg.level > 0)
+    .sort((a: any, b: any) => b.level - a.level)
+    .slice(0, 3);
+
+  function markInjury(segmentId: string) {
+    setSelectedSegment(segmentId);
+    setPainMap((cur: any) => ({ ...cur, [segmentId]: selectedPainLevel }));
+    window.navigator.vibrate?.(12);
+  }
+
+  function setPainIntensity(level: number) {
+    setSelectedPainLevel(level);
+    if (selectedSegment) setPainMap((cur: any) => ({ ...cur, [selectedSegment]: level }));
+    window.navigator.vibrate?.(12);
+  }
+
+  const selectedPain = selectedSegment ? (painMap[selectedSegment] ?? 0) : 0;
+  const protocol = selectedSegment && selectedPain > 0 ? getProtocol(selectedSegment) : null;
+  const severity = selectedPain >= 7 ? 'severe' : selectedPain >= 4 ? 'moderate' : 'mild';
+
+  return (
+    <Card title="Injury Report">
+      <p style={{ marginBottom: 16 }}>Tap a muscle group, then set pain intensity.</p>
+
+      <div className="intensity-row">
+        {[0, 2, 4, 6, 8, 10].map((level) => (
+          <button
+            key={level}
+            className={`intensity-btn ${selectedPainLevel === level ? 'active' : ''} level-${level}`}
+            onClick={() => setPainIntensity(level)}
+          >
+            {level}
+          </button>
+        ))}
+      </div>
+
+      <div className="body-map-container" style={{ margin: '16px 0', minHeight: 400, background: 'var(--panel)', borderRadius: 16, overflow: 'hidden' }}>
+         <BodyMap
+           activeView={bodyMapView}
+           painMap={painMap}
+           selectedSegment={selectedSegment}
+           selectedPainLevel={selectedPainLevel}
+           onChangeView={setBodyMapView}
+           onSelect={markInjury}
+         />
+      </div>
+
+      {hotspots.length > 0 && (
+        <div className="hotspot-panel">
+          <h3>HPT Hotspots</h3>
+          {hotspots.map((seg: any) => (
+            <div key={seg.id} className="hotspot-row">
+              <span>{seg.id} {seg.label}</span>
+              <strong className={seg.level >= 7 ? 'text-red' : seg.level >= 4 ? 'text-amber' : 'text-green'}>
+                {seg.level}/10
+              </strong>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {protocol && (
+        <div className="protocol-panel">
+          <header className="protocol-header">
+            <h3>Recovery Protocol</h3>
+            <span className={`severity-badge ${severity}`}>{severity.toUpperCase()}</span>
+          </header>
+          
+          <div className="protocol-meta">
+            <strong>{protocol.region}</strong>
+            <p>{protocol.muscles.join(' · ')}</p>
+          </div>
+
+          <div className="protocol-section">
+            <label>ACUTE MANAGEMENT</label>
+            <p>{protocol.acuteManagement}</p>
+            <span className={`modality-pill ${protocol.modality}`}>{protocol.modality.toUpperCase()}</span>
+          </div>
+
+          <div className="protocol-section">
+            <label>RETURN TO TRAIN</label>
+            <div className="rtt-grid">
+              {(['mild', 'moderate', 'severe'] as const).map((s) => (
+                <div key={s} className={`rtt-card ${s === severity ? 'active' : ''}`}>
+                  <span>{s.charAt(0).toUpperCase() + s.slice(1)}</span>
+                  <strong>{protocol.returnToTrainDays[s]}d</strong>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="protocol-section">
+            <label>STRETCHING</label>
+            {protocol.stretches.map((s: any, i: number) => (
+              <div key={i} className="protocol-item">
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <strong>{s.name}</strong>
+                  <span>{s.duration}</span>
+                </div>
+                <p>{s.instruction}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

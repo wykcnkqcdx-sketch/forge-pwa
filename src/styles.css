@@ -979,3 +979,113 @@ small {
 .opacity-75 {
   opacity: 0.75;
 }
+
+/* ============================================================================
+   INJURY REPORT & BODY MAP
+   ============================================================================ */
+
+.intensity-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.intensity-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  transition: all 0.2s;
+}
+
+.intensity-btn.level-0 { background: rgba(127, 189, 95, 0.15); color: var(--green); }
+.intensity-btn.level-2,
+.intensity-btn.level-4 { background: var(--green); color: var(--bg); }
+.intensity-btn.level-6 { background: var(--amber); color: var(--bg); }
+.intensity-btn.level-8,
+.intensity-btn.level-10 { background: var(--red); color: var(--text); }
+
+.intensity-btn.active {
+  border-color: var(--text);
+  transform: scale(1.05);
+}
+
+.hotspot-panel {
+  border: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.hotspot-row {
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px solid var(--line);
+  padding: 10px 0 2px;
+  margin-top: 8px;
+}
+
+.hotspot-row span {
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.protocol-panel {
+  border: 1px solid rgba(215, 94, 75, 0.3);
+  background: rgba(215, 94, 75, 0.05);
+  border-radius: 16px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.protocol-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.severity-badge {
+  font-size: 0.7rem;
+  font-weight: 900;
+  padding: 4px 8px;
+  border-radius: 6px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.severity-badge.mild { color: var(--green); border: 1px solid var(--green); }
+.severity-badge.moderate { color: var(--amber); border: 1px solid var(--amber); }
+.severity-badge.severe { color: var(--red); border: 1px solid var(--red); }
+
+.protocol-meta strong {
+  display: block;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+
+.protocol-section {
+  margin-top: 16px;
+}
+
+.protocol-section label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 900;
+  letter-spacing: 1px;
+  margin-bottom: 6px;
+}
+
+.protocol-item {
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+  margin-top: 8px;
+}
