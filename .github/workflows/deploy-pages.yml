@@ -42,10 +42,8 @@ jobs:
         uses: actions/configure-pages@v5
 
       - name: Export web app
-        run: npm run export:web
         run: npm run build
         env:
-          EXPO_BASE_URL: /forge-pwa
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
