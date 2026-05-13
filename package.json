@@ -23,7 +23,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.5.2",
     "@supabase/ssr": "^0.10.3",
-    "@supabase/supabase-js": "^2.105.3",
+    "@supabase/supabase-js": "^2.105.4",
     "dexie": "^3.2.7",
     "expo": "~55.0.23",
     "expo-document-picker": "~55.0.13",
